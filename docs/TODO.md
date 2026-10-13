@@ -755,18 +755,6 @@ ever seeded by more than one step.  It changes what "forward" and
 "reverse" traverse, which is why it is written down rather than done
 in passing.
 
-### E(V) is not F(V)
-
-A scan is at zero kelvin and the report says so, but for the flexible
-frameworks it was built for that is the whole question: MIL-53(Al)'s
-large- and narrow-pore difference runs 18.67 / 9.74 / -0.67 kJ/mol at
-100 / 300 / 500 K, so entropy decides which phase is stable and the
-landscape cannot see it.  The cheapest honest route is **quasi-harmonic
-F(V,T)**: phonons at each scanned volume, which is what Cockayne did
-for MIL-53(Cr) (*J. Phys. Chem. C* **2017**, *121*, 4312).  Affordable
-with MACE, where the Hessians are seconds rather than hours.  It needs
-a phonon calculation this application does not have.
-
 ### The scan has never been run on a real framework end to end
 
 Every test is on quartz, zinc acetate or a fixture, because the point

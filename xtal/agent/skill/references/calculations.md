@@ -105,3 +105,20 @@ one or two coordinates. `help_for("scan.run")` lists the parameters.
   carries the count.
 - A scan returns no structure. The points are files in the run folder,
   and `report.json` opens the landscape in the window.
+
+## Free energy with temperature: quasi-harmonic
+
+`s.run("scan.qha", engine="mace", axis1_steps=9)` is the bulk modulus's
+volume scan with the vibrations at every converged volume: F(V, T),
+fitted at each temperature for V(T), G(T), B(T) and the thermal
+expansion (`data["tables"]`: *Volumes*, *Minimum* or one table per
+*Well*, and *Crossings*). `help_for("scan.qha")` lists the rest.
+
+- **A volume with imaginary modes is a hole**, as an unconverged one
+  is, and left out of every fit; the warning names them. A structure
+  with a hole at every volume is not a minimum under that engine.
+- **Two wells are fitted apart**, and *Crossings* is the temperature
+  where their G are equal: report it as the transition temperature in
+  the harmonic approximation, not as a measurement.
+- **It is a night on a framework** under an ML potential: a Hessian at
+  every volume. Say the cost before starting it.

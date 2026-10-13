@@ -567,7 +567,8 @@ Three decisions, each with a reason that is not obvious:
   lp–cp difference runs 18.67 / 9.74 / −0.67 kJ/mol at 100 / 300 /
   500 K (Demuynck *et al.*, *JCTC* **2017**, *13*, 5861) — entropy
   flips which phase is stable, and a scan cannot see it. The report
-  says so.
+  says so, and *Quasi-harmonic free energy…* is the scan with the
+  vibrations at every volume that can (`xtal/ff/qha.py`).
 
 * **The group is kept, not dropped.** A held coordinate is projected
   inside the asymmetric unit, so the chlorides of MFU-4l slide along

@@ -156,6 +156,49 @@ UFF is a stiff force field: quartz comes out at about 108 GPa against
 a measured 37.  The modulus is the engine's, and for a framework it
 is worth the machine-learned potentials' price.
 
+## Quasi-harmonic free energy
+
+*Modules ▸ Energy scan ▸ Quasi-harmonic free energy…* puts the
+temperature in.  It is the bulk modulus's volume scan with the
+vibrations taken at every converged volume -- by phonopy where it is
+installed, else at Gamma, exactly as
+{doc}`/energy/thermochemistry` takes them -- so that each volume has
+F(V, T) = E(V) + F{sub}`vib`(V, T) at every temperature from *Curves
+from* to *Curves to*.  At each temperature F(V) is fitted with
+Birch--Murnaghan and minimised (with *Pressure* × V added), giving
+V(T), G(T), the modulus B(T) and the thermal expansion
+α = d ln V / dT.  The expansion comes only from the frequencies
+changing with the volume: frequencies that did not would add the same
+F{sub}`vib` everywhere and move nothing.
+
+**A volume with imaginary modes is a hole**, as an unconverged one
+is: its F would leave out the modes the energy falls along, so it is
+NaN in `free_energy.dat`, a gap in the curves, and left out of every
+fit, with the reason in the *Volumes* table.  That is why the force
+tolerance starts at 0.01 rather than the scan's 0.05.  A structure
+that is not a minimum at any volume -- rutile under UFF, with a mode
+at −340 cm⁻¹ however it is relaxed -- fits nothing, and says so.
+
+**A two-well landscape is fitted one well at a time.**  The volumes
+are split at the local maxima of E(V), each well is fitted on its own
+(with a parabola, and said, when it has three or four volumes rather
+than five), and where two wells' G cross is reported in a
+*Crossings* table: the transition temperature in this approximation.
+That is the question a breathing framework such as MIL-53 asks, whose
+large- and narrow-pore difference changes sign between 100 and 500 K.
+
+Every volume is on disk the moment its Hessian is: its CIF and
+`scan.csv` row, `<point>-frequencies.txt` (the frequencies and their
+weights, which is all F needs), its row of `qha.csv`, and
+`free_energy.dat` rewritten.  `minima.dat` has V, G, B and α at every
+temperature for every well.  The cost line in the dialog counts the
+Hessians as well as the relaxations: quartz under UFF is seconds, a
+framework under an ML potential is a night.
+
+Quartz under UFF expands from 111.0 to 111.6 Å³ between 10 and 760 K,
+about 5 × 10⁻⁶ K⁻¹ near room temperature against a measured
+3.5 × 10⁻⁵: UFF's frequencies move too little with the volume.
+
 ## Seeds, directions and holes
 
 ```{index} single: scan; seed
@@ -379,9 +422,9 @@ axis1_start=… -p axis1_stop=… -p axis1_steps=… [--workspace DIR]`, with
   a poor basin 318--435 kcal/mol above the reverse branch for three
   points.  The lower envelope hides it, but the numbers on that branch
   are wrong.
-- **E(V) is not F(V).**  The landscape is at zero kelvin and the report
-  says so.  For the flexible frameworks it was built for that is the
-  whole question: entropy decides which phase of MIL-53 is stable, and
-  the quasi-harmonic route Cockayne took for MIL-53(Cr)
-  {cite}`cockayne2017mil53` needs a phonon calculation this application
-  does not have.
+- **A relaxed scan's E(V) is not F(V).**  The landscape is at zero
+  kelvin and the report says so; the quasi-harmonic run above is the
+  route Cockayne took for MIL-53(Cr) {cite}`cockayne2017mil53`.  It is
+  harmonic about each volume's minimum, so it misses the anharmonicity
+  of a soft framework's largest motions, and it has not yet been run on
+  MIL-53 end to end.

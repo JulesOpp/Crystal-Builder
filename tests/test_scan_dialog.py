@@ -532,6 +532,32 @@ def test_the_bulk_modulus_dialog_is_a_volume_scan_round_the_cell(
     assert dialog.second.isHidden()
 
 
+def test_the_qha_dialog_is_the_bulk_modulus_with_a_hessian_at_each_volume(
+        qtbot, window, tmp_path, quartz):
+    """The bulk modulus's volume window, a tight tolerance -- a volume
+    left short of its minimum is a hole -- the run's own rows handed
+    back with the scan's, and a cost line that counts the Hessians."""
+    from PySide6.QtWidgets import QDialogButtonBox
+
+    from xtal.io import write_cif
+    path = tmp_path / "quartz.cif"
+    write_cif(quartz, path)
+    window.open_path(path)
+    module, action = MODULES.find("scan.qha")
+    dialog = ScanDialog(module, action, window)
+    qtbot.addWidget(dialog)
+    dialog.qha_form.set_values({"hessian": "gamma", "t_max": 500.0})
+    values = dialog.values()
+    assert values["axis1"] == "volume" and values["axis1_steps"] == 9
+    assert values["relax_first"] is True
+    assert values["tolerance"] == pytest.approx(0.01)
+    assert values["hessian"] == "gamma" and values["t_max"] == 500.0
+    assert values["method"] == "smart"          # the optimiser's
+    assert "a Hessian of 55 evaluations" in dialog.summary.text()
+    assert dialog.buttons.button(
+        QDialogButtonBox.Ok).isEnabled()
+
+
 def test_the_relaxed_scan_dialog_has_no_relax_first_switch(hexagonal):
     """A landscape is of the cell as given; relaxing it first would
     move every point of a scan somebody had laid out by hand."""

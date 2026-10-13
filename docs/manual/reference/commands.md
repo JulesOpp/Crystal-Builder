@@ -2270,6 +2270,16 @@ Compress and expand the cell with the shape free and fit an equation of state: B
 ```{index} Bulk modulus...
 ```
 
+(cmd-module.scan.qha)=
+### Energy scan ▸ Quasi-harmonic free energy...
+
+`module.scan.qha`
+
+The bulk modulus's volume scan with the vibrations at every volume: F(V, T), and V, G, B and the thermal expansion at every temperature
+
+```{index} Quasi-harmonic free energy...
+```
+
 (cmd-module.orca.input)=
 ### ORCA ▸ Input file...
 

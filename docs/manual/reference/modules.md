@@ -844,6 +844,40 @@ Compress and expand the cell with the shape free and fit an equation of state: B
 | **Relax the cell first** | bool | `True` | Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses. |
 | **Span** | float, 0.5 to 40 % | `6.0` | How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's. |
 
+(mod-scan-qha)=
+### Quasi-harmonic free energy...
+
+The bulk modulus's volume scan with the vibrations at every volume: F(V, T), and V, G, B and the thermal expansion at every temperature
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Engine** | one of UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+ | `uff` | Which energy engine relaxes each point.  For a flexible framework a machine-learned potential is the better choice: UFF4MOF was never fitted to reproduce a breathing double well. |
+| **First axis** | text | `volume` | A cell parameter (a, b, c, alpha, beta, gamma), 'volume', or an internal coordinate over P1 atom indices: 'distance 0, 5', 'angle 0, 1, 2', 'torsion 0, 1, 2, 3', 'plane 0+1+2, 6+7+8'.  Atoms joined by '+' are their centroid, and it follows them. |
+| **From** | float | `0.0` |  |
+| **To** | float | `0.0` |  |
+| **Points** | int, 1 to 201 | `9` |  |
+| **Starting geometry** | one of Carry on from the nearest point, Restart from this structure | `previous` | Carrying the last relaxed geometry into the next cell is what makes a scan affordable, and it is also what makes it path-dependent: near a transition the optimiser stays in the basin it arrived in. |
+| **Direction** | one of Both, and report each, Forwards only, Backwards only | `forward` | Walking the grid both ways and drawing both is how hysteresis shows up instead of hiding in one curve. |
+| **Optimiser** | one of abnr, conjugate_gradient, fire, lbfgs, quasi_newton, smart, steepest_descent | `smart` | Smart descends steeply at first and changes rule as the forces fall, which is what a scan wants: every point after the first starts near a minimum, but the first one may not. |
+| **Steps per point** | int, 1 to 100000 | `2000` | A point that stops at the limit is reported as not converged and drawn apart, so this is a ceiling rather than a target. |
+| **Force tolerance** | float, at least 1e-06 kcal/mol/A | `0.01` |  |
+| **Pre-relax with** | one of Nothing, UFF, xTB (GFN), MACE (machine-learned), ORB-v3 (machine-learned), MatterSim (machine-learned), DFTB+ |  | A cheaper engine run at every point before the one the landscape is of -- UFF4MOF ahead of MACE, say.  A volume step moves every atom with the cell, and this spends the long walk back at the cheap price.  Only the main engine's energy is reported. |
+| **Pre-relaxation steps** | int, 1 to 100000 | `500` |  |
+| **Pre-relaxation tolerance** | float, at least 1e-06 kcal/mol/A | `0.5` | Loose on purpose: the cheap engine's minimum is not the one wanted, so converging to it tightly buys nothing. |
+| **Relax the cell first** | bool | `True` | Relax the cell, shape and volume, before the scan and centre the volumes on where it settles.  A scan round the input's volume puts V0 at its edge -- or outside it -- whenever the engine's minimum is not the deposited cell's, and the fit then refuses. |
+| **Span** | float, 0.5 to 40 % | `6.0` | How far either side of the volume to go, when no From and To are given.  Within a few percent the energy is close to a parabola and the modulus is the cell's; much further and it is the equation of state's. |
+| **Hessian** | one of Automatic, phonopy, by symmetry, Gamma only, every atom, Analytic, from the engine | `auto` | Finite differences of the engine's forces, or with Analytic the engine's own second derivatives (MACE only), which have no step to be noisy in but hold about 13 MB an atom and use no symmetry.  phonopy displaces only the atoms and directions the space group does not already relate, and samples a small cell's branches across the zone; Gamma only displaces every free atom, 6 evaluations each, and is what a molecule or frozen atoms take.  Automatic is phonopy where it is installed and can be used. |
+| **Supercell** | text | `auto` | For phonopy: auto repeats the cell until it is 10 A across in every direction; three counts (2 2 1) choose; gamma uses the cell alone. |
+| **q-mesh density** | float, 1 to 1000 A | `100.0` | For phonopy with a supercell: the points along each reciprocal axis are about this over the cell length.  The mode table and the IR spectrum are Gamma's either way. |
+| **Displacement** | float, 0.0001 to 0.1 A | `0.01` | How far each atom is moved either way.  Small enough that the force is linear in it, large enough that an ML engine's noise stays below the difference. |
+| **Curves from** | float, 1 to 5000 K | `10.0` | Where the H, TS, G and Cv curves and thermo.dat start. |
+| **Curves to** | float, 1 to 5000 K | `800.0` | Where the curves and thermo.dat end. |
+| **Curve step** | float, 0.1 to 1000 K | `10.0` | The spacing of the curves' temperatures. |
+| **Pressure** | float, 0 to 100 GPa | `0.0` | G = F + pV is minimised over the volumes at this pressure.  One bar is 1e-4 GPa, which moves no framework measurably. |
+
 (mod-orca)=
 ## ORCA
 

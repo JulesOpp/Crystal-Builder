@@ -336,12 +336,16 @@ class Curve:
         if self.n_points < 2:
             return f"{self.title}: nothing to plot"
         y = np.asarray(self.y, dtype=float)
-        top = float(np.max(y)) or 1.0
+        finite = y[np.isfinite(y)]
+        # A hole (NaN) is a gap in the bars, as it is on screen.
+        top = (float(np.max(finite)) if len(finite) else 0.0) or 1.0
         step = max(1, self.n_points // max(rows, 1))
         lines = [self.title] if self.title else []
         for start in range(0, self.n_points, step):
-            height = float(np.max(y[start:start + step]))
-            bar = "#" * int(round(width * height / top))
+            bucket = y[start:start + step]
+            bucket = bucket[np.isfinite(bucket)]
+            height = float(np.max(bucket)) if len(bucket) else 0.0
+            bar = "#" * max(int(round(width * height / top)), 0)
             lines.append(f"{self.x[start]:8.2f}  {bar}")
         if self.x_label:
             lines.append(f"          {self.x_label}")
