@@ -308,11 +308,16 @@ def test_analytic_is_offered_only_for_an_engine_with_a_hessian(
         qtbot, window, tmp_path, rutile, monkeypatch):
     """Greyed under UFF, offered under MACE, and the line then says
     the memory as well as the rows -- memory is what the route costs.
-    Nothing is evaluated: MACE never loads into the test process."""
+    Nothing is evaluated: MACE never loads into the test process,
+    and CI has no mace, so it is declared available here -- unavailable,
+    the dialog says why instead of the cost."""
+    from xtalapp.dialogs import thermo as thermo_dialog
     from xtalapp.dialogs.thermo import ThermoDialog
 
     monkeypatch.setattr(ThermoDialog, "time_one_evaluation",
                         lambda self: None)
+    monkeypatch.setattr(thermo_dialog, "_unavailable",
+                        lambda name, values: "")
     _open(window, tmp_path, rutile)
     dialog = _dialog(qtbot, window)
     method = dialog.form.widgets["method"]

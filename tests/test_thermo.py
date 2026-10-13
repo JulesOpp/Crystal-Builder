@@ -206,8 +206,10 @@ def test_harmonic_terms_match_phonopys_thermal_properties():
     cm = np.sort(rng.uniform(40.0, 1600.0, size=(4, 9)), axis=1)
     weights = np.array([1, 3, 3, 1])
     thz = cm / get_physical_units().THzToCm
+    # phonopy 4.8 asks where Gamma is, to treat its acoustic modes;
+    # this mesh has none, and 4.5 never asked.
     mesh = SimpleNamespace(
-        frequencies=thz, weights=weights,
+        frequencies=thz, weights=weights, gamma_index=None,
         dynamical_matrix=SimpleNamespace(
             primitive=SimpleNamespace(Z=1)))
     tp = ThermalProperties(mesh)
