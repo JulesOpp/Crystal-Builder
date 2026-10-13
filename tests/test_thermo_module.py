@@ -85,6 +85,7 @@ def test_imaginary_modes_are_a_warning_in_the_summary_not_a_number_in_g(
     imaginary = _row(table, "Imaginary modes")
     assert int(imaginary.texts[1]) > 0
     assert "not a minimum" in imaginary.note
+    assert "not a minimum" in table.warning
     assert "imaginary" in result.message
     assert np.isfinite(float(_row(table, "G").texts[1]))
 
@@ -268,3 +269,17 @@ def test_an_analytic_run_says_how_its_hessian_was_taken(
              for r in (result, differences)]
     assert modes[0].frequencies == pytest.approx(modes[1].frequencies,
                                                  abs=1.0)
+
+
+def test_a_marker_does_not_change_the_formula_units():
+    """One X made Z 1 and the per-formula-unit column the cell's: a
+    marker is not chemistry, here as everywhere."""
+    from xtal import Lattice, Structure
+
+    structure = Structure.from_arrays(
+        Lattice.from_parameters(4.594, 4.594, 2.959, 90, 90, 90),
+        ["Ti", "O", "X"],
+        [[0.0, 0.0, 0.0], [0.3053, 0.3053, 0.0], [0.5, 0.0, 0.25]],
+        space_group="P4_2/mnm")
+    result = _run(structure, relax_first=False, method="gamma")
+    assert "Z = 2" in _summary(result).note

@@ -599,6 +599,25 @@ neither path has been checked against a measured spectrum, so the
 `engine` choice is not offered.  A check on carbon dioxide's
 asymmetric stretch is the place to start.
 
+### What the thermochemistry review left (2026-10-12)
+
+Four small things the branch's final review found and did not fix:
+- **A zero mode is anything from -50 to 5 cm^-1**, and the summary
+  calls them all rigid motions.  A real -40 cm^-1 saddle mode is
+  counted there without a word; the expected count (3, 5 or 6) is
+  known, and an excess could be flagged.
+- **DFTB+'s modes decide molecule or crystal by `is_isolated`** alone,
+  with no *System* box as the Force Field run has.
+- **The quasi-harmonic cost line uses UFF's seconds an atom-step**
+  for the Hessians too, so it is low by an order of magnitude under
+  an ML potential -- the scan's own line has the same habit.  Timing
+  one single point, as the thermochemistry dialog does, is the cure
+  for both.
+- **`xtal/ff/vibrations.py` and `infrared.py` import
+  `xtal.modules.report`** (lazily) to build the Modes and Spectrum
+  blocks: the core reaching up into the module layer.  The block
+  builders belong in `xtal/modules/thermo.py`.
+
 ## Modules
 
 ### Polymers after the packing builder

@@ -68,7 +68,7 @@ from xtalapp.dialogs import landscape as landscape_window
 from xtalapp.dialogs import pattern as pattern_window
 from xtalapp.heatmap import HeatmapPlot
 from xtalapp.histogram import HistogramPlot
-from xtalapp.widgets.tone import HINT, set_tone
+from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The fewest rows a table is ever squeezed to.  Below this it stops
 #: being a table and becomes a slot, and the panel is better off
@@ -399,6 +399,11 @@ def _table_widget(table: Table) -> QWidget:
     row.addStretch(1)
     layout.addLayout(row)
 
+    if table.warning:
+        warning = QLabel(table.warning)
+        warning.setWordWrap(True)
+        set_tone(warning, WARNING)
+        layout.addWidget(warning)
     if table.note:
         note = QLabel(table.note)
         note.setWordWrap(True)

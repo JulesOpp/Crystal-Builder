@@ -145,6 +145,10 @@ class Table:
     #: :data:`QUANTITY_COLUMNS` -- and a table that says otherwise is
     #: one whose rows carry :attr:`Row.cells`.
     columns: tuple[str, ...] = QUANTITY_COLUMNS
+    #: What the numbers above must not be read without -- G of a
+    #: structure that is not at a minimum -- drawn in warning tone
+    #: under the table, where a row's note is only a tooltip.
+    warning: str = ""
 
     @property
     def named_columns(self) -> bool:
@@ -170,6 +174,8 @@ class Table:
                 f"{head:<{width}s}" for head, width
                 in zip(self.columns, widths, strict=True)).rstrip())
         lines += [row.as_text(widths) for row in self.rows]
+        if self.warning:
+            lines += ["", f"WARNING: {self.warning}"]
         if self.note:
             lines += ["", self.note]
         return "\n".join(lines)

@@ -310,7 +310,8 @@ Hessian taken; the session is not changed and nothing is on the stack.
 gas); `method` is `auto`, `gamma`, `phonopy` or `analytic`. `data` has,
 at `temperature`, `g`, `h`, `ts`, `zpe` and `e_elec` in kcal/mol and
 `s`, `cv` in cal/(mol K), per cell (`z` formula units) or per molecule;
-`imaginary_modes`; the report's `tables`; and `run`, whose folder holds
+`imaginary_modes` (entries of the q-mesh when phonopy sampled one,
+each a branch at a point); the report's `tables`; and `run`, whose folder holds
 `thermo.dat` and `modes.dat`. `**options` are the run's own
 (`tolerance`, `supercell`, `freeze`, `pressure` ...;
 `help_for("forcefield.thermo")`) and the engine's (`help_for("mace")`).

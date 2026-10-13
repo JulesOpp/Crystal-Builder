@@ -248,7 +248,6 @@ BULK_PARAMS = (
 )
 
 
-
 def _from_thermo(called, **changes):
     from xtal.modules import thermo as thermo_run
 

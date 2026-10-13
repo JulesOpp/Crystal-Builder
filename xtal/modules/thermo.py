@@ -340,8 +340,24 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
     if infrared_too:
         model = str(job.param("ir_charges", "fixed"))
         job.say(f"IR intensities from {model} charges")
-        born, source = ir.born_charges(structure, found, model=model,
-                                       calculator=calculator)
+        try:
+            born, source = ir.born_charges(
+                structure, found, model=model, calculator=calculator,
+                cancel=job.cancel,
+                progress=_progress(job, ir.flux_solves(found),
+                                   "charge solve"))
+        except CalculatorStopped:
+            # The Hessian is the expensive half and it is finished:
+            # what it gave is kept, and only the spectrum is lost.
+            if job.folder is not None:
+                for name, text in files.items():
+                    atomic.write_text(job.file(name), text,
+                                      encoding="utf-8")
+            return JobResult.stopped(
+                "Stopped while solving the charges at each "
+                "displacement: no spectrum"
+                + ("" if job.folder is None else
+                   f"; {', '.join(files)} kept") + ".")
         spectrum = ir.spectrum_block(
             found, ir.intensities(found, born), source,
             fwhm=float(job.param("ir_fwhm", ir.FWHM)))
@@ -366,10 +382,13 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
         artifacts = [job.file(n) for n in (*files, REPORT_NAME)]
 
     if imaginary:
+        counted = (f"{imaginary} imaginary entries on the q-mesh"
+                   if found.mesh_frequencies is not None and
+                   thermochemistry else f"{imaginary} imaginary modes")
         warnings.append((
             "IMAGINARY_MODES",
-            f"{imaginary} imaginary modes: the structure is not at a "
-            f"minimum, and they are left out of every sum"))
+            f"{counted}: the structure is not at a minimum, and they "
+            f"are left out of every sum"))
     return JobResult(message=message, report=report,
                      artifacts=tuple(artifacts), answer=chosen,
                      warnings=tuple(warnings))
@@ -567,15 +586,22 @@ def _by_phonopy(job, structure, engine, settings, said, delta, what,
 
 def _thermochemistry(job, structure, found, kind):
     """``(at the chosen temperature, along the curve, sigma)``."""
-    z = properties.formula(structure)[1]
+    # Over the real atoms: one marker made Z 1 and the per-formula-
+    # unit column the cell's.
+    real = structure.copy()
+    markers = [i for i, site in enumerate(real.sites)
+               if elements.is_dummy(site.element)]
+    if markers:
+        real.remove_sites(markers)
+    z = properties.formula(real)[1] if real.sites else 1
     gas = None
     sigma = int(job.param("sigma", 0))
     if kind == "molecule":
-        elements, whole = molecule.whole(structure)
+        symbols, whole = molecule.whole(structure)
         if not sigma:
-            sigma = molecule.rotational_symmetry_number(elements, whole)
+            sigma = molecule.rotational_symmetry_number(symbols, whole)
         gas = thermo.IdealGas(
-            masses=tuple(vibrations.masses_of(elements)), cart=whole,
+            masses=tuple(vibrations.masses_of(symbols)), cart=whole,
             sigma=sigma, multiplicity=int(job.param("multiplicity", 1)),
             pressure=float(job.param("pressure", 1.0)))
         z = 1
@@ -626,20 +652,20 @@ def hessian_said(found) -> str:
 def _modes_summary(found, kind, frozen_atoms, source) -> Table:
     imaginary = int(np.count_nonzero(
         found.frequencies < thermo.IMAGINARY_BELOW))
+    said = ("" if not imaginary else
+            "An imaginary mode is a direction the energy falls along: "
+            "the structure was not at a minimum.  Relax it first.")
     return Table("Summary", (
         Row("System", "molecule" if kind == "molecule" else "crystal"),
         Row("Modes", str(len(found.frequencies))),
-        Row("Imaginary modes", str(imaginary),
-            note="" if not imaginary else
-            "An imaginary mode is a direction the energy falls along: "
-            "the structure was not at a minimum.  Relax it first."),
+        Row("Imaginary modes", str(imaginary), note=said),
         Row("Displaced atoms", str(len(found.free)),
             note="" if not frozen_atoms else
             f"{len(frozen_atoms)} frozen atoms were not displaced."),
         Row("Hessian", hessian_said(found),
             f"{found.evaluations} evaluations"),
         Row("Intensities", "charge model", note=source),
-    ))
+    ), warning=said)
 
 
 def _spectrum_message(found, spectrum, model) -> str:
@@ -782,7 +808,7 @@ def _summary(result, found, kind, sigma, frozen_atoms) -> Table:
         rows.insert(1, Row.of("Symmetry number", str(sigma), "", ""))
     return Table("Summary", tuple(rows), columns=SUMMARY_COLUMNS,
                  note=f"Per cell, Z = {result.z}." if kind == "crystal"
-                 else "Per molecule.")
+                 else "Per molecule.", warning=imaginary_note)
 
 
 def _mesh_note(found) -> str:

@@ -474,8 +474,8 @@ def check_powder(report) -> None:
 def check_phonons(report) -> None:
     """phonopy finds rutile's symmetry and its modes, in this build.
 
-    Rutile under UFF, unrelaxed, a 3x3x4 supercell and four
-    displacements, about half a second: its count is what symmetry
+    Rutile under UFF, unrelaxed, in its own cell (1x1x1, a handful of
+    displacements, a fraction of a second): its count is what symmetry
     buys, and its Gamma frequencies must be the ones every atom
     displaced gives -- the C or Rust kernels and spglib all have to
     be there for both.  Skipped in a checkout without the ``phonons``

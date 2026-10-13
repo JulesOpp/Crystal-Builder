@@ -34,7 +34,7 @@ import numpy as np
 from xtal.core.lattice import Lattice
 from xtal.ff import phonons, qha, vibrations
 from xtal.ff import scan as driver
-from xtal.ff.api import CalculatorStopped
+from xtal.ff.api import CalculatorError, CalculatorStopped
 from xtal.ff.registry import ENGINES
 from xtal.io import atomic
 from xtal.modules import thermo as thermo_run
@@ -84,6 +84,20 @@ def run_qha(job) -> JobResult:
         return prepared
     structure, params = prepared
     job = replace(job, params=params)
+    # One supercell and one q-mesh for every volume: ``auto`` asked
+    # of each volume's own cell gave MIL-53 2x2x1 at its open pore and
+    # 2x2x2 a few percent smaller, and the step that put in F(V) was
+    # the sampling's, not the crystal's.  The supercell is the relaxed
+    # start's; the mesh is the first volume's, held from then on.
+    sampling = {}
+    if method == "phonopy":
+        try:
+            sampling["supercell"] = thermo_run._check_supercell(
+                structure, job.param("supercell", "auto"))
+        except thermo_run.SizeRefused as error:
+            return JobResult(message=str(error), ok=False,
+                             warnings=(("SIZE_LIMIT", str(error)),))
+        sampling["mesh"] = float(job.param("mesh", phonons.MESH))
     axes = scan_run.axes_from(job, structure)
     seed = str(job.param("seed", "previous"))
     direction = str(job.param("direction", "forward"))
@@ -112,15 +126,26 @@ def run_qha(job) -> JobResult:
         else:
             try:
                 found = _vibrations(job, _at(structure, point), method,
-                                    engine, settings)
+                                    engine, settings, sampling)
             except CalculatorStopped:
                 stopped = (f"Stopped during the Hessian of volume "
                            f"{number}; the {len(kept.points)} before it "
                            f"are on disk.")
                 break
-            frequencies, weights = found.sampled()
-            volume = qha.judge(point.volume, point.energy, frequencies,
-                               weights, converged=point.converged)
+            except (CalculatorError, ValueError) as error:
+                # A hole with its reason, as the scan makes of a
+                # relaxation that fails: one volume is not the run.
+                found = None
+                volume = qha.Volume(point.volume, point.energy,
+                                    note=f"no Hessian: {error}")
+            if found is not None:
+                if found.q_mesh is not None and \
+                        np.ndim(sampling.get("mesh")) == 0:
+                    sampling["mesh"] = found.q_mesh
+                frequencies, weights = found.sampled()
+                volume = qha.judge(point.volume, point.energy,
+                                   frequencies, weights,
+                                   converged=point.converged)
         kept.add(point, volume, writer)
         job.say(f"volume {number} of {plan.n_points}: "
                 f"{point.volume:.2f} A^3, "
@@ -137,7 +162,7 @@ def run_qha(job) -> JobResult:
                          pressure=float(job.param("pressure", 0.0)))
     for hole in result.holes:
         job.note(f"hole at {hole.volume:.2f} A^3: {hole.note}")
-    report = _report(result, said, method)
+    report = _report(result, said, _method_said(method, sampling))
     files = {"free_energy.dat": _free_dat(result),
              "minima.dat": _minima_dat(result)}
     artifacts = list(writer.artifacts) + kept.artifacts
@@ -183,13 +208,15 @@ def _at(structure, point):
     return out
 
 
-def _vibrations(job, structure, method, engine, settings):
+def _vibrations(job, structure, method, engine, settings,
+                sampling=None):
     delta = float(job.param("delta", vibrations.DELTA))
+    sampling = sampling or {}
     if method == "phonopy":
         return phonons.phonopy_vibrations(
             lambda big: ENGINES.build(engine, big, **settings),
-            structure, supercell=job.param("supercell", "auto"),
-            mesh=float(job.param("mesh", phonons.MESH)), delta=delta,
+            structure, supercell=sampling.get("supercell", "auto"),
+            mesh=sampling.get("mesh", phonons.MESH), delta=delta,
             cancel=job.cancel)
     calculator = ENGINES.build(engine, structure, **settings)
     return vibrations.hessian(calculator, structure, kind="crystal",
@@ -197,7 +224,14 @@ def _vibrations(job, structure, method, engine, settings):
                               analytic=method == "analytic")
 
 
-def _method_said(method) -> str:
+def _method_said(method, sampling=None) -> str:
+    if method == "phonopy" and sampling and "supercell" in sampling:
+        said = "phonopy, supercell " + "x".join(
+            str(v) for v in sampling["supercell"])
+        if np.ndim(sampling.get("mesh")) == 1:
+            said += ", q-mesh " + "x".join(
+                str(v) for v in sampling["mesh"])
+        return said + " at every volume"
     return {"phonopy": "phonopy, supercell and q-mesh",
             "analytic": "analytic, Gamma only",
             "gamma": "Gamma only, finite differences"}[method]
@@ -294,15 +328,14 @@ def _shown(temperatures, count) -> list[int]:
     return sorted({int(round(i)) for i in np.linspace(0, n - 1, count)})
 
 
-def _report(result, said, method) -> Report:
+def _report(result, said, how) -> Report:
     blocks: list = [_volumes_table(result)]
     for number, well in enumerate(result.wells, start=1):
         blocks.append(_well_table(result, well, number))
     if len(result.wells) > 1:
         blocks.append(_crossing_table(result))
     blocks += _curves(result)
-    return Report(title=f"Quasi-harmonic free energy ({said}, "
-                        f"{_method_said(method)})",
+    return Report(title=f"Quasi-harmonic free energy ({said}, {how})",
                   blocks=tuple(blocks))
 
 
@@ -322,7 +355,12 @@ def _volumes_table(result) -> Table:
                           f"F({t[j]:g} K)", "Status"),
                  note="Per cell.  A hole -- unconverged, or with "
                       "imaginary modes -- is left out of every fit "
-                      "rather than counted as a free energy.")
+                      "rather than counted as a free energy.",
+                 warning="" if not result.holes else
+                 f"{len(result.holes)} of {len(result.points)} volumes "
+                 f"are holes: the fits are over the rest, and a well "
+                 f"short of volumes is fitted over fewer points than "
+                 f"it was scanned with.")
 
 
 def _well_table(result, well, number) -> Table:

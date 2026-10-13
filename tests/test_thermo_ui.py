@@ -136,9 +136,51 @@ def test_the_estimate_counts_the_evaluations_and_times_one(
     dialog = _dialog(qtbot, window)
     dialog.form.set_values({"method": "gamma"})
     dialog.time_one_evaluation()
+    qtbot.waitUntil(lambda: " x " in dialog.estimate.text(),
+                    timeout=20000)
     text = dialog.estimate.text()
     assert "37 evaluations x" in text
     assert "Gamma only" in text
+
+
+def test_choosing_another_engine_times_that_one_off_the_gui_thread(
+        qtbot, window, tmp_path, rutile, monkeypatch):
+    """Timed once at open, the line read "timing one..." for good
+    after the engine changed; and timed on the GUI thread, a model
+    not yet downloaded froze the dialog for the download."""
+    import threading
+
+    from xtal.ff.registry import ENGINES
+
+    _open(window, tmp_path, rutile)
+    dialog = _dialog(qtbot, window)
+    qtbot.waitUntil(lambda: " x " in dialog.estimate.text(),
+                    timeout=20000)
+    threads, real = [], ENGINES.build
+
+    def build(name, *args, **kwargs):
+        threads.append(threading.get_ident())
+        return real(name, *args, **kwargs)
+
+    monkeypatch.setattr(ENGINES, "build", build)
+    form = dialog.engine_forms["uff"]
+    form.set_values({"parameter_set": "uff"})
+    qtbot.waitUntil(lambda: dialog._engine_key() in dialog._seconds,
+                    timeout=20000)
+    assert threads and threading.get_ident() not in threads
+    assert " x " in dialog.estimate.text()
+
+
+def test_the_estimate_counts_the_charge_flux_solves(
+        qtbot, window, tmp_path, rutile, monkeypatch):
+    from xtalapp.dialogs.thermo import ThermoDialog
+
+    monkeypatch.setattr(ThermoDialog, "time_one_evaluation",
+                        lambda self: None)
+    _open(window, tmp_path, rutile)
+    dialog = _dialog(qtbot, window)
+    dialog.form.set_values({"ir": True, "ir_charges": "flux"})
+    assert "36 EQeq solves" in dialog.estimate.text()
 
 
 def test_with_phonopy_the_estimate_counts_its_displacements(
@@ -151,6 +193,8 @@ def test_with_phonopy_the_estimate_counts_its_displacements(
     dialog = _dialog(qtbot, window)
     dialog.form.set_values({"method": "phonopy"})
     dialog.time_one_evaluation()
+    qtbot.waitUntil(lambda: " x " in dialog.estimate.text(),
+                    timeout=20000)
     text = dialog.estimate.text()
     assert "4 evaluations x" in text
     assert "phonopy, supercell 3x3x4" in text

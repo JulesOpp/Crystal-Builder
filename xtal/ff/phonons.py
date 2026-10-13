@@ -163,7 +163,7 @@ def plan(structure, supercell="auto", *, delta: float = vibrations.DELTA,
 
 
 def phonopy_vibrations(build, structure, *, supercell="auto",
-                       mesh: float = MESH,
+                       mesh=MESH,
                        delta: float = vibrations.DELTA, cancel=None,
                        progress=None, record=None, profile=None,
                        save=None) -> vibrations.Vibrations:
@@ -177,6 +177,9 @@ def phonopy_vibrations(build, structure, *, supercell="auto",
     checked before every evaluation and raises
     :class:`~xtal.ff.api.CalculatorStopped`.  Raises ``ValueError``
     with the size sentence when the supercell is over the hard limit.
+    ``mesh`` is phonopy's length, or three counts to hold the mesh
+    itself fixed -- what a quasi-harmonic run does, so that every
+    volume is summed over the same points.
     ``save`` is where phonopy's own ``phonopy_params.yaml`` (the cell,
     the displacements, the force constants) is written, for anyone who
     wants its bands or DOS from the same run.
@@ -242,7 +245,9 @@ def phonopy_vibrations(build, structure, *, supercell="auto",
     gamma = _gamma_hessian(phonon)
     mesh_frequencies = mesh_weights = q_mesh = None
     if int(np.prod(repeats)) > 1:
-        phonon.run_mesh(float(mesh), is_gamma_center=True,
+        asked = (float(mesh) if np.ndim(mesh) == 0
+                 else [int(v) for v in mesh])
+        phonon.run_mesh(asked, is_gamma_center=True,
                         is_mesh_symmetry=_symmetric_masses(real))
         sampled = phonon.mesh
         freqs = np.asarray(sampled.frequencies, float) * CM_PER_THZ

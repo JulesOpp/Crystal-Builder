@@ -44,6 +44,7 @@ from xtalapp.workers import ModuleWorker, start_in_thread
 #: Runs the Force Field panel starts and sums up in its own report.
 THERMO_RUNS = ("forcefield.thermo", "forcefield.infrared")
 
+
 class ModuleRunner(QObject):
     """The one module run that may be going, and what each action was
     last run with.

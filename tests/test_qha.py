@@ -234,3 +234,54 @@ def test_a_crystal_with_an_imaginary_mode_at_every_volume_fits_nothing(
     assert result.answer.wells == ()
     assert "nothing to fit" in result.message
     assert [code for code, _ in result.warnings] == ["IMAGINARY_MODES"]
+
+
+def test_every_volume_is_sampled_with_the_same_supercell_and_q_mesh(
+        tmp_path, quartz, monkeypatch):
+    """``auto`` asked of each volume's own cell changes with the volume
+    -- MIL-53 is 2x2x1 open and 2x2x2 a few percent smaller -- and a
+    change of sampling is a step in F(V) that is not the crystal's.
+    The supercell is the relaxed start's and the mesh the first
+    volume's, for every volume."""
+    pytest.importorskip("phonopy")
+    from xtal.ff import phonons
+
+    real, asked = phonons.phonopy_vibrations, []
+
+    def recording(build, structure, **kwargs):
+        asked.append((kwargs["supercell"], kwargs["mesh"]))
+        return real(build, structure, **kwargs)
+
+    monkeypatch.setattr(phonons, "phonopy_vibrations", recording)
+    result, _run = _qha_run(quartz, tmp_path, hessian="phonopy",
+                            axis1_steps=3)
+    assert result.ok, result.message
+    supercells = {s for s, _ in asked}
+    assert len(supercells) == 1 and isinstance(supercells.pop(), tuple)
+    meshes = [m for _, m in asked]
+    assert np.ndim(meshes[0]) == 0                  # a length, once
+    assert all(m == meshes[1] for m in meshes[1:])
+    assert np.ndim(meshes[1]) == 1                  # then held
+    assert "at every volume" in result.report.title
+
+
+def test_a_volume_whose_hessian_fails_is_a_hole_not_the_end_of_the_run(
+        tmp_path, quartz, monkeypatch):
+    from xtal.ff.api import CalculatorError
+    from xtal.modules import qha as qha_run
+
+    real, calls = qha_run._vibrations, []
+
+    def failing(*args):
+        calls.append(1)
+        if len(calls) == 2:
+            raise CalculatorError("the engine refused this geometry")
+        return real(*args)
+
+    monkeypatch.setattr(qha_run, "_vibrations", failing)
+    result, _run = _qha_run(quartz, tmp_path)
+    assert result.ok
+    (hole,) = result.answer.holes
+    assert "the engine refused" in hole.note
+    (well,) = result.answer.wells
+    assert len(well.indices) == 4 and well.form == "parabola"

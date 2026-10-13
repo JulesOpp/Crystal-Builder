@@ -14,8 +14,10 @@ the structure as one.
 free atom and one more -- or, with phonopy, one per displacement the
 symmetry leaves -- and one evaluation of MOF-5 under MACE is nearly a
 second, so the line times one single point of the structure in front
-and multiplies -- once the dialog is on screen, so a slow engine's
-first call does not hold the dialog closed.  A phonopy supercell's
+and multiplies.  The timing is on a worker thread, started again
+(after a pause, so typing is not timed key by key) whenever the
+engine or its options change: on the GUI thread a MACE model not yet
+downloaded froze the dialog for the download.  A phonopy supercell's
 point is the cell's times its repeats, which is close enough to say.
 
 **Without phonopy its rows are greyed**, the choice in *Hessian* too,
@@ -33,7 +35,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -67,6 +69,38 @@ from xtalapp.dialogs.scan import (
 from xtalapp.docks import scrolling
 from xtalapp.docks.ff_panel import panel_engine
 from xtalapp.widgets.tone import HINT, set_tone
+from xtalapp.workers import start_in_thread
+
+#: How long the engine has to stay chosen before it is timed, ms.
+RETIME_AFTER = 400
+
+
+class _Timing(QObject):
+    """One single point timed, off the GUI thread: the second call,
+    since the first pays for typing the atoms or loading a model."""
+
+    finished = Signal(object, float)        # (engine key, seconds)
+    failed = Signal(object, str)
+
+    def __init__(self, key, structure, values):
+        super().__init__()
+        self.key = key
+        self.structure = structure
+        self.values = values
+
+    def run(self) -> None:
+        from xtal.core import p1
+        try:
+            calculator = ENGINES.build(self.key[0], self.structure,
+                                       **self.values)
+            cell = p1.expand(self.structure)
+            matrix = self.structure.lattice.matrix
+            calculator.compute(cell.cart, matrix)
+            start = time.perf_counter()
+            calculator.compute(cell.cart, matrix)
+            self.finished.emit(self.key, time.perf_counter() - start)
+        except Exception as error:                  # noqa: BLE001
+            self.failed.emit(self.key, str(error))
 
 #: The rows a crystal never reads.
 MOLECULE_ONLY = ("sigma", "multiplicity", "pressure")
@@ -95,7 +129,12 @@ class ThermoDialog(QDialog):
         self.isolated = (self.structure is not None
                          and molecule.is_isolated(self.structure))
         self._seconds: dict = {}
+        self._timing: set = set()
         self._plans: dict = {}
+        self._retime = QTimer(self)
+        self._retime.setSingleShot(True)
+        self._retime.setInterval(RETIME_AFTER)
+        self._retime.timeout.connect(self.time_one_evaluation)
 
         self.engine = QComboBox()
         for engine in ENGINES:
@@ -160,6 +199,7 @@ class ThermoDialog(QDialog):
             self.set_values(initial)
         self._engine_changed()
         QTimer.singleShot(0, self.time_one_evaluation)
+        self._retime.stop()
 
     # -- what is shown -------------------------------------------------
 
@@ -222,6 +262,8 @@ class ThermoDialog(QDialog):
         self.availability.setText(reason)
         self.availability.setVisible(bool(reason))
         self.refresh()
+        if self._engine_key() not in self._seconds:
+            self._retime.start()
 
     def refresh(self) -> None:
         """Show the molecule's rows for a molecule, and the cost."""
@@ -305,14 +347,25 @@ class ThermoDialog(QDialog):
         seconds = self._seconds.get(self._engine_key())
         noun = "rows" if method == "analytic" else "evaluations"
         if seconds is None:
-            return f"{count} {noun} ({what}){memory}; timing one..."
+            return (f"{count} {noun} ({what}){memory}"
+                    f"{self._flux_said()}; timing one...")
         seconds *= scale
         relax = (" plus the relaxation"
                  if self.form.values().get("relax_first") else "")
         total = count * seconds
         spelled = "under a second" if total < 1.0 else _spell(total)
         return (f"{count} {noun} x {seconds:.2g} s ≈ "
-                f"{spelled}{relax} ({what}){memory}")
+                f"{spelled}{relax} ({what}){memory}{self._flux_said()}")
+
+    def _flux_said(self) -> str:
+        """The charge flux's solves, which are not the engine's and
+        can be the longer half: an hour of EQeq on MFU-4l."""
+        values = self.form.values()
+        spectrum = self.action.name == "infrared" or values.get("ir")
+        if not spectrum or values.get("ir_charges") != "flux":
+            return ""
+        free = vibrations.free_atoms(self.structure)
+        return f", then {6 * free} EQeq solves for the charge flux"
 
     def phonopy_plan(self) -> phonons.Plan:
         """phonopy's plan for the supercell and step asked, kept: it
@@ -331,28 +384,30 @@ class ThermoDialog(QDialog):
                 tuple(sorted(self.engine_values().items())))
 
     def time_one_evaluation(self) -> None:
-        """One single point of the structure in front, timed: the
-        second call, since the first pays for typing the atoms or
-        loading a model."""
+        """Time one single point of the structure in front, on a
+        worker thread; the line says so when it lands."""
         key = self._engine_key()
         if self.structure is None or key in self._seconds \
-                or self.availability.text():
+                or key in self._timing or self.availability.text():
             return
-        from xtal.core import p1
-        try:
-            calculator = ENGINES.build(key[0], self.structure,
-                                       **self.engine_values())
-            cell = p1.expand(self.structure)
-            matrix = self.structure.lattice.matrix
-            calculator.compute(cell.cart, matrix)
-            start = time.perf_counter()
-            calculator.compute(cell.cart, matrix)
-            self._seconds[key] = time.perf_counter() - start
-        except Exception as error:                  # noqa: BLE001
+        self._timing.add(key)
+        worker = _Timing(key, self.structure.copy(),
+                         self.engine_values())
+        worker.finished.connect(self._timed)
+        worker.failed.connect(self._untimed)
+        start_in_thread(worker)
+
+    def _timed(self, key, seconds) -> None:
+        self._timing.discard(key)
+        self._seconds[key] = float(seconds)
+        if key == self._engine_key():
+            self.refresh()
+
+    def _untimed(self, key, error) -> None:
+        self._timing.discard(key)
+        if key == self._engine_key():
             self.estimate.setText(f"one evaluation failed: {error}")
             set_tone(self.estimate, HINT)
-            return
-        self.refresh()
 
     # -- what it hands back --------------------------------------------
 

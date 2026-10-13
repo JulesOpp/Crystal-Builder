@@ -100,8 +100,10 @@ refine = ["rietx>=1.5,<1.6"]
 # needs 19 displacements where the Gamma path makes 637, which is
 # what makes the ML engines usable for it.  Without it every atom is
 # displaced at Gamma and the dialog says what installing this buys.
-# From 2.20 for the `mesh` result object and `save(settings=...)`.
-phonons = ["phonopy>=2.20"]
+# From 2.20 for the `mesh` result object and `save(settings=...)`;
+# below 5 because 4.5 already deprecated the dynamical-matrix call we
+# replaced, and the bundle collects `phonors`, phonopy 4's kernels.
+phonons = ["phonopy>=2.20,<5"]
 # The MACE engine, and the heaviest thing this project can be asked to
 # install: mace-torch brings torch, which is gigabytes of wheel and
 # platform-specific about how it wants to arrive (CPU, CUDA, mps).

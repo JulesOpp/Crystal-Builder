@@ -56,10 +56,16 @@ MODELS = ("fixed", "flux")
 
 
 def born_charges(structure, vib, model: str = "fixed",
-                 calculator=None) -> tuple[np.ndarray, str]:
+                 calculator=None, cancel=None,
+                 progress=None) -> tuple[np.ndarray, str]:
     """``(Z*, source)``: ``(n_atoms, 3, 3)`` Born charges over the
     whole P1 cell, ``Z[i, a, b] = d mu_b / d r_ia`` in e, and the
-    sentence saying where they came from.  A marker's is zero."""
+    sentence saying where they came from.  A marker's is zero.
+
+    ``flux`` solves EQeq six times a displaced atom -- an hour on
+    MFU-4l -- so it hears ``cancel`` before every solve, raising
+    :class:`~xtal.ff.api.CalculatorStopped`, and tells ``progress(done,
+    total)`` after each."""
     if model not in MODELS:
         raise ValueError(f"charges are {' or '.join(MODELS)}, "
                          f"not {model!r}")
@@ -69,7 +75,8 @@ def born_charges(structure, vib, model: str = "fixed",
     born = np.zeros((cell.n_atoms, 3, 3))
     born[:] = charges[:, None, None] * np.eye(3)
     if model == "flux":
-        born = _flux(structure, cell, real, vib, born)
+        born = _flux(structure, cell, real, vib, born, cancel,
+                     progress)
         said = ("EQeq solved again at each displacement (charge flux); "
                 "the frequencies are the engine's")
     else:
@@ -129,11 +136,19 @@ def _clean_cell(structure, cell, real):
         labels=tuple(cell.labels[i] for i in kept), _index={}), kept
 
 
-def _flux(structure, cell, real, vib, born):
+def flux_solves(vib) -> int:
+    """How many EQeq solves the charge flux takes."""
+    return 6 * len(vib.free)
+
+
+def _flux(structure, cell, real, vib, born, cancel=None,
+          progress=None):
     """Z* of the displaced atoms by central differences of the EQeq
     dipole; the others keep their fixed charge."""
+    from xtal.ff.api import CalculatorStopped
     from xtal.ff.charges import eqeq
 
+    total, done = flux_solves(vib), 0
     clean, kept = _clean_cell(structure, cell, real)
     position = {int(full): k for k, full in enumerate(kept)}
     matrix = np.asarray(structure.lattice.matrix, float)
@@ -151,6 +166,9 @@ def _flux(structure, cell, real, vib, born):
         for axis in range(3):
             dipoles = []
             for sign in (1.0, -1.0):
+                if getattr(cancel, "requested", False):
+                    raise CalculatorStopped(
+                        "stopped between charge solves")
                 moved = cart.copy()
                 moved[k, axis] += sign * delta
                 charges, _note = eqeq.equilibrate(dataclasses.replace(
@@ -158,6 +176,9 @@ def _flux(structure, cell, real, vib, born):
                 where = relative.copy()
                 where[k, axis] += sign * delta
                 dipoles.append(charges @ where)
+                done += 1
+                if progress is not None:
+                    progress(done, total)
             born[int(atom), axis, :] = (dipoles[0] - dipoles[1]) \
                 / (2.0 * delta)
     return born

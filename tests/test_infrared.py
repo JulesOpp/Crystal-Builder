@@ -102,3 +102,50 @@ def test_a_broadened_band_peaks_at_its_stick_and_has_its_width():
     above = x[y > half]
     near = above[np.abs(above - top) < 50]
     assert near.max() - near.min() == pytest.approx(10.0, abs=1.0)
+
+
+def test_stop_during_charge_flux_is_heard_before_the_next_solve(rutile):
+    """Six EQeq solves a displaced atom is an hour on MFU-4l: Stop has
+    to be heard between them, or quitting waits on it."""
+    from xtal.ff.api import CalculatorStopped
+    from xtal.modules.job import Cancellation
+
+    found = _modes(rutile, kind="crystal")
+    cancel, heard = Cancellation(), []
+
+    def progress(done, total):
+        heard.append((done, total))
+        if done == 3:
+            cancel.cancel()
+
+    with pytest.raises(CalculatorStopped):
+        infrared.born_charges(rutile, found, model="flux",
+                              cancel=cancel, progress=progress)
+    assert heard[-1] == (3, infrared.flux_solves(found))
+
+
+def test_a_run_stopped_in_the_charge_flux_keeps_its_modes(tmp_path,
+                                                          rutile):
+    from tests.test_thermo_module import _folder
+    from xtal.modules.job import Cancellation, Job
+    from xtal.modules.registry import MODULES
+    from xtal.params import coerce
+
+    folder = _folder(tmp_path, rutile)
+    cancel = Cancellation()
+
+    def progress(text):
+        if "charge solve" in text:
+            cancel.cancel()
+
+    _module, action = MODULES.find("forcefield.infrared")
+    job = Job(structure=rutile, folder=folder, cancel=cancel,
+              params=coerce(action.params, {
+                  "engine": "uff", "relax_first": False,
+                  "method": "gamma", "ir_charges": "flux"}))
+    job.on_progress = progress
+    result = action.run(job)
+    assert result.cancelled
+    assert "no spectrum" in result.message
+    assert (folder.path / "modes.dat").is_file()
+    assert not (folder.path / "ir.dat").exists()
