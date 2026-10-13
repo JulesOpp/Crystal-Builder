@@ -417,6 +417,15 @@ front of another is not yet gapped where it crosses it -- ChemDraw
 breaks the one behind.  Both are `xtalapp/viewport/sketch.py`, and
 the SVG export draws whatever it cuts.
 
+### Two dialogs scroll sideways under UFF, and a plot rounds its ticks
+
+The scan dialog and *Frequencies and thermochemistry...*, which
+borrows its engine forms, grow a horizontal scroll bar with UFF
+chosen: the engine's generated form is about 635 px wide.  Seen on
+main before the thermochemistry branch.  And `CurvePlot` writes its
+axis ticks to three significant figures, so the quasi-harmonic V(T)
+of quartz -- 111.0 to 111.6 A^3 -- reads 111, 111, 111.
+
 ### What the sketcher does not do yet
 
 The sketcher (`xtalapp/widgets/sketcher/`, 2026-10-04) replaced
@@ -578,6 +587,17 @@ replacement and not an addition, and there is no way to hold both.
 `xtal/ff/uff/params.py` keeps Rappe's and skips it, because changing a
 row the 1992 paper prints is a different decision from adding ninety-one
 new ones, and `tests/test_uff_params.py` asserts the published value.
+
+### IR intensities from the engine's own charges
+
+The IR spectrum (2026-10-12) takes its Born charges from a charge
+model -- fixed, EQeq or Gasteiger -- because no engine declares
+`"dipole"` in its `provides`.  xTB and DFTB+ both have the charges an
+electronic-structure engine gives, and DFTB+ can write Born charges
+outright (`born.out` appears beside a SecondDerivatives run), but
+neither path has been checked against a measured spectrum, so the
+`engine` choice is not offered.  A check on carbon dioxide's
+asymmetric stretch is the place to start.
 
 ## Modules
 
@@ -771,6 +791,17 @@ MACE alone took 467 s; UFF4MOF first (80 and 73 steps) then MACE took
 196 s, and landed 0.02 and 0.08 kcal/mol lower.  Whether that holds on
 a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
 is already close, is the thing the overnight run should also answer.
+
+The same overnight run is the first real test of *Quasi-harmonic free
+energy...* (2026-10-12): MIL-53 under MACE, nine or more volumes
+across both wells, against the lp/cp crossing Demuynck *et al.* report
+(18.67, 9.74 and -0.67 kJ/mol at 100, 300 and 500 K: the sign
+changes just below 500 K).  Every test so far is
+quartz, rutile or a synthetic landscape.  Two things only a real run
+will show: whether a well too shallow to have five volumes is common
+(it is then a parabola), and whether the wells are better split on F
+at each temperature than on E(V) once -- an entropy-stabilised well
+that E(V) does not have is not split today.
 
 ## Powder refinement
 
