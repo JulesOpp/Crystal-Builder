@@ -232,3 +232,39 @@ def test_a_fresh_xtal_run_knows_the_engines(tmp_path, rutile, action,
          "-p", "engine=uff", "-p", "max_steps=5", *extra, "-q"],
         capture_output=True, text=True, timeout=300)
     assert ran.returncode == 0, ran.stderr + ran.stdout
+
+
+def test_analytic_is_refused_for_an_engine_without_one_before_relaxing(
+        rutile):
+    """Asked by name of UFF, the run fails with the reason before a
+    step is taken -- never a quiet fall back to differences."""
+    result = _run(rutile, method="analytic")
+    assert not result.ok
+    assert "no analytic Hessian" in result.message
+
+
+def test_an_analytic_run_says_how_its_hessian_was_taken(
+        rutile, monkeypatch):
+    """An engine with second derivatives of its own: the summary and
+    the log name the route, and nothing is displaced."""
+    from tests.test_vibrations import _with_second_derivatives
+    from xtal.ff.uff.calculator import UFFCalculator
+    from xtal.modules import thermo as module
+
+    monkeypatch.setattr(module, "has_analytic_hessian", lambda e: True)
+    original = UFFCalculator.__init__
+
+    def init(self, *args, **kwargs):
+        original(self, *args, **kwargs)
+        _with_second_derivatives(self, [])
+
+    monkeypatch.setattr(UFFCalculator, "__init__", init)
+    result = _run(rutile, method="analytic")
+    assert result.ok, result.message
+    said = _row(_summary(result), "Hessian").texts[1]
+    assert "analytic" in said
+    differences = _run(rutile, method="gamma")
+    modes = [next(b for b in r.report.blocks if isinstance(b, Modes))
+             for r in (result, differences)]
+    assert modes[0].frequencies == pytest.approx(modes[1].frequencies,
+                                                 abs=1.0)

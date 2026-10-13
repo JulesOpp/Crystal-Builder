@@ -43,7 +43,16 @@ is summed over a Γ-centred q-mesh of the whole zone; the mode table
 and the IR spectrum are Γ's either way.  **Gamma only** displaces
 every free atom, needs nothing installed, and is what a molecule in a
 box and a run with frozen sites always take.  *Automatic* is phonopy
-where it is installed and can be used.  Whichever it was, the
+where it is installed and can be used.  **Analytic, from the engine**
+asks the engine for its own second derivatives instead -- only MACE
+has them, and the choice is greyed for the rest.  There is no step to
+be noisy in, which matters most for the soft modes below 50 cm⁻¹ that
+dominate a framework's entropy, but no symmetry is saved and the
+engine holds its whole force graph while it works: about 13 MB an
+atom beside the model, which is why the estimate line says the memory
+and the route is refused past 300 atoms (600 under *Generous*).  On
+MIL-53's 104 atoms it took about 320 s where displacing every atom
+took 520.  *Automatic* never chooses it.  Whichever it was, the
 summary's **Hessian** row names it.
 
 The rigid motions are projected out rather than left to the
@@ -159,8 +168,8 @@ reference: {ref}`mod-forcefield-thermo` and
 
 ## Limitations
 
-- By finite differences either way: no engine's analytic Hessian is
-  used.
+- By finite differences unless *Analytic* is chosen, and that only
+  under MACE: UFF, xTB, DFTB+, ORB-v3 and MatterSim offer none.
 - Frozen sites need **Gamma only**: phonopy's symmetry moves every
   atom.
 - Harmonic about one minimum: no anharmonicity, and no thermal

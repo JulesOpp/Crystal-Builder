@@ -4249,9 +4249,9 @@
       {
        "name": "method",
        "label": "Hessian",
-       "accepts": "one of Automatic, phonopy, by symmetry, Gamma only, every atom",
+       "accepts": "one of Automatic, phonopy, by symmetry, Gamma only, every atom, Analytic, from the engine",
        "default": "auto",
-       "help": "Finite differences of the engine's forces either way.  phonopy displaces only the atoms and directions the space group does not already relate, and samples a small cell's branches across the zone; Gamma only displaces every free atom, 6 evaluations each, and is what a molecule or frozen atoms take.  Automatic is phonopy where it is installed and can be used."
+       "help": "Finite differences of the engine's forces, or with Analytic the engine's own second derivatives (MACE only), which have no step to be noisy in but hold about 13 MB an atom and use no symmetry.  phonopy displaces only the atoms and directions the space group does not already relate, and samples a small cell's branches across the zone; Gamma only displaces every free atom, 6 evaluations each, and is what a molecule or frozen atoms take.  Automatic is phonopy where it is installed and can be used."
       },
       {
        "name": "supercell",
@@ -4349,9 +4349,9 @@
       {
        "name": "method",
        "label": "Hessian",
-       "accepts": "one of Automatic, phonopy, by symmetry, Gamma only, every atom",
+       "accepts": "one of Automatic, phonopy, by symmetry, Gamma only, every atom, Analytic, from the engine",
        "default": "auto",
-       "help": "Finite differences of the engine's forces either way.  phonopy displaces only the atoms and directions the space group does not already relate, and samples a small cell's branches across the zone; Gamma only displaces every free atom, 6 evaluations each, and is what a molecule or frozen atoms take.  Automatic is phonopy where it is installed and can be used."
+       "help": "Finite differences of the engine's forces, or with Analytic the engine's own second derivatives (MACE only), which have no step to be noisy in but hold about 13 MB an atom and use no symmetry.  phonopy displaces only the atoms and directions the space group does not already relate, and samples a small cell's branches across the zone; Gamma only displaces every free atom, 6 evaluations each, and is what a molecule or frozen atoms take.  Automatic is phonopy where it is installed and can be used."
       },
       {
        "name": "delta",
@@ -5410,6 +5410,7 @@
    "description": "A machine-learned potential in the atomic cluster expansion family.  The MACE-MP foundation models answer for a framework with no parameters to assign and no atom typing to get right, at a cost between a force field's and tight binding's.",
    "provides": [
     "forces",
+    "hessian",
     "periodic",
     "stress"
    ],

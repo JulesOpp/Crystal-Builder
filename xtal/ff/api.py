@@ -117,6 +117,22 @@ class Calculator(ABC):
         """
         return f"{self.n_atoms} atoms"
 
+    def hessian(self, positions, matrix, atoms=None,
+                progress=None) -> np.ndarray | None:
+        """The analytic Hessian over ``atoms`` (P1 indices, all of
+        them by default), ``(3n, 3n)`` in kcal/mol/A^2, or ``None``
+        for an engine that has none.
+
+        ``None`` here, and an engine that answers also lists
+        ``"hessian"`` in its registry entry's ``provides``.  Finite
+        differences of :meth:`compute` are always there instead
+        (:func:`xtal.ff.vibrations.hessian`); this is the option an
+        engine with second derivatives of its own can offer, never
+        the default.  ``progress(done, total)`` hears each row, and
+        :attr:`cancel` is checked between them.
+        """
+        return None
+
     def numeric_stress(self, positions, matrix,
                        strain: float = 1e-4) -> np.ndarray:
         """Stress by central differences of six symmetric strains.

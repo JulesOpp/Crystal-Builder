@@ -170,3 +170,120 @@ def test_a_molecule_in_a_box_is_isolated_and_a_crystal_is_not(rutile):
     assert not molecule.is_isolated(
         isolated(["O", "H", "H"],
                  [[0, 0, 0], [0.96, 0, 0], [-0.24, 0.93, 0]], box=6.0))
+
+
+# ------------------------------------------------- an analytic Hessian
+
+def _with_second_derivatives(calculator, asked):
+    """UFF given a ``hessian`` of its own -- central differences of
+    its forces, so the answer is known -- recording what it was asked
+    for, as an engine with real second derivatives would be."""
+    inner = getattr(calculator, "_inner", calculator)
+
+    def hessian(positions, matrix, atoms=None, progress=None):
+        positions = np.asarray(positions, float).reshape(-1, 3)
+        atoms = np.arange(len(positions)) if atoms is None \
+            else np.asarray(atoms, int)
+        asked.append(atoms.tolist())
+        coords = (3 * atoms[:, None] + np.arange(3)).ravel()
+        block = np.zeros((len(coords), len(coords)))
+        for row, coord in enumerate(coords):
+            moved = positions.copy()
+            moved.flat[coord] += 0.005
+            plus = inner.compute(moved, matrix).forces.ravel()
+            moved.flat[coord] -= 0.01
+            minus = inner.compute(moved, matrix).forces.ravel()
+            block[row] = -(plus - minus)[coords] / 0.01
+            if progress is not None:
+                progress(row + 1, len(coords))
+        return block
+
+    inner.hessian = hessian
+    return calculator
+
+
+def test_an_engine_without_an_analytic_hessian_offers_none():
+    """UFF has none, says so in its registry entry, and asking for
+    the analytic route is refused rather than quietly answered by
+    differences: which way the Hessian was taken is in the report."""
+    from xtal.ff.api import CalculatorError
+    from xtal.modules.thermo import choose_method, has_analytic_hessian
+    from xtal.params import ParamError
+
+    structure = water()
+    calculator = ENGINES.build("uff", structure)
+    assert calculator.hessian(structure.cart,
+                              structure.lattice.matrix) is None
+    assert "hessian" not in ENGINES.get("uff").provides
+    assert not has_analytic_hessian("uff")
+    assert "hessian" in ENGINES.get("mace").provides
+    with pytest.raises(CalculatorError, match="no analytic Hessian"):
+        vibrations.hessian(calculator, structure, kind="molecule",
+                           analytic=True)
+    with pytest.raises(ParamError, match="no analytic Hessian"):
+        choose_method("analytic", "crystal", engine="uff")
+    assert choose_method("analytic", "crystal", engine="mace") == (
+        "analytic", "")
+    assert choose_method("auto", "molecule", engine="mace")[0] == "gamma"
+
+
+def test_an_analytic_hessian_gives_the_modes_differences_give():
+    """The same projection, symmetrising and mass-weighting as the
+    differences, over a block the engine hands back in one call --
+    one evaluation for the energy and nothing displaced."""
+    structure = _relaxed(water())
+    asked = []
+    calculator = _with_second_derivatives(
+        ENGINES.build("uff", structure), asked)
+    rows = []
+    found = vibrations.hessian(
+        calculator, structure, kind="molecule", analytic=True,
+        progress=lambda done, total: rows.append((done, total)))
+    differences = _modes(structure, kind="molecule")
+    assert found.method == "analytic"
+    assert found.evaluations == 1
+    assert rows[0] == (1, 10) and rows[-1] == (10, 10)
+    assert found.frequencies == pytest.approx(differences.frequencies,
+                                              abs=0.5)
+
+
+def test_an_analytic_hessian_takes_only_the_free_atoms_rows():
+    """A frozen atom costs nothing analytically either, and a marker
+    -- held back at the door -- is never a row the engine is asked
+    for: the façade maps P1 atoms onto the engine's own."""
+    structure = _relaxed(water())
+    centre = structure.cart.mean(axis=0)
+    structure.add_site(Site("X", structure.lattice.to_frac(centre)))
+    asked = []
+    calculator = _with_second_derivatives(
+        ENGINES.build("uff", structure), asked)
+    found = vibrations.hessian(calculator, structure, kind="molecule",
+                               frozen=[0], analytic=True)
+    assert asked == [[1, 2]]
+    assert found.free.tolist() == [1, 2]
+    assert found.hessian.shape == (6, 6)
+    assert np.all(found.displacements[:, 0, :] == 0.0)
+    assert np.all(found.displacements[:, 3, :] == 0.0)
+
+
+def test_the_analytic_route_is_refused_above_its_atom_limit():
+    """The retained graph grows with every atom -- MOF-5 under MACE's
+    own vmapped Hessian was stopped for memory -- so the size is
+    judged before anything is relaxed, by the Large structures
+    profile, and the sentence says the memory."""
+    from xtal.core import limits
+    from xtal.io import FORMATS
+    from xtal.modules.thermo import check_analytic
+    from xtal.params import ParamError
+
+    soft, hard = limits.bounds("hessian")
+    assert limits.check_hessian(soft).level == limits.OK
+    assert limits.check_hessian(soft + 1).warned
+    refused = limits.check_hessian(hard + 1)
+    assert refused.refused and "GB" in refused.sentence
+    assert not limits.check_hessian(hard + 1, limits.WARN_ONLY).refused
+
+    mfu4l = FORMATS.read("resources/samples/MFU4l.cif")
+    with pytest.raises(ParamError, match="analytic Hessian over 648"):
+        check_analytic(mfu4l)
+    assert check_analytic(water()).level == limits.OK

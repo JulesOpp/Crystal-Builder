@@ -132,8 +132,12 @@ PARAMS = (
     Param("method", "Hessian", "choice", default="auto",
           choices=(("auto", "Automatic"),
                    ("phonopy", "phonopy, by symmetry"),
-                   ("gamma", "Gamma only, every atom")),
-          help="Finite differences of the engine's forces either way.  "
+                   ("gamma", "Gamma only, every atom"),
+                   ("analytic", "Analytic, from the engine")),
+          help="Finite differences of the engine's forces, or with "
+               "Analytic the engine's own second derivatives (MACE "
+               "only), which have no step to be noisy in but hold "
+               "about 13 MB an atom and use no symmetry.  "
                "phonopy displaces only the atoms and directions the "
                "space group does not already relate, and samples a "
                "small cell's branches across the zone; Gamma only "
@@ -239,9 +243,13 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
     infrared_too = not thermochemistry or bool(job.param("ir", False))
     try:
         method, why = choose_method(str(job.param("method", "auto")),
-                                    kind, frozen)
+                                    kind, frozen, engine=engine)
         if method == "phonopy" and thermochemistry:
             _check_supercell(structure, job.param("supercell", "auto"))
+        if method == "analytic":
+            verdict = check_analytic(structure, frozen)
+            if verdict.warned:
+                job.say(verdict.sentence)
     except ParamError as error:
         return JobResult.failure(str(error))
     if why:
@@ -285,6 +293,9 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
     if method == "phonopy":
         found = _by_phonopy(job, structure, engine, settings, said,
                             delta, what, thermochemistry)
+    elif method == "analytic":
+        found = _analytic(job, structure, engine, settings, said, kind,
+                          frozen_atoms, what)
     else:
         found = _at_gamma(job, structure, engine, settings, said, kind,
                           delta, frozen_atoms, what)
@@ -347,16 +358,26 @@ def run_infrared(job) -> JobResult:
     return run_thermo(job, thermochemistry=False)
 
 
-def choose_method(asked: str, kind: str, frozen=()) -> tuple[str, str]:
+def choose_method(asked: str, kind: str, frozen=(),
+                  engine: str | None = None) -> tuple[str, str]:
     """``(method, what to say about it)``: phonopy or gamma, from what
-    was asked, what is installed and what the structure is.  Raises
-    :class:`ParamError` when phonopy was asked for by name and cannot
-    be had."""
+    was asked, what is installed and what the structure is, or
+    analytic when that is asked of an ``engine`` that has one --
+    Automatic never chooses it.  Raises :class:`ParamError` when
+    phonopy or analytic was asked for by name and cannot be had."""
     if asked == "gamma":
         return "gamma", ""
+    if asked == "analytic":
+        if engine is not None and not has_analytic_hessian(engine):
+            label = ENGINES.get(engine).label if engine in ENGINES \
+                else engine
+            raise ParamError(
+                f"{label} has no analytic Hessian; choose phonopy or "
+                f"Gamma only, which take it by finite differences")
+        return "analytic", ""
     if asked not in ("auto", "phonopy"):
-        raise ParamError(f"method is auto, phonopy or gamma, not "
-                         f"{asked!r}")
+        raise ParamError(f"method is auto, phonopy, gamma or analytic, "
+                         f"not {asked!r}")
     named = asked == "phonopy"
     if kind == "molecule":
         return "gamma", ("a molecule takes the Gamma-only Hessian: "
@@ -378,6 +399,26 @@ def choose_method(asked: str, kind: str, frozen=()) -> tuple[str, str]:
     return "phonopy", ""
 
 
+def has_analytic_hessian(engine: str) -> bool:
+    """Whether ``engine`` offers its own second derivatives."""
+    return engine in ENGINES and "hessian" in ENGINES.get(engine).provides
+
+
+def check_analytic(structure, frozen_sites_=()):
+    """The analytic route's size verdict, refused here (before any
+    relaxation) over the limit: the retained graph grows with every
+    atom, and a laptop swapping is not a run that finishes."""
+    cell = p1.expand(structure)
+    held = {int(i) for i in frozen_sites_}
+    atoms = [i for i in range(cell.n_atoms)
+             if int(cell.site_idx[i]) in held]
+    verdict = limits.check_hessian(
+        vibrations.free_atoms(structure, atoms))
+    if verdict.refused:
+        raise ParamError(verdict.sentence)
+    return verdict
+
+
 def _check_supercell(structure, asked):
     """The repeats, refused here (before any relaxation) when they
     are over the size limit."""
@@ -393,6 +434,14 @@ def _check_supercell(structure, asked):
     return repeats
 
 
+def _say_if_narrow(job, structure) -> None:
+    widths = molecule._perpendicular_widths(structure.lattice.matrix)
+    if widths.min() < NARROW:
+        job.say(f"the cell is {widths.min():.1f} A across at its "
+                f"narrowest: S and G are a Gamma-only estimate, "
+                f"missing the branches across the zone")
+
+
 def _at_gamma(job, structure, engine, settings, said, kind, delta,
               frozen_atoms, what):
     """Every free atom displaced at Gamma; a :class:`JobResult` if
@@ -401,11 +450,7 @@ def _at_gamma(job, structure, engine, settings, said, kind, delta,
     job.say(f"{kind}: {total} evaluations on {said} (Gamma only, "
             f"every free atom displaced by {delta} A)")
     if kind == "crystal":
-        widths = molecule._perpendicular_widths(structure.lattice.matrix)
-        if widths.min() < NARROW:
-            job.say(f"the cell is {widths.min():.1f} A across at its "
-                    f"narrowest: S and G are a Gamma-only estimate, "
-                    f"missing the branches across the zone")
+        _say_if_narrow(job, structure)
 
     forces = _Forces(job)
     calculator = ENGINES.build(engine, structure, **settings)
@@ -422,6 +467,27 @@ def _at_gamma(job, structure, engine, settings, said, kind, delta,
             f"Hessian with some of its columns is not one.")
     forces.flush()
     return found
+
+
+def _analytic(job, structure, engine, settings, said, kind,
+              frozen_atoms, what):
+    """The engine's own Hessian, a row at a time; a
+    :class:`JobResult` if stopped."""
+    total = 3 * vibrations.free_atoms(structure, frozen_atoms) + 1
+    job.say(f"{kind}: the analytic Hessian on {said}, {total - 1} rows "
+            f"after one evaluation")
+    if kind == "crystal":
+        _say_if_narrow(job, structure)
+    calculator = ENGINES.build(engine, structure, **settings)
+    try:
+        return vibrations.hessian(
+            calculator, structure, kind=kind, frozen=frozen_atoms,
+            cancel=job.cancel,
+            progress=_progress(job, total, "row"), analytic=True)
+    except CalculatorStopped:
+        return JobResult.stopped(
+            f"Stopped part way through the Hessian's rows.  No {what}: "
+            f"a Hessian with some of its rows is not one.")
 
 
 def _by_phonopy(job, structure, engine, settings, said, delta, what,
@@ -508,6 +574,8 @@ def _thermochemistry(job, structure, found, kind):
 
 def hessian_said(found) -> str:
     """How the Hessian was taken, as the summary and the log say it."""
+    if found.method == "analytic":
+        return "Gamma only, analytic (the engine's own)"
     if found.method != "phonopy":
         return "Gamma only, finite differences"
     n = "x".join(str(v) for v in found.supercell or (1, 1, 1))
@@ -547,12 +615,12 @@ def _spectrum_message(found, spectrum, model) -> str:
                if imaginary else ""))
 
 
-def _progress(job, total):
+def _progress(job, total, what="displacement"):
     tenth = max(total // 10, 1)
 
     def progress(done, _total):
         if done == 1 or done % tenth == 0 or done == total:
-            job.say(f"displacement {done} of {total}")
+            job.say(f"{what} {done} of {total}")
     return progress
 
 

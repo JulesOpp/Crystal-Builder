@@ -21,6 +21,12 @@ point is the cell's times its repeats, which is close enough to say.
 **Without phonopy its rows are greyed**, the choice in *Hessian* too,
 and a line says what installing the ``phonons`` extra buys, with
 Preferences > Engines one click away; Automatic is then Gamma only.
+
+**Analytic is offered only for an engine that has one** (MACE), and
+greyed for the rest.  Its line says memory as well as time, because
+memory is what it costs: a row is about 1.25 evaluations, and the
+graph it holds about 13 MB an atom
+(:data:`xtal.core.limits.HESSIAN_MB_PER_ATOM`).
 """
 
 from __future__ import annotations
@@ -37,10 +43,15 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from xtal.core import molecule
+from xtal.core import limits, molecule
 from xtal.ff import phonons, vibrations
 from xtal.ff.registry import ENGINES
-from xtal.modules.thermo import choose_method, frozen_sites
+from xtal.modules.thermo import (
+    check_analytic,
+    choose_method,
+    frozen_sites,
+    has_analytic_hessian,
+)
 from xtal.params import ParamError
 from xtalapp import manual
 from xtalapp.dialogs.answered import answered
@@ -62,6 +73,10 @@ MOLECULE_ONLY = ("sigma", "multiplicity", "pressure")
 
 #: The rows only a phonopy run reads.
 PHONOPY_ONLY = ("supercell", "mesh")
+
+#: A row of an analytic Hessian, in evaluations: MIL-53 under MACE was
+#: 1.03 s a row against 0.83 s an evaluation.
+ROW_COST = 1.25
 
 
 class ThermoDialog(QDialog):
@@ -176,12 +191,32 @@ class ThermoDialog(QDialog):
             show("engines")
 
     def method(self, frozen=()) -> str:
-        """``phonopy`` or ``gamma``, as the run will decide it."""
+        """``phonopy``, ``gamma`` or ``analytic``, as the run will
+        decide it."""
         asked = str(self.form.values().get("method", "auto"))
-        return choose_method(asked, self.system(), frozen)[0]
+        return choose_method(asked, self.system(), frozen,
+                             engine=str(self.engine.currentData()))[0]
+
+    def _grey_analytic(self, name: str) -> None:
+        """Analytic offered only where the engine has a Hessian."""
+        method = self.form.widgets.get("method")
+        if method is None:
+            return
+        index = method.findData("analytic")
+        item = method.model().item(index) if index >= 0 else None
+        if item is None:
+            return
+        offered = has_analytic_hessian(name)
+        item.setEnabled(offered)
+        item.setToolTip("" if offered else
+                        "This engine has no second derivatives of its "
+                        "own; MACE does")
+        if not offered and method.currentData() == "analytic":
+            self._select(method, "auto")
 
     def _engine_changed(self) -> None:
         name = str(self.engine.currentData())
+        self._grey_analytic(name)
         _show_page(self.engine_stack, self.engine_pages.get(name, 0))
         reason = _unavailable(name, self.engine_values())
         self.availability.setText(reason)
@@ -241,7 +276,18 @@ class ThermoDialog(QDialog):
         from xtal.core import p1
 
         scale = 1
-        if method == "phonopy":
+        memory = ""
+        if method == "analytic":
+            verdict = check_analytic(self.structure, frozen)
+            atoms = verdict.estimate
+            count = 3 * atoms
+            scale = ROW_COST
+            gb = atoms * limits.HESSIAN_MB_PER_ATOM / 1024
+            memory = f", about {gb:.1f} GB beside the model"
+            what = "analytic, a row per free coordinate"
+            if verdict.warned:
+                memory += f" -- {verdict.sentence}"
+        elif method == "phonopy":
             ahead = self.phonopy_plan()
             if ahead.verdict.refused:
                 raise ValueError(phonons.said(ahead.verdict))
@@ -257,15 +303,16 @@ class ThermoDialog(QDialog):
             count = vibrations.evaluations(self.structure, atoms)
             what = "Gamma only, every free atom displaced"
         seconds = self._seconds.get(self._engine_key())
+        noun = "rows" if method == "analytic" else "evaluations"
         if seconds is None:
-            return f"{count} evaluations ({what}); timing one..."
+            return f"{count} {noun} ({what}){memory}; timing one..."
         seconds *= scale
         relax = (" plus the relaxation"
                  if self.form.values().get("relax_first") else "")
         total = count * seconds
         spelled = "under a second" if total < 1.0 else _spell(total)
-        return (f"{count} evaluations x {seconds:.2g} s ≈ "
-                f"{spelled}{relax} ({what})")
+        return (f"{count} {noun} x {seconds:.2g} s ≈ "
+                f"{spelled}{relax} ({what}){memory}")
 
     def phonopy_plan(self) -> phonons.Plan:
         """phonopy's plan for the supercell and step asked, kept: it

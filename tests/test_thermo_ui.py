@@ -258,3 +258,28 @@ def test_a_run_from_the_button_lands_in_both_panels(
         timeout=60000)
     assert "G(298.15 K)" in window.ff_dock.report.toPlainText()
     assert window.results_dock._blocks
+
+
+def test_analytic_is_offered_only_for_an_engine_with_a_hessian(
+        qtbot, window, tmp_path, rutile, monkeypatch):
+    """Greyed under UFF, offered under MACE, and the line then says
+    the memory as well as the rows -- memory is what the route costs.
+    Nothing is evaluated: MACE never loads into the test process."""
+    from xtalapp.dialogs.thermo import ThermoDialog
+
+    monkeypatch.setattr(ThermoDialog, "time_one_evaluation",
+                        lambda self: None)
+    _open(window, tmp_path, rutile)
+    dialog = _dialog(qtbot, window)
+    method = dialog.form.widgets["method"]
+    item = method.model().item(method.findData("analytic"))
+    dialog._select(dialog.engine, "uff")
+    assert not item.isEnabled()
+    dialog._select(dialog.engine, "mace")
+    assert item.isEnabled()
+    dialog.form.set_values({"method": "analytic"})
+    assert dialog.method() == "analytic"
+    text = dialog.estimate.text()
+    assert "18 rows" in text and "GB beside the model" in text
+    dialog._select(dialog.engine, "uff")
+    assert method.currentData() == "auto"

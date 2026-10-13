@@ -28,6 +28,10 @@ engine is built over hydrogen where a site says deuterium
 the whole difference a deuterated framework makes.  A marker has no
 mass and no mode: it is never displaced, and its rows are zero.
 
+An engine with second derivatives of its own (MACE) can be asked for
+them instead, ``analytic=True``: the same projection and weighting
+over the block it hands back, never chosen for anyone.
+
 Stop is checked before every evaluation, and raises: a Hessian with
 some of its columns is not one.  ``record`` hears each displacement as
 it finishes, so the run can keep what it reached on disk.
@@ -41,7 +45,7 @@ import numpy as np
 
 from xtal.core import elements as el
 from xtal.core import p1
-from xtal.ff.api import CalculatorStopped
+from xtal.ff.api import CalculatorError, CalculatorStopped
 
 #: Displacement, A.  Small enough that the force is linear in it and
 #: large enough that a single-precision ML engine's noise stays below
@@ -125,6 +129,12 @@ def evaluations(structure, frozen=()) -> int:
     return 6 * len(_free_atoms(p1.expand(structure), frozen)) + 1
 
 
+def free_atoms(structure, frozen=()) -> int:
+    """How many atoms :func:`hessian` displaces, or takes the rows of
+    analytically."""
+    return len(_free_atoms(p1.expand(structure), frozen))
+
+
 def _free_atoms(cell, frozen) -> np.ndarray:
     held = {int(i) for i in frozen}
     return np.array([i for i in range(cell.n_atoms)
@@ -134,7 +144,8 @@ def _free_atoms(cell, frozen) -> np.ndarray:
 
 def hessian(calculator, structure, *, kind: str = "crystal",
             delta: float = DELTA, frozen=(), cancel=None,
-            progress=None, record=None) -> Vibrations:
+            progress=None, record=None,
+            analytic: bool = False) -> Vibrations:
     """The Gamma-point modes of ``structure`` under ``calculator``.
 
     ``calculator`` is built over ``structure`` (through the engine
@@ -142,13 +153,24 @@ def hessian(calculator, structure, *, kind: str = "crystal",
     indices that are not displaced; ``kind`` decides which rigid
     motions are projected out.  ``progress(done, total)`` is called
     after each evaluation and ``record(atom, axis, plus, minus)``
-    after each pair, with the two force arrays."""
+    after each pair, with the two force arrays.
+
+    ``analytic`` asks the engine for its own second derivatives
+    instead (:meth:`~xtal.ff.api.Calculator.hessian`): one evaluation
+    for the energy, then a row per free coordinate, which
+    ``progress`` hears and ``record`` does not -- there are no
+    displaced forces to keep.  An engine that has none is a
+    :class:`CalculatorError`, never a quiet fall back to differences:
+    which way the Hessian was taken is what the run reports."""
     if kind not in ("crystal", "molecule"):
         raise ValueError(f"kind is crystal or molecule, not {kind!r}")
     cell = p1.expand(structure)
     matrix = np.asarray(structure.lattice.matrix, float)
     cart = np.asarray(cell.cart, float)
     free = _free_atoms(cell, frozen)
+    if analytic:
+        return _analytic(calculator, structure, cart, matrix, free,
+                         kind=kind, cancel=cancel, progress=progress)
     total = 6 * len(free) + 1
     done = 0
 
@@ -179,6 +201,29 @@ def hessian(calculator, structure, *, kind: str = "crystal",
     return from_hessian(structure, block, kind=kind, free=free,
                         energy=float(reference.energy),
                         evaluations=done)
+
+
+def _analytic(calculator, structure, cart, matrix, free, *, kind,
+              cancel, progress) -> Vibrations:
+    if getattr(cancel, "requested", False):
+        raise CalculatorStopped("stopped before the Hessian")
+    if cancel is not None:
+        calculator.stop_with(cancel)
+    reference = calculator.compute(cart, matrix)
+    total = 3 * len(free) + 1
+    if progress is not None:
+        progress(1, total)
+    block = calculator.hessian(
+        cart, matrix, atoms=free,
+        progress=None if progress is None
+        else lambda done, _rows: progress(done + 1, total))
+    if block is None:
+        raise CalculatorError(
+            f"{calculator.label} has no analytic Hessian; take it by "
+            f"finite differences instead")
+    return from_hessian(structure, block, kind=kind, free=free,
+                        energy=float(reference.energy), evaluations=1,
+                        method="analytic")
 
 
 def from_hessian(structure, block, *, kind: str = "crystal", free=None,

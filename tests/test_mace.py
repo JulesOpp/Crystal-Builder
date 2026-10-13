@@ -220,6 +220,47 @@ def test_the_registry_builds_it_with_markers_held_back(stand_in):
 
 @pytest.mark.slow
 @needs_mace
+def test_maces_analytic_hessian_agrees_with_finite_differences():
+    """Our row loop over MACE's force graph, against central
+    differences of the forces it reports: the conversion, the row
+    order and which atoms' rows were asked for.  Water with its
+    oxygen held, so a sliced block is what is compared."""
+    answer = in_a_fresh_interpreter(
+        "import json\n"
+        "import numpy as np\n"
+        "from tests.conftest_ff import water\n"
+        "from xtal.core import p1\n"
+        "from xtal.ff.mace import calculator as mace\n"
+        "structure = water()\n"
+        "engine = mace.MACECalculator(structure, mace.MACEOptions(\n"
+        "    model='small', device='cpu', double_precision=True))\n"
+        "cart = np.asarray(p1.expand(structure).cart, dtype=float)\n"
+        "matrix = np.asarray(structure.lattice.matrix, dtype=float)\n"
+        "rows = []\n"
+        "block = engine.hessian(cart, matrix, atoms=[1, 2],\n"
+        "    progress=lambda done, total: rows.append(done))\n"
+        "coords = [3, 4, 5, 6, 7, 8]\n"
+        "numeric = np.zeros((6, 6))\n"
+        "for column, coord in enumerate(coords):\n"
+        "    moved = cart.copy()\n"
+        "    moved.flat[coord] += 1e-3\n"
+        "    plus = engine.compute(moved, matrix).forces.ravel()\n"
+        "    moved.flat[coord] -= 2e-3\n"
+        "    minus = engine.compute(moved, matrix).forces.ravel()\n"
+        "    numeric[:, column] = -(plus - minus)[coords] / 2e-3\n"
+        "print(json.dumps({'analytic': block.tolist(),\n"
+        "                  'numeric': numeric.tolist(),\n"
+        "                  'rows': rows}))\n")
+    analytic = np.asarray(answer["analytic"])
+    assert analytic.shape == (6, 6)
+    assert answer["rows"] == [1, 2, 3, 4, 5, 6]
+    assert analytic == pytest.approx(np.asarray(answer["numeric"]),
+                                     abs=0.2)
+    assert np.abs(analytic).max() > 100.0      # kcal/mol/A^2, not eV
+
+
+@pytest.mark.slow
+@needs_mace
 @pytest.mark.slow
 def test_the_stress_it_claims_agrees_with_a_numeric_one():
     """The one test that needs mace, and the one that has to have it: a
