@@ -17,8 +17,17 @@ DATA = Path(__file__).resolve().parent / "data" / "dftb"
 
 FAKE_DFTB = r'''
 import pathlib, shutil
-pathlib.Path("seen.hsd").write_text(pathlib.Path("dftb_in.hsd").read_text())
-shutil.copy(DATA + "/co2_hessian.out", "hessian.out")
+text = pathlib.Path("dftb_in.hsd").read_text()
+if "SecondDerivatives" in text:
+    pathlib.Path("seen.hsd").write_text(text)
+    shutil.copy(DATA + "/co2_hessian.out", "hessian.out")
+    # What the run leaves: the last displaced geometry's energy.
+    pathlib.Path("detailed.out").write_text(
+        "Total energy:  -8.2535808974 H  -224.5914 eV\n")
+else:
+    pathlib.Path("seen_reference.hsd").write_text(text)
+    pathlib.Path("detailed.out").write_text(
+        "Total energy:  -8.2535939638 H  -224.5917 eV\n")
 '''
 
 FAKE_MODES = r'''
@@ -96,6 +105,34 @@ def test_the_hessian_then_its_modes(fakes, co2, parameters, tmp_path):
     assert "relax first" in result.message
     assert block.displacements.shape == (9, 3, 3)
     assert (run / "modes.dat").read_text().count("\n") == 10
+
+
+def test_dftb_modes_report_carries_a_thermochemistry_table(
+        fakes, co2, parameters, tmp_path):
+    """G from DFTB+ reads as G from any other engine: the same Summary,
+    curves and thermo.dat, E from a single point at the reference and
+    not the last displaced geometry, and the rigid motions ``modes``
+    leaves in projected out -- CO2 in a box is a linear molecule, so
+    its two bends are what is imaginary, not five rotations and
+    translations besides."""
+    run = tmp_path / "run"
+    result = _run(co2, run, parameters, temperature=300.0)
+    assert result.ok, result.detail
+    assert "Driver" not in (run / "seen_reference.hsd").read_text()
+    table = result.report.tables[0]
+    assert table.title == "Summary"
+    rows = {row.texts[0]: row.texts for row in table.rows}
+    assert rows["System"][1] == "molecule (ideal gas)"
+    assert float(rows["E (electronic)"][1]) == pytest.approx(
+        -8.2535939638 * 627.5094740631, abs=1e-3)
+    assert "G(300 K)" in rows
+    assert rows["Imaginary modes"][1] == "2"
+    assert "DFTB+" in rows["Hessian"][1]
+    assert len(result.report.curves) == 2
+    assert (run / "thermo.dat").is_file()
+    assert result.answer.g == pytest.approx(
+        float(rows["G(300 K)"][1]), abs=1e-3)
+    assert [code for code, _ in result.warnings] == ["IMAGINARY_MODES"]
 
 
 def test_frozen_atoms_are_left_out_of_the_hessian(co2):

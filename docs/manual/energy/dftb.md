@@ -185,7 +185,11 @@ the relaxation beside it would be a figure of a different crystal.
   `modes` program.  Relax first: a Hessian taken away from a minimum
   has imaginary modes that are the gradient and not the curvature,
   and they are flagged rather than hidden.  A mode plays back as a
-  loop of frames in the transport bar.
+  loop of frames in the transport bar.  The same Hessian, with the
+  rigid motions projected out, gives the thermochemistry table of
+  {doc}`thermochemistry` at the run's *Temperature*: H, S and G, the
+  curves and `thermo.dat`, with E from one single point at the
+  starting geometry before the displacements.
 
 {ref}`Molecular dynamics… <mod-dftb-md>`
 : Velocity Verlet with a Berendsen or Nosé--Hoover thermostat, or none

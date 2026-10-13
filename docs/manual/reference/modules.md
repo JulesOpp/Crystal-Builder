@@ -761,6 +761,7 @@ The Hessian by finite differences and its modes.  It costs six evaluations per f
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
 | **Displacement** | float, 1e-06 to 0.01 Bohr | `0.0001` | How far each atom is moved each way along each axis |
+| **Temperature** | float, 1 to 5000 K | `298.15` | The temperature the thermochemistry table is at; the curves and thermo.dat run from 10 to 800 K. |
 | **Hold the frozen sites still** | bool | `True` | The sites frozen in the structure are left out of DFTB+'s MovedAtoms |
 
 (mod-dftb-md)=

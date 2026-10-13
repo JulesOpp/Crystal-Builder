@@ -331,15 +331,11 @@ def run_thermo(job, thermochemistry: bool = True) -> JobResult:
     imaginary = int(np.count_nonzero(
         found.frequencies < thermo.IMAGINARY_BELOW))
     if thermochemistry:
-        chosen, curve, sigma = _thermochemistry(job, structure, found,
-                                                kind)
+        chosen, tables, files["thermo.dat"] = tabulate(
+            job, structure, found, kind, frozen_atoms)
         imaginary = chosen.vibrations.n_imaginary
-        blocks += [_summary(chosen, found, kind, sigma, frozen_atoms),
-                   *_curves(curve)]
-        files["thermo.dat"] = thermo.as_dat(curve)
+        blocks += tables
         message = _message(chosen, found)
-        job.note(_log_lines(chosen, found, kind, chosen.quasi_rrho,
-                            chosen.cutoff))
     blocks.append(block)
     if infrared_too:
         model = str(job.param("ir_charges", "fixed"))
@@ -598,10 +594,26 @@ def _thermochemistry(job, structure, found, kind):
             [at(t) for t in temperatures(job)], sigma)
 
 
+def tabulate(job, structure, found, kind, frozen_atoms=()):
+    """``(at the chosen temperature, [Summary, curves], thermo.dat)``
+    from a Hessian however it was taken, and the log's lines said --
+    one table, so that G from DFTB+'s ``modes`` reads as G from MACE
+    does."""
+    chosen, curve, sigma = _thermochemistry(job, structure, found, kind)
+    job.note(_log_lines(chosen, found, kind, chosen.quasi_rrho,
+                        chosen.cutoff))
+    return (chosen,
+            [_summary(chosen, found, kind, sigma, frozen_atoms),
+             *_curves(curve)],
+            thermo.as_dat(curve))
+
+
 def hessian_said(found) -> str:
     """How the Hessian was taken, as the summary and the log say it."""
     if found.method == "analytic":
         return "Gamma only, analytic (the engine's own)"
+    if found.method == "dftb":
+        return "Gamma only, DFTB+ finite differences"
     if found.method != "phonopy":
         return "Gamma only, finite differences"
     n = "x".join(str(v) for v in found.supercell or (1, 1, 1))
