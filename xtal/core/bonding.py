@@ -714,6 +714,46 @@ def rebase(bonds, tau_then, tau_now) -> list[CellBond]:
     ]
 
 
+def lengths(structure, bonds, tau=None) -> np.ndarray:
+    """How long each of ``bonds`` is in the geometry as it is now.
+
+    ``CellBond.distance`` is the length when the bond was perceived,
+    and perception does not follow a move or a relaxation -- so after
+    one it is a length the crystal no longer has, and an inspection
+    that read it reported a 5.6 A C-C relaxed to 1.45.  ``tau`` is the
+    wrap the images were written against when it is not the current
+    one (a stored graph's own): measured without that rebase, an atom
+    that crossed a face puts its bond across the whole cell.
+    """
+    if not bonds:
+        return np.zeros(0)
+    cell = p1.expand(structure)
+    if tau is not None:
+        bonds = rebase(bonds, tau, cell.tau)
+    ends = np.array([(b.i, b.j) for b in bonds], dtype=int)
+    images = np.array([b.image for b in bonds], dtype=float)
+    vectors = (cell.frac[ends[:, 1]] + images
+               - cell.frac[ends[:, 0]]) @ structure.lattice.matrix
+    return np.linalg.norm(vectors, axis=1)
+
+
+def remeasured(structure):
+    """``structure.perceived`` with each bond's length the one it has
+    now, for writing down; nothing else about the graph is touched.
+
+    As stored when the graph no longer describes the cell -- it is
+    then about to be perceived again, and has no geometry to be
+    measured against.
+    """
+    stored = structure.perceived
+    if stored is None or stored.elements != p1.expand(structure).elements:
+        return stored
+    now = lengths(structure, stored.bonds, stored.tau)
+    return replace(stored, bonds=[
+        replace(b, distance=float(d))
+        for b, d in zip(stored.bonds, now, strict=True)])
+
+
 def map_explicit_bond(structure, cell: p1.P1Cell,
                       bond: Bond) -> list[CellBond]:
     """Expand one asymmetric-unit bond into the P1 cell.
@@ -1591,8 +1631,10 @@ def _infer_orders(structure, rules) -> np.ndarray:
             out[k] = AROMATIC_ORDER
             spare[bonds[k].i] = spare[bonds[k].j] = 0
 
-    candidates = sorted((bonds[k].distance, k) for k in free
-                        if out[k] == 1.0)
+    # Shortest first, as the bonds are now: the stored lengths are the
+    # ones perception saw, and a relaxed ring's are not those.
+    now = lengths(structure, bonds)
+    candidates = sorted((now[k], k) for k in free if out[k] == 1.0)
     for _distance, k in candidates:
         bond = bonds[k]
         shared = min(spare[bond.i], spare[bond.j])

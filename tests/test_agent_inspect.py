@@ -231,3 +231,31 @@ def test_capabilities_json_lists_every_engine(capsys):
     document = json.loads(capsys.readouterr().out)
     assert {e["name"] for e in document["engines"]} == \
         {e.name for e in ENGINES}
+
+
+def test_inspect_reports_bond_lengths_after_a_relaxation_not_before(
+        dry_ice):
+    """The graph is held through a move and a relaxation, and so was
+    the length perception wrote into each bond: inspect went on
+    saying the length the bond had when it was perceived, warning
+    about a bond the relaxation had already mended and missing one a
+    drag had stretched."""
+    session = Session(dry_ice)
+    assert session.inspect().sites[0]["neighbours"][0][1] == \
+        pytest.approx(1.149, abs=1e-3)
+
+    session.move_sites([1], to=[[0.21, 0.21, 0.21]])
+    stretched = session.inspect()
+    assert stretched.sites[0]["neighbours"][0][1] == \
+        pytest.approx(2.046, abs=1e-3)
+    assert "BOND_LENGTH_UNUSUAL" in _codes(stretched)
+
+    session.optimize(engine="uff")
+    relaxed = session.inspect()
+    carbon = session.cell.cart[0]
+    oxygen = session.cell.indices_of_site(1)
+    measured = min(np.linalg.norm(session.cell.cart[k] - carbon)
+                   for k in oxygen)
+    assert relaxed.sites[0]["neighbours"][0][1] == \
+        pytest.approx(measured, abs=1e-3)
+    assert "BOND_LENGTH_UNUSUAL" not in _codes(relaxed)

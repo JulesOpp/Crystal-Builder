@@ -222,6 +222,9 @@ class CellBond:
     i: int
     j: int
     image: tuple[int, int, int]
+    #: The length when the bond was perceived or drawn.  The bond is
+    #: held through a move and a relaxation and this is not followed,
+    #: so a length to report is :func:`xtal.core.bonding.lengths`.
     distance: float
     explicit: bool = False
     #: How many electron pairs join the two atoms: 1, 1.5 for an
