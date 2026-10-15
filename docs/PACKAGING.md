@@ -776,8 +776,12 @@ CrystalBuilder.AppDir/
   assistant gives a client is `<the .AppImage> xtal mcp`
   (`discovery.launcher_command`, from the runtime's `APPIMAGE`).
 - **The `.desktop` entry**: `Exec=AppRun %F`,
-  `Categories=Science;Chemistry;`, `MimeType=chemical/x-cif;
-  application/x-crystal-builder-project;`, `Terminal=false`.  An
+  `Categories=Science;Chemistry;Physics;`, `MimeType=chemical/x-cif;
+  application/x-xtalproj;`, `Terminal=false` -- the project type and
+  the categories as PR #59 had them.  Science is the one main
+  category; Chemistry and Physics are additional ones.  The MIME file
+  names each type's icon (`<icon name="application-x-xtalproj"/>`,
+  `chemical-x-cif`), which the AppDir carries under `mimetypes/`.  An
   AppImage registers neither the entry nor the types itself; the
   manual sends users to AppImageLauncher or Gear Lever, which read
   these files.

@@ -223,9 +223,11 @@ def test_the_desktop_entry_names_the_app_its_icon_and_both_file_types(
     assert desktop["Icon"] == DESKTOP_ID
     types = desktop["MimeType"].split(";")
     assert "chemical/x-cif" in types
-    assert "application/x-crystal-builder-project" in types
-    # One main category: a second puts the entry in two menus.
-    assert desktop["Categories"] == "Science;Chemistry;"
+    assert "application/x-xtalproj" in types
+    # One main category (Science): a second puts the entry in two
+    # menus.  Chemistry and Physics are additional ones, as PR #59
+    # had them, for the menus that sort by them.
+    assert desktop["Categories"] == "Science;Chemistry;Physics;"
     assert desktop["StartupWMClass"] == "Crystal Builder"
     shared = (appdir / "usr" / "share" / "applications"
               / f"{DESKTOP_ID}.desktop")
@@ -245,11 +247,28 @@ def test_the_mime_file_declares_both_globs(appdir):
                                 kind.find(f"{MIME}glob").get("pattern"))
              for kind in root.findall(f"{MIME}mime-type")}
     assert globs == {
-        "application/x-crystal-builder-project":
+        "application/x-xtalproj":
             ("Crystal Builder project", "*.xtalproj"),
         "chemical/x-cif":
             ("Crystallographic Information File", "*.cif"),
     }
+
+
+@needs_symlinks
+def test_the_mime_file_names_each_types_icon_and_the_icon_is_there(
+        appdir):
+    """A type that names no icon is drawn with whatever the theme
+    guesses; the name each one gives is a file this AppDir carries,
+    under ``mimetypes/``, as PR #59's MIME file had it."""
+    root = ET.parse(appdir / "usr" / "share" / "mime" / "packages"
+                    / "crystal-builder.xml").getroot()
+    icons = {kind.get("type"): kind.find(f"{MIME}icon").get("name")
+             for kind in root.findall(f"{MIME}mime-type")}
+    assert icons == {"application/x-xtalproj": "application-x-xtalproj",
+                     "chemical/x-cif": "chemical-x-cif"}
+    hicolor = appdir / "usr" / "share" / "icons" / "hicolor"
+    for name in icons.values():
+        assert (hicolor / "48x48" / "mimetypes" / f"{name}.png").is_file()
 
 
 @needs_symlinks

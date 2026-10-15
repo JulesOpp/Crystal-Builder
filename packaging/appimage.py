@@ -20,6 +20,11 @@ neither by itself.
 as its desktop file name: on Wayland that is the ``app_id`` a
 compositor matches against the ``.desktop`` file to find the window's
 icon, so a second spelling here would be a window with no icon.
+PR #59's ``.deb`` named its entry ``crystal-builder.desktop``; the
+reverse-DNS ID is kept because it is what ``setDesktopFileName`` says
+and what freedesktop recommends.  The project's MIME type
+(``application/x-xtalproj``), the categories and the icon set follow
+his.
 
 The AppDir is made in a temporary folder and left behind nowhere.  It
 is a staging area for one ``appimagetool`` run, and a stale one in the

@@ -110,15 +110,20 @@ and, being set, kept the window from choosing.
     the arguments it was given, and leaves `QT_QPA_PLATFORM` to the
     window's own start-up (see § 1a);
   - `io.github.julesopp.CrystalBuilder.desktop`: `Name=Crystal
-    Builder`, `Exec=AppRun %F`, `Icon`, `Categories=Science;Chemistry;`,
-    `MimeType=chemical/x-cif;application/x-crystal-builder-project;`;
+    Builder`, `Exec=AppRun %F`, `Icon`,
+    `Categories=Science;Chemistry;Physics;`,
+    `MimeType=chemical/x-cif;application/x-xtalproj;` (the type and
+    the categories as PR #59 had them; his `.deb` named the entry
+    `crystal-builder.desktop`, and the reverse-DNS ID is kept because
+    the window hands Qt the same one);
   - the icons: `app.svg`, and PNGs rendered from it at every
     `hicolor` size from 16 to 512 px under `usr/share/icons/hicolor/`,
     with the two document icons (`chemical-x-cif.png`,
     `application-x-xtalproj.png`, 16 to 256 px) under `mimetypes/`
     -- the set PR #59's `write_icons` made;
   - `usr/share/mime/packages/crystal-builder.xml`: both types,
-    `.xtalproj` and `.cif` as `chemical/x-cif`. A desktop that
+    `.xtalproj` as `application/x-xtalproj` and `.cif` as
+    `chemical/x-cif`, each naming its icon. A desktop that
     already knows `.cif` from `chemical-mime-data` keeps its own
     definition; one that does not learns it from ours.
 
