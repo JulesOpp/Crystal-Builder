@@ -203,3 +203,68 @@ def test_the_dry_run_shows_an_input_as_the_task_names_it(capsys):
              if line.startswith("   input:")]
     assert shown == [f"   input:  {named}"]
     assert "\\" not in shown[0]
+
+
+def test_the_grader_finds_each_number_within_its_tolerance(tmp_path):
+    """A sweep is graded on its numbers.  A report that rounds to one
+    place must pass, and one that is off by more than the tolerance
+    must fail, naming the closest number it did give."""
+    grade = _grade_module()
+    task = _task(tmp_path, numbers=[
+        {"label": "energy at 0.98 a", "value": 1977.58, "tol": 0.5},
+        {"label": "energy at 1.02 a", "value": 2053.48, "tol": 0.5}])
+    good = ("UFF single points: at 0.98 a, 1,977.6 kcal/mol; "
+            "at 1.02 a, 2053.5 kcal/mol.")
+    off = "UFF single points: 1977.6 and 2060.0 kcal/mol."
+
+    assert grade.grade(task, good, None).passed
+    failed = grade.grade(task, off, None)
+    assert _failed(failed) == ["reports energy at 1.02 a"]
+    detail = {name: d for name, _ok, d in failed.checks}
+    assert "closest 2060" in detail["reports energy at 1.02 a"]
+    assert _failed(grade.grade(task, "no numbers here", None)) == [
+        "reports energy at 0.98 a", "reports energy at 1.02 a"]
+
+
+def test_the_grader_reads_a_typeset_minus_and_a_thousands_separator():
+    grade = _grade_module()
+    assert grade.numbers_in("E = −1,234.5 then 2,002.33 and 7") \
+        == [-1234.5, 2002.33, 7.0]
+
+
+def test_a_report_must_name_each_word_case_aside(tmp_path):
+    grade = _grade_module()
+    task = _task(tmp_path, report_names=["HKUST"])
+    assert grade.grade(task, "hkust-1 has the shorter Cu-Cu", None).passed
+    assert _failed(grade.grade(task, "MOF-5 does", None)) == [
+        "names HKUST"]
+
+
+def test_a_task_may_hand_the_agent_several_inputs(tmp_path):
+    """Comparing two structures needs both copied in; an atom count
+    has nothing single to compare against then, and says so rather
+    than comparing with the first."""
+    grade = _grade_module()
+    task = _task(tmp_path, atoms_unchanged=True, input=[
+        "resources/samples/HKUST1.cif", "resources/samples/MOF-5.cif"])
+
+    files = grade.input_files(task)
+    assert [p.name for p in files] == ["HKUST1.cif", "MOF-5.cif"]
+    assert all(p.is_file() for p in files)
+    verdict = grade.grade(task, "", tmp_path / "unused.xtalproj")
+    detail = {name: d for name, _ok, d in verdict.checks}
+    assert detail["atoms unchanged"] == "the task has more than one input"
+
+
+def test_the_dry_run_lists_every_input_of_a_task(tmp_path, capsys):
+    run = _run_module()
+    task = _task(tmp_path, input=[
+        "resources/samples/HKUST1.cif", "resources/samples/MOF-5.cif"],
+        numbers=[{"label": "d", "value": 2.63, "tol": 0.01}])
+
+    run.dry_run([task], None)
+
+    out = capsys.readouterr().out.splitlines()
+    assert ("   input:  resources/samples/HKUST1.cif, "
+            "resources/samples/MOF-5.cif") in out
+    assert any("d: 2.63 +/- 0.01" in line for line in out)

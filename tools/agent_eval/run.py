@@ -103,7 +103,9 @@ def dry_run(tasks: list[Path], claude: Path | None) -> int:
         print(f"== {task.name}")
         # As expect.json names it: a Path would print backslashes on
         # Windows.
-        print(f"   input:  {expect.get('input') or '(none)'}")
+        given = expect.get("input") or "(none)"
+        shown = ", ".join(given) if isinstance(given, list) else given
+        print(f"   input:  {shown}")
         prompt = " ".join(prompt_of(task).split())
         for line in textwrap.wrap(prompt, 66):
             print(f"   | {line}")
@@ -129,6 +131,11 @@ def _expectation_lines(expect: dict):
         yield "report", "asks the person"
     if expect.get("atoms_unchanged"):
         yield "atoms", "unchanged from the input"
+    for number in expect.get("numbers", []):
+        yield "report gives", (f"{number['label']}: {number['value']:g}"
+                               f" +/- {number['tol']:g}")
+    if expect.get("report_names"):
+        yield "report says", ", ".join(expect["report_names"])
     if expect.get("needs"):
         yield "needs", ", ".join(expect["needs"])
 
@@ -174,8 +181,7 @@ def _set_up(task: Path, folder: Path) -> None:
     subprocess.run([sys.executable, "-m", "xtal.cli", "skill",
                     "install", "--project", str(folder)],
                    check=True, capture_output=True, text=True)
-    source = grade.input_file(task)
-    if source is not None:
+    for source in grade.input_files(task):
         shutil.copy2(source, folder / source.name)
     workspace = folder / "workspace"
     (folder / "CLAUDE.md").write_text(textwrap.dedent(f"""\

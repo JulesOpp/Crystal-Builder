@@ -25,10 +25,19 @@ the task's ``expect.json``.
     itself.
 ``atoms_unchanged``
     The saved project has as many atoms (P1) as the task's input.
+``numbers``
+    ``[{"label", "value", "tol"}]``: each value must appear in the
+    final report, give or take ``tol``, in whatever unit the task
+    asked for.  A thousands separator ("2,002.3") and a typeset minus
+    are read through.  A failure names the closest number given.
+``report_names``
+    Words the final report must contain, case aside ("HKUST").
 ``input``
     The structure the agent is handed, as a path relative to the
-    repository (``resources/samples/MIL53.cif``): a task never keeps
-    a copy of its own.  None for a task that builds its structure.
+    repository (``resources/samples/MIL53.cif``), or a list of them
+    for a task about more than one: a task never keeps a copy of its
+    own.  None for a task that builds its structure.
+    ``atoms_unchanged`` needs exactly one.
 ``needs``
     Extras the task cannot run without; ``run.py`` skips the task and
     says which.  Not graded.
@@ -68,6 +77,11 @@ ANSWERED = re.compile(r"^(yes|no)\b[^?]{0,20}$", re.IGNORECASE)
 #: One sentence, with what ends it; a line break ends one too.
 SENTENCE = re.compile(r"[^.?!\n]*[.?!]+|[^.?!\n]+")
 
+#: A number as a report writes it, a typeset minus included.
+NUMBER = re.compile(r"[-+−]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+#: A thousands separator, taken out before :data:`NUMBER` is matched.
+THOUSANDS = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
+
 
 @dataclass
 class Verdict:
@@ -80,11 +94,20 @@ def expectations(task_dir) -> dict:
         encoding="utf-8"))
 
 
-def input_file(task_dir) -> Path | None:
-    """The structure the task hands the agent, or ``None`` for a task
-    that builds its own."""
-    given = expectations(task_dir).get("input")
-    return ROOT / given if given else None
+def input_files(task_dir) -> list[Path]:
+    """The structures the task hands the agent: none for a task that
+    builds its own, one or several otherwise."""
+    given = expectations(task_dir).get("input") or []
+    if isinstance(given, str):
+        given = [given]
+    return [ROOT / name for name in given]
+
+
+def numbers_in(text: str) -> list[float]:
+    """Every number in ``text``, in order."""
+    plain = THOUSANDS.sub("", text)
+    return [float(n.replace("−", "-"))
+            for n in NUMBER.findall(plain)]
 
 
 def questions_about_trimers(text: str) -> list[str]:
@@ -165,14 +188,31 @@ def grade(task_dir, transcript: str, project,
         checks.append(("asks the person", bool(asked),
                        asked[0] if asked else "no such question"))
 
+    found = numbers_in(transcript)
+    for number in expect.get("numbers", []):
+        value, tol = number["value"], number["tol"]
+        closest = min(found, key=lambda x: abs(x - value), default=None)
+        ok = closest is not None and abs(closest - value) <= tol
+        checks.append((
+            f"reports {number['label']}", ok,
+            "no number in the final report" if closest is None
+            else f"closest {closest:g}, wanted {value:g} +/- {tol:g}"))
+
+    for word in expect.get("report_names", []):
+        named = word.lower() in transcript.lower()
+        checks.append((f"names {word}", named,
+                       "named" if named else "not in the final report"))
+
     if expect.get("atoms_unchanged"):
-        source = input_file(task_dir)
-        if project is None or source is None:
+        sources = input_files(task_dir)
+        if project is None or len(sources) != 1:
             checks.append(("atoms unchanged", False,
                            "no project was saved" if project is None
-                           else "the task has no input to compare"))
+                           else "the task has no input to compare"
+                           if not sources
+                           else "the task has more than one input"))
         else:
-            before, after = _atoms(source), _atoms(project)
+            before, after = _atoms(sources[0]), _atoms(project)
             checks.append(("atoms unchanged", before == after,
                            f"{before} -> {after}"))
 
