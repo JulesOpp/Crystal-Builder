@@ -50,6 +50,9 @@ def _parameters(function) -> tuple[set, bool]:
 
 
 def test_the_skill_ships_in_the_package_data():
+    """A page left out of the package data is in the repository and
+    missing from every install: the guide or prompt that reads it
+    fails on a person's machine and never in the suite's checkout."""
     names = {n.as_posix() for n in skill.shipped_files()}
     assert {"SKILL.md", "mcp.md", "prompts/build-mof.md"} <= names
     assert {f"references/{r}" for r in REFERENCES} <= names

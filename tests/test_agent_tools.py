@@ -394,6 +394,9 @@ def test_every_guide_is_a_resource_and_reads_as_its_page():
 
 def test_the_current_document_resource_is_inspect_once_one_is_open(
         rutile_cif):
+    """A person attaching the current document gets what the model
+    would read from ``inspect``; before an open it is the refusal a
+    tool gives, not an error the client shows as a broken server."""
     async def conversation(client):
         before = await client.read_resource(context.DOCUMENT_URI)
         await client.call_tool("open", {"path": rutile_cif})
@@ -407,6 +410,8 @@ def test_the_current_document_resource_is_inspect_once_one_is_open(
 
 
 def test_the_prompts_are_listed_with_their_arguments_and_render():
+    """A prompt listed without its arguments asks the person for
+    nothing, and the model is handed a literal ``$path`` to open."""
     async def conversation(client):
         listed = (await client.list_prompts()).prompts
         got = await client.get_prompt("build-mof", {
@@ -451,6 +456,8 @@ def test_the_proxy_lists_what_the_server_serves():
 
 
 def test_a_proxy_prompt_missing_an_argument_says_which():
+    """A prompt asked for without an argument must say which one: a
+    bare KeyError reads to the person as the proxy breaking."""
     from xtal.agent import proxy
 
     with pytest.raises(ValueError, match="missing argument 'path' for "

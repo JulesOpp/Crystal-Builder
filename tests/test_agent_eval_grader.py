@@ -156,6 +156,10 @@ def test_the_grader_fails_a_log_that_ran_what_the_task_forbids(
 
 
 def test_a_dry_run_lists_every_task_without_calling_claude(tmp_path):
+    """A dry run is how a task list is checked before a run spends
+    Sam's login: one that called ``claude`` would spend it, and one
+    that left a task, its input or its checks out would let a broken
+    task through unseen."""
     called = tmp_path / "claude-was-called"
     fake = tmp_path / "claude"
     fake.write_text(f"#!/bin/sh\ntouch {called}\n", encoding="utf-8")
@@ -230,6 +234,8 @@ def test_the_grader_finds_each_number_within_its_tolerance(tmp_path):
 
 
 def test_the_grader_reads_a_typeset_minus_and_a_thousands_separator():
+    """A report that writes "−1,234.5" gave the right energy; read as
+    1 and 234.5, or with the sign lost, it fails a run that passed."""
     grade = _grade_module()
     assert grade.numbers_in("E = −1,234.5 then 2,002.33 and 7") \
         == [-1234.5, 2002.33, 7.0]
@@ -245,6 +251,9 @@ def test_a_hyphen_between_numbers_is_a_range_not_a_minus():
 
 
 def test_a_report_must_name_each_word_case_aside(tmp_path):
+    """A report saying "hkust-1" named HKUST; a case-sensitive check
+    fails it, and one that passed without the word passes a report
+    that answered about the wrong structure."""
     grade = _grade_module()
     task = _task(tmp_path, report_names=["HKUST"])
     assert grade.grade(task, "hkust-1 has the shorter Cu-Cu", None).passed
@@ -269,6 +278,8 @@ def test_a_task_may_hand_the_agent_several_inputs(tmp_path):
 
 
 def test_the_dry_run_lists_every_input_of_a_task(tmp_path, capsys):
+    """A task with two inputs shown as one, or its numbers left out,
+    is checked by eye against something other than what will run."""
     run = _run_module()
     task = _task(tmp_path, input=[
         "resources/samples/HKUST1.cif", "resources/samples/MOF-5.cif"],
@@ -358,6 +369,9 @@ def test_the_eval_server_is_headless_with_app_data_of_its_own(tmp_path):
 
 
 def test_the_mcp_preamble_says_what_the_raw_claude_md_says(tmp_path):
+    """A chat client has no ``CLAUDE.md``: without the input's path,
+    the workspace and the ask to name every code in the prompt, the
+    MCP run is graded on what the raw run was told and it was not."""
     run = _run_module()
     text = run.preamble(tmp_path, [Path("anywhere/MIL53.cif")])
     assert str(tmp_path / "MIL53.cif") in text
@@ -366,6 +380,9 @@ def test_the_mcp_preamble_says_what_the_raw_claude_md_says(tmp_path):
 
 
 def test_turns_and_cost_are_read_from_the_json_answer():
+    """Turns and cost are what easier context looks like as numbers;
+    misread, the table compares nothing, and an answer that is not
+    JSON must leave them blank rather than stop the run."""
     run = _run_module()
     out = json.dumps({"type": "result", "result": "done",
                       "num_turns": 7, "total_cost_usd": 0.31})
@@ -375,6 +392,9 @@ def test_turns_and_cost_are_read_from_the_json_answer():
 
 
 def test_the_table_puts_the_two_ways_side_by_side_with_a_parity_line():
+    """The table is the eval's answer: a column for one way that
+    shifts under the other's, a lost failed check or a parity line
+    that counts a skipped task as failed misreports the comparison."""
     run = _run_module()
     results = {
         ("a", "raw"): ("yes", 9, 0.2, ""),
@@ -393,6 +413,9 @@ def test_the_table_puts_the_two_ways_side_by_side_with_a_parity_line():
 
 def test_a_dry_run_via_mcp_shows_the_line_and_the_server_and_calls_nothing(
         tmp_path):
+    """The MCP line is what decides whether the run measures the
+    server alone; a dry run that hid it, or called ``claude``, would
+    leave it unchecked until the login was spent."""
     called = tmp_path / "claude-was-called"
     fake = tmp_path / "claude"
     fake.write_text(f"#!/bin/sh\ntouch {called}\n", encoding="utf-8")
