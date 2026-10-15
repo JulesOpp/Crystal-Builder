@@ -22,6 +22,12 @@ server thread with the call on it, never answers.  So the window is
 probed (:func:`xtal.agent.discovery.alive`, a few milliseconds) as a
 call goes out and every :data:`WATCH` seconds while it is out.
 
+**The playbook is the proxy's own.**  The instructions go out at the
+handshake, before any window is reached, and the guides and prompts
+are static text from this same install, so they are answered here,
+window or no window.  Only the current document is the window's: it
+is forwarded, and with no window it says why, as a tool does.
+
 Imports ``mcp`` only when called, like the rest of the agent's MCP
 side.
 """
@@ -30,7 +36,7 @@ from __future__ import annotations
 
 import contextlib
 
-from xtal.agent import discovery
+from xtal.agent import context, discovery
 from xtal.agent.tools import SERVER_NAME
 
 #: The SDK's own: a call may be a long relaxation, so the read waits.
@@ -241,12 +247,74 @@ async def _watched(window: _Window, session, name: str, arguments: dict):
     return outcome["result"]
 
 
+def _resources():
+    """The guides and the current document, as the window lists them
+    too (:func:`xtal.agent.tools._add_context`)."""
+    from mcp import types
+
+    rows = [types.Resource(uri=context.GUIDE_URI.format(topic),
+                           name=f"guide: {topic}", description=when,
+                           mimeType="text/markdown")
+            for topic, when in context.topics().items()]
+    rows.append(types.Resource(
+        uri=context.DOCUMENT_URI, name="current document",
+        description=context.DOCUMENT_DESCRIPTION,
+        mimeType="application/json"))
+    return rows
+
+
+async def _read(window: _Window, uri: str):
+    """A guide from this install, or the current document from the
+    window, or why there is none."""
+    from mcp.server.lowlevel.helper_types import ReadResourceContents
+
+    if uri != context.DOCUMENT_URI:
+        topic = uri.removeprefix(context.GUIDE_URI.format(""))
+        return [ReadResourceContents(content=context.guide(topic),
+                                     mime_type="text/markdown")]
+    session = None
+    try:
+        session = await window.session()
+        text = (await session.read_resource(uri)).contents[0].text
+    except Exception as exc:              # noqa: BLE001 -- answered
+        if _lost(exc):
+            window.drop(session)
+        text = f"window: {str(exc) or type(exc).__name__}"
+    return [ReadResourceContents(content=text,
+                                 mime_type="application/json")]
+
+
+def _prompts():
+    from mcp import types
+
+    return [types.Prompt(name=p.name, description=p.description,
+                         arguments=[types.PromptArgument(name=a,
+                                                         required=True)
+                                    for a in p.arguments])
+            for p in context.prompts()]
+
+
+def _prompt(name: str, arguments):
+    from mcp import types
+
+    found = {p.name: p for p in context.prompts()}
+    if name not in found:
+        raise ValueError(f"no prompt called {name!r}; the prompts are "
+                         f"{', '.join(found)}")
+    prompt = found[name]
+    return types.GetPromptResult(
+        description=prompt.description,
+        messages=[types.PromptMessage(
+            role="user", content=types.TextContent(
+                type="text", text=prompt.render(**(arguments or {}))))])
+
+
 async def _serve(folder) -> None:
     import anyio
     from mcp.server.lowlevel import Server
     from mcp.server.stdio import stdio_server
 
-    server = Server(SERVER_NAME)
+    server = Server(SERVER_NAME, instructions=context.instructions())
     async with anyio.create_task_group() as group:
         window = _Window(folder, group)
 
@@ -265,6 +333,22 @@ async def _serve(folder) -> None:
         @server.call_tool(validate_input=False)
         async def call_tool(name, arguments):
             return await _forward(window, name, arguments or {})
+
+        @server.list_resources()
+        async def list_resources():
+            return _resources()
+
+        @server.read_resource()
+        async def read_resource(uri):
+            return await _read(window, str(uri))
+
+        @server.list_prompts()
+        async def list_prompts():
+            return _prompts()
+
+        @server.get_prompt()
+        async def get_prompt(name, arguments):
+            return _prompt(name, arguments)
 
         async with stdio_server() as (read, write):
             await server.run(

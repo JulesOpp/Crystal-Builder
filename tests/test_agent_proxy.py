@@ -24,7 +24,7 @@ pytest.importorskip("mcp")
 
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
-from xtal.agent import discovery  # noqa: E402
+from xtal.agent import context, discovery  # noqa: E402
 from xtal.agent.session import Session  # noqa: E402
 from xtal.agent.tools import NO_SESSION  # noqa: E402
 from xtal.io import write_cif  # noqa: E402
@@ -168,6 +168,15 @@ class _Proxy:
                              timeout=timeout)
         answered, reply = self.replies[ident]
         return reply["result"], answered - asked
+
+    def request(self, ident, method=None, params=None, timeout=60000):
+        """The reply with ``ident``; ``method`` is sent first unless
+        only waited for (the handshake is ``1``)."""
+        if method is not None:
+            self.send(_message(method, ident, params or {}))
+        self.qtbot.waitUntil(lambda: ident in self.replies,
+                             timeout=timeout)
+        return self.replies[ident][1]
 
     def finish(self) -> str:
         """Its stderr, once it has gone; killed if it has not."""
@@ -334,3 +343,57 @@ def test_a_failing_call_does_not_hang_the_calls_beside_it(
     assert not out["slow"].isError
     assert "formula" in out["slow"].content[0].text
     thread.join(timeout=15)
+
+
+#: ``xtal mcp`` as a proxy with no window to find.
+NO_WINDOW = ("-c", "import sys; from xtal.agent import proxy; "
+                   "sys.exit(proxy.run({}))")
+
+
+@pytest.mark.slow
+def test_a_proxy_with_no_window_still_gives_the_playbook(
+        qtbot, tmp_path, appdata):
+    """Claude Desktop starts ``xtal mcp`` before the person opens the
+    window, and reads the instructions once, at the handshake: with
+    nothing behind the proxy they must still be the playbook, and the
+    guides and prompts are the proxy's own."""
+    proxy = _Proxy(qtbot, tmp_path, appdata, argv=NO_WINDOW)
+    try:
+        hello = proxy.request(1)["result"]
+        assert hello["instructions"] == context.instructions()
+        listed = proxy.request(2, "resources/list")["result"]
+        uris = {r["uri"] for r in listed["resources"]}
+        assert context.GUIDE_URI.format("prepare") in uris
+        assert context.DOCUMENT_URI in uris
+        page = proxy.request(3, "resources/read", {
+            "uri": context.GUIDE_URI.format("mof")})["result"]
+        assert page["contents"][0]["text"] == context.guide("mof")
+        prompts = proxy.request(4, "prompts/list")["result"]["prompts"]
+        assert {p["name"] for p in prompts} == {
+            "prepare-deposited-cif", "build-mof", "porosity-report"}
+        got = proxy.request(5, "prompts/get", {
+            "name": "porosity-report",
+            "arguments": {"path": "HKUST1.cif"}})["result"]
+        assert "HKUST1.cif" in got["messages"][0]["content"]["text"]
+        document = proxy.request(6, "resources/read", {
+            "uri": context.DOCUMENT_URI})["result"]
+        assert "no window is listening" in \
+            document["contents"][0]["text"]
+        assert proxy.process.poll() is None
+    finally:
+        said = proxy.finish()
+    assert "Traceback" not in said
+
+
+@pytest.mark.slow
+def test_a_proxy_reads_the_current_document_from_the_window(
+        qtbot, window, tmp_path, appdata, rutile):
+    _serving(qtbot, window, tmp_path, rutile)
+    proxy = _Proxy(qtbot, tmp_path, appdata)
+    try:
+        document = proxy.request(2, "resources/read", {
+            "uri": context.DOCUMENT_URI})["result"]
+        assert "formula" in document["contents"][0]["text"]
+    finally:
+        proxy.finish()
+        window.agent_server.stop()
