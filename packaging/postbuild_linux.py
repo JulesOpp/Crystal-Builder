@@ -1,7 +1,7 @@
 """
 Prune and strip the built Linux folder, before it becomes an AppDir.
 
-    python packaging/postbuild_linux.py "dist/Crystal Builder"
+    python packaging/postbuild_linux.py dist/crystal-builder
 
 The Linux half of what ``postbuild.py`` does for the macOS bundle, and
 for the same two reasons: the wheels' shared libraries carry symbol
@@ -43,7 +43,7 @@ from pathlib import Path
 #: walked for what they link and never stripped: ``strip`` drops what
 #: it does not recognise as part of the ELF image, which here is the
 #: whole application.
-PROGRAMS = ("Crystal Builder", "xtal")
+PROGRAMS = ("crystal-builder", "xtal")
 
 #: Where PySide6 keeps the Qt libraries, below wherever PyInstaller put
 #: the package (``_internal/`` in PyInstaller 6).  Everything found

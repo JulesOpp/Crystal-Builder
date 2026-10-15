@@ -57,6 +57,24 @@ def test_the_linux_bundle_is_built_on_the_glibc_floor(workflow):
     assert linux["spec"] == "packaging/linux.spec"
 
 
+def test_the_linux_steps_name_the_folder_linux_spec_makes(workflow):
+    """``linux.spec`` collects into ``dist/crystal-builder``, no space
+    (PR #59); a Linux step still naming ``dist/Crystal Builder``
+    strips and packs a folder that is not there.  The macOS and
+    Windows steps keep theirs."""
+    build = workflow["jobs"]["build"]
+    for name in ("Strip (Linux)", "AppImage (Linux)"):
+        run = _step(build, name)["run"]
+        assert '"dist/crystal-builder"' in run, name
+        assert "dist/Crystal Builder" not in run, name
+    for step in build["steps"]:
+        if "Linux" not in step.get("if", ""):
+            assert "dist/crystal-builder" not in step.get("run", ""), (
+                step.get("name"))
+    assert '"dist/Crystal Builder.app"' in _step(
+        build, "Strip and sign (macOS)")["run"]
+
+
 def test_the_linux_selftest_runs_the_appimage_and_reads_its_output(
         workflow):
     """The AppImage is what a user downloads, and the folder it was

@@ -23,7 +23,7 @@ sys.path.insert(0, str(ROOT / "packaging"))
 
 import postbuild_linux  # noqa: E402
 
-WINDOW = "Crystal Builder"
+WINDOW = "crystal-builder"
 QT = "_internal/PySide6/Qt"
 
 needs_symlinks = pytest.mark.skipif(
@@ -147,7 +147,7 @@ def _file(path: Path, size: int = 64) -> Path:
 
 @pytest.fixture
 def collected(tmp_path) -> Path:
-    """A ``dist/Crystal Builder`` as ``linux.spec`` leaves it, Qt's
+    """A ``dist/crystal-builder`` as ``linux.spec`` leaves it, Qt's
     libraries under ``_internal/PySide6/Qt/lib`` with the top-level
     links PyInstaller 6 makes to them."""
     folder = tmp_path / "dist" / WINDOW
@@ -223,6 +223,18 @@ def test_an_orphan_nothing_needs_is_removed_and_one_still_needed_is_kept(
     out = capsys.readouterr().out
     assert "keeping libQt6Quick.so.6: still reachable" in out
     assert "removed libQt6Pdf.so.6" in out
+
+
+@needs_symlinks
+def test_a_qt_library_the_window_itself_links_is_kept(collected):
+    """The two programs are roots by name; a window named anything
+    but what ``linux.spec`` calls it would be walked as nothing, and
+    a library only it links would go."""
+    needs = dict(NEEDS, **{WINDOW: ("libQt6Pdf.so.6", "libc.so.6")})
+
+    postbuild_linux.remove_unused(collected, run=Host(needs))
+
+    assert "libQt6Pdf.so.6" in _qt_libs(collected)
 
 
 @needs_symlinks

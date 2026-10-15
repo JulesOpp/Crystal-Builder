@@ -717,9 +717,13 @@ tarball), is [LINUX.md](LINUX.md).
 Three steps, each its own file:
 
 1. **`packaging/linux.spec`**: the same two programs from the same
-   `bundle.py` as the other specs -- the windowed `Crystal Builder`
-   and the console `xtal` -- in one `COLLECT`, onedir, with
-   PyInstaller's strip and UPX off.  An ELF file carries no icon and
+   `bundle.py` as the other specs -- the windowed `crystal-builder`
+   and the console `xtal` -- in one `COLLECT`, `dist/crystal-builder/`,
+   onedir, with PyInstaller's strip and UPX off.  Lowercase and no
+   space, as PR #59's spec argued: a space in a path is a quoting
+   problem in every Linux shell, and the `.desktop` entry carries the
+   display name (its `StartupWMClass` is still `Crystal Builder`,
+   Qt's application name, which is what the window reports).  An ELF file carries no icon and
    no version resource, so the spec has neither; the AppDir carries
    the icon.
 2. **`packaging/postbuild_linux.py`**: what `postbuild.py` does on

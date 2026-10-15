@@ -348,7 +348,7 @@ jobs:
       # the module docstring for what goes and why the rest stays.
       - name: Strip (Linux)
         if: runner.os == 'Linux'
-        run: python packaging/postbuild_linux.py "dist/Crystal Builder"
+        run: python packaging/postbuild_linux.py "dist/crystal-builder"
 
       # The tool and the runtime both, each pinned to a numbered
       # release and checked against the SHA-256 GitHub reports for
@@ -392,7 +392,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: "1"
           QT_API: pyside6
         run: |
-          python packaging/appimage.py "dist/Crystal Builder" . \
+          python packaging/appimage.py "dist/crystal-builder" . \
               --tool "$RUNNER_TEMP/appimagetool-x86_64.AppImage" \
               --runtime "$RUNNER_TEMP/runtime-x86_64"
 

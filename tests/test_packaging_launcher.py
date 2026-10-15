@@ -49,10 +49,15 @@ def _executables(spec: Path) -> tuple[dict[str, dict], list[str]]:
     return exes, collected
 
 
-@pytest.mark.parametrize("spec",
-                         ["macos.spec", "windows.spec", "linux.spec"])
+@pytest.mark.parametrize("spec, window", [
+    ("macos.spec", "Crystal Builder"),
+    ("windows.spec", "Crystal Builder"),
+    # A space in a path is a quoting problem in every Linux shell, and
+    # the .desktop entry is where the display name lives (PR #59).
+    ("linux.spec", "crystal-builder"),
+])
 def test_every_spec_builds_an_xtal_launcher_beside_the_app(
-        spec, tmp_path, monkeypatch):
+        spec, window, tmp_path, monkeypatch):
     """Two programs in one folder: the window, and ``xtal`` with a
     console, so that ``xtal mcp`` can speak over stdin and stdout.
     The window comes first in ``COLLECT`` because on macOS the first
@@ -61,11 +66,10 @@ def test_every_spec_builds_an_xtal_launcher_beside_the_app(
     exes, collected = _executables(bundle.HERE / spec)
     by_name = {kw["name"]: var for var, kw in exes.items()}
 
-    assert set(by_name) == {"Crystal Builder", LAUNCHER_NAME}
+    assert set(by_name) == {window, LAUNCHER_NAME}
     assert exes[by_name[LAUNCHER_NAME]]["console"] is True
-    assert exes[by_name["Crystal Builder"]]["console"] is False
-    assert collected[:2] == [by_name["Crystal Builder"],
-                             by_name[LAUNCHER_NAME]]
+    assert exes[by_name[window]]["console"] is False
+    assert collected[:2] == [by_name[window], by_name[LAUNCHER_NAME]]
 
     # Where it lands is where the Preferences page says it is.
     from xtal.agent import discovery
@@ -123,6 +127,16 @@ def test_the_linux_spec_leaves_stripping_to_postbuild():
         (strip,) = [k.value for k in call.keywords if k.arg == "strip"]
         assert isinstance(strip, ast.Constant)
         assert strip.value is False
+
+
+def test_the_linux_spec_collects_into_a_folder_with_no_space():
+    """``appimage.py``, ``postbuild_linux.py`` and CI all name
+    ``dist/crystal-builder``; a ``COLLECT`` left as ``Crystal
+    Builder`` builds a folder none of them finds."""
+    (collect,) = _calls(bundle.HERE / "linux.spec", "COLLECT")
+    (name,) = [k.value.value for k in collect.keywords
+               if k.arg == "name"]
+    assert name == "crystal-builder"
 
 
 def test_the_bundle_collects_mcp_without_its_cli(monkeypatch):

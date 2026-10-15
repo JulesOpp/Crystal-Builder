@@ -1,11 +1,11 @@
 """
 Lay the Linux build out as an AppDir and pack it as an AppImage.
 
-    python packaging/appimage.py "dist/Crystal Builder" dist/ \\
+    python packaging/appimage.py dist/crystal-builder dist/ \\
         --tool ./appimagetool-x86_64.AppImage --runtime ./runtime-x86_64
 
-``linux.spec`` leaves ``dist/Crystal Builder/``, the window and
-``xtal`` beside it.  That folder goes in whole as
+``linux.spec`` leaves ``dist/crystal-builder/``, the window
+(``crystal-builder``) and ``xtal`` beside it.  That folder goes in whole as
 ``usr/lib/crystal-builder/``, and around it the three things
 ``appimagetool`` insists on at the top of an AppDir -- ``AppRun``, one
 ``.desktop`` file, and the icon that file names -- with copies of the
@@ -45,7 +45,9 @@ sys.path.insert(0, str(bundle.ROOT))
 
 from xtalapp.application import DESKTOP_ID  # noqa: E402
 
-WINDOW = "Crystal Builder"
+#: The window's executable, as ``linux.spec`` names it: no space for a
+#: shell to split, and the ``.desktop`` entry carries the display name.
+WINDOW = "crystal-builder"
 MIME = "crystal-builder.xml"
 #: The PNG's side, in pixels: the AppImage spec's recommended
 #: ``.DirIcon`` size, and a ``hicolor`` size every theme has.
@@ -141,8 +143,8 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         description="Pack the Linux build as an AppImage.")
     parser.add_argument("dist", type=Path,
-                        help='the folder linux.spec made, '
-                             '"dist/Crystal Builder"')
+                        help="the folder linux.spec made, "
+                             "dist/crystal-builder")
     parser.add_argument("out", type=Path,
                         help="where the AppImage goes")
     parser.add_argument("--tool", type=Path, required=True,

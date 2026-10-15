@@ -13,7 +13,11 @@ mounted for the purpose.
 
 What goes in is :mod:`bundle`, shared with the other two specs, and the
 two programs are theirs too: the window, and ``xtal`` beside it for an
-AI assistant's client to run as ``xtal mcp``.  What is not here is what
+AI assistant's client to run as ``xtal mcp``.  The window is
+``crystal-builder``, lowercase and with no space, and so is the folder
+(``dist/crystal-builder/``), as PR #59's spec argued: a space in a path
+is a quoting problem in every Linux shell, and the ``.desktop`` entry
+is where the display name lives.  What is not here is what
 a Linux executable has nowhere to carry -- an ELF file holds no icon and
 no version resource -- and the document icons.  The AppDir carries the
 icon and the ``.desktop`` entry, and its MIME file the two file types.
@@ -62,7 +66,7 @@ executable = EXE(
     analysis.scripts,
     [],
     exclude_binaries=True,
-    name="Crystal Builder",
+    name="crystal-builder",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -133,5 +137,5 @@ collection = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="Crystal Builder",
+    name="crystal-builder",
 )

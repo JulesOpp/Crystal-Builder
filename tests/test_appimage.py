@@ -5,7 +5,7 @@
 (AppImageLauncher, Gear Lever) reads the ``.desktop`` file and the MIME
 file inside it to make the menu entry and the file associations.  None
 of that is checked by anything but a Linux machine, so it is checked
-here, on a fake ``dist/Crystal Builder``, with no ``appimagetool``.
+here, on a fake ``dist/crystal-builder``, with no ``appimagetool``.
 """
 
 from __future__ import annotations
@@ -34,7 +34,9 @@ needs_symlinks = pytest.mark.skipif(
     reason="Windows runners make no symlinks without developer mode; "
            "this script runs on Linux only")
 
-WINDOW = "Crystal Builder"
+#: The window's executable: lowercase and with no space, as PR #59's
+#: spec argued -- the ``.desktop`` entry carries the display name.
+WINDOW = "crystal-builder"
 MIME = "{http://www.freedesktop.org/standards/shared-mime-info}"
 
 
@@ -46,7 +48,7 @@ def _program(path: Path, body: str) -> Path:
 
 @pytest.fixture
 def collected(tmp_path) -> Path:
-    """A ``dist/Crystal Builder`` as ``linux.spec`` leaves it: the
+    """A ``dist/crystal-builder`` as ``linux.spec`` leaves it: the
     window, ``xtal`` beside it, and ``_internal`` with a library
     symlinked under its soname, as PyInstaller collects them."""
     folder = tmp_path / "dist" / WINDOW
@@ -127,8 +129,8 @@ def test_apprun_is_executable_and_runs_the_collected_program(appdir):
     apprun = appdir / "AppRun"
     if sys.platform != "win32":
         assert apprun.stat().st_mode & 0o777 == 0o755
-    assert "usr/lib/crystal-builder/Crystal Builder" in apprun.read_text(
-        encoding="utf-8")
+    assert ('"$HERE/usr/lib/crystal-builder/crystal-builder"'
+            in apprun.read_text(encoding="utf-8"))
 
 
 @needs_sh

@@ -368,7 +368,7 @@ def launcher_path(executable: Path) -> Path:
     """Where the ``xtal`` launcher lands: beside the application's own
     ``executable`` -- ``Contents/MacOS/xtal`` inside the ``.app``,
     ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows, ``xtal``
-    beside ``Crystal Builder`` in the Linux folder
+    beside ``crystal-builder`` in the Linux folder
     (``usr/lib/crystal-builder/`` inside the AppImage).  The same rule
     as :func:`xtal.agent.discovery.launcher` in a frozen build, which
     is what the Preferences page shows -- except in an AppImage, where

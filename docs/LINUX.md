@@ -94,9 +94,10 @@ and, being set, kept the window from choosing.
 ## 2. Packaging
 
 - `packaging/linux.spec`: two `Analysis` (`xtalapp/main.py`,
-  `xtal/cli.py`), a windowed `Crystal Builder` executable and a
-  console `xtal`, one `COLLECT`, all from `bundle.py` as the other
-  specs are. `discovery.launcher()` and `bundle.launcher_path()`
+  `xtal/cli.py`), a windowed `crystal-builder` executable and a
+  console `xtal`, one `COLLECT` (`dist/crystal-builder/`), all from
+  `bundle.py` as the other specs are. Lowercase with no space, from
+  PR #59: the `.desktop` entry carries the display name. `discovery.launcher()` and `bundle.launcher_path()`
   already look for `xtal` beside the application on Linux.
 - `packaging/postbuild_linux.py`: `strip --strip-unneeded` over
   every `.so`, and the same pruning of unused Qt modules as
@@ -105,7 +106,7 @@ and, being set, kept the window from choosing.
   instead of `otool -L`. Prints the size before and after.
 - `packaging/appimage.py`: lays out `CrystalBuilder.AppDir/`:
   - `usr/lib/crystal-builder/`: the `COLLECT` folder;
-  - `AppRun`: runs `usr/lib/crystal-builder/Crystal Builder` with
+  - `AppRun`: runs `usr/lib/crystal-builder/crystal-builder` with
     the arguments it was given, and leaves `QT_QPA_PLATFORM` to the
     window's own start-up (see § 1a);
   - `io.github.julesopp.CrystalBuilder.desktop`: `Name=Crystal

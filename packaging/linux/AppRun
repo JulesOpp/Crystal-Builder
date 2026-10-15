@@ -13,4 +13,4 @@ fi
 # bridge is X11 whatever Qt draws on, so a Wayland session runs the
 # window on XWayland -- and only while the variable is unset, which a
 # default here would never let it be.  One the user set still wins.
-exec "$HERE/usr/lib/crystal-builder/Crystal Builder" "$@"
+exec "$HERE/usr/lib/crystal-builder/crystal-builder" "$@"
