@@ -141,8 +141,10 @@ chmod +x Crystal_Builder-*.AppImage
 ```
 
 or mark it executable in its properties in your file manager and
-double-click it. If the window does not open under Wayland, start it
-on X11 with `QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage`.
+double-click it. On a Wayland desktop the window runs on XWayland,
+because the 3D view draws on X11 only; a Wayland session without
+XWayland is not supported, and a `QT_QPA_PLATFORM` you set yourself
+always wins.
 Settings are in `~/.config/CrystalBuilder/CrystalBuilder.conf`; the
 log is in `~/.local/share/CrystalBuilder`.
 

@@ -571,15 +571,13 @@ bundle.  Four layers, cheapest first:
 4. **Before a release is announced, run the AppImage on a throwaway
    x86_64 cloud VM with a desktop, in a Wayland session and in an
    X11 one.**  Wayland first: it is GNOME's default on a current
-   Ubuntu and the platform `AppRun` tries first (`wayland;xcb`), and
-   CI only ever runs xcb.  In each, open a sample, rotate it, and
+   Ubuntu, and there the window asks for xcb and runs on XWayland
+   (`xtalapp/main.py`; VTK's Qt bridge is X11 only), which CI, on
+   Xvfb, never reaches.  In each, open a sample, rotate it, and
    switch on *Preferences ▸ AI assistant*.  CI draws the selftest
-   under Xvfb with Mesa's software GL; it cannot prove Wayland on a
-   real desktop or a real GPU driver, and this is the one look that
-   does.  **If the Wayland session misbehaves where X11 does not,
-   `AppRun`'s default flips to `xcb;wayland`** before the release,
-   rather than leaving users to find `QT_QPA_PLATFORM=xcb`.  A
-   checklist item, not a CI job.
+   under Xvfb with Mesa's software GL; it cannot prove the XWayland
+   path on a real desktop or a real GPU driver, and this is the one
+   look that does.  A checklist item, not a CI job.
 
 ---
 
@@ -757,8 +755,16 @@ CrystalBuilder.AppDir/
                                             # where an integrator looks
 ```
 
-- **`AppRun`** sets `QT_QPA_PLATFORM=wayland;xcb` unless the user has
-  set it, and runs the window with its arguments.  `AppImage xtal …`
+- **`AppRun`** runs the window with its arguments and leaves
+  `QT_QPA_PLATFORM` alone.  The window's own start-up decides, as it
+  does for every Linux install (`xtalapp/main.py`, from PR #61): VTK's
+  Qt bridge is `vtkXOpenGLRenderWindow` whatever Qt draws on, and a
+  Wayland surface handed to it dies with BadWindow at the first 3D
+  view, so a session with both `WAYLAND_DISPLAY` and `DISPLAY` is
+  asked for xcb and the window runs on XWayland.  A Wayland session
+  without XWayland is not supported; a `QT_QPA_PLATFORM` the user set
+  still wins.  An `AppRun` that defaulted to `wayland;xcb`, as the
+  first one did, never let the window choose.  `AppImage xtal …`
   runs the bundled `xtal` instead: the `xtal` inside is in a mount
   that goes when the window quits, so the line Preferences ▸ AI
   assistant gives a client is `<the .AppImage> xtal mcp`
@@ -837,5 +843,5 @@ setup-python's `LD_LIBRARY_PATH`, and *What the AppImage carries*
 extracts the image and requires its own `libxcb-cursor`,
 `libxkbcommon-x11`, `libX11` and `libfontconfig`, which the runner
 has installed for the build and would otherwise lend.  It cannot
-prove Wayland on a real desktop or a real GPU driver, which is § 8's
-fourth layer: a VM, by hand, before a release is announced.
+prove the XWayland path on a real desktop or a real GPU driver, which
+is § 8's fourth layer: a VM, by hand, before a release is announced.

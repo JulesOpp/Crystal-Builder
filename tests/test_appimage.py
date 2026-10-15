@@ -52,8 +52,10 @@ def collected(tmp_path) -> Path:
     folder = tmp_path / "dist" / WINDOW
     internal = folder / "_internal"
     internal.mkdir(parents=True)
+    # `-unset` and not `:-`: an empty value and no value are different
+    # answers, and AppRun must give the program the second.
     _program(folder / WINDOW,
-             'echo "window $QT_QPA_PLATFORM"')
+             'echo "window ${QT_QPA_PLATFORM-unset}"')
     _program(folder / "xtal", 'printf "%s\\n" xtal "$@"')
     (internal / "libQt6Core.so.6.9.0").write_bytes(b"\x7fELF")
     (internal / "libQt6Core.so.6").symlink_to("libQt6Core.so.6.9.0")
@@ -131,12 +133,23 @@ def test_apprun_is_executable_and_runs_the_collected_program(appdir):
 
 @needs_sh
 @needs_symlinks
+def test_apprun_leaves_the_platform_unset_for_the_window_to_choose(
+        appdir):
+    """The window's own start-up asks for xcb on a Wayland session
+    that has XWayland, because VTK's Qt bridge is X11 -- and only
+    when the variable is unset.  An AppRun that set ``wayland;xcb``
+    first was the path whose first 3D view died with BadWindow."""
+    assert _run(appdir).strip() == "window unset"
+
+
+@needs_sh
+@needs_symlinks
 def test_apprun_honours_a_platform_the_user_chose(appdir):
-    """Wayland first and X11 after it is the right default, and is
-    wrong for somebody whose compositor's Wayland Qt mishandles: the
-    variable they set must reach the program untouched."""
-    assert _run(appdir).strip() == "window wayland;xcb"
+    """Somebody who set the variable knows something about their
+    desktop that neither AppRun nor the window does."""
     assert _run(appdir, QT_QPA_PLATFORM="xcb").strip() == "window xcb"
+    assert _run(appdir, QT_QPA_PLATFORM="wayland").strip() == (
+        "window wayland")
 
 
 @needs_sh
@@ -149,7 +162,7 @@ def test_apprun_runs_the_bundled_cli_when_asked_for_xtal(appdir):
     window."""
     assert _run(appdir, "xtal", "mcp", "--headless").split() == [
         "xtal", "mcp", "--headless"]
-    assert _run(appdir, "a structure.cif").strip() == "window wayland;xcb"
+    assert _run(appdir, "a structure.cif").strip() == "window unset"
 
 
 @needs_symlinks

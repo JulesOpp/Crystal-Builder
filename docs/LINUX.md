@@ -78,6 +78,19 @@ external programs).
   session's PATH on the common desktops. Revisit if a user reports
   a program that is on their shell's PATH and not found.
 
+## 1a. Wayland: the window runs on XWayland
+
+VTK's Qt bridge on Linux is `vtkXOpenGLRenderWindow` whatever Qt is
+drawing on. On a Wayland session Qt 6 picks Wayland, `winId()` is a
+`wl_surface` rather than an X window, and the first 3D view dies with
+`X Error ... BadWindow`. So `xtalapp/main.py`, before anything imports
+Qt, asks for `xcb` when both `WAYLAND_DISPLAY` and `DISPLAY` are set,
+on Linux only (PR #61): on a Wayland desktop the window runs on
+XWayland. A Wayland session without XWayland is not supported. A
+`QT_QPA_PLATFORM` the user set still wins. `AppRun` sets nothing:
+the first one defaulted to `wayland;xcb`, which was the crashing path
+and, being set, kept the window from choosing.
+
 ## 2. Packaging
 
 - `packaging/linux.spec`: two `Analysis` (`xtalapp/main.py`,
@@ -92,9 +105,9 @@ external programs).
   instead of `otool -L`. Prints the size before and after.
 - `packaging/appimage.py`: lays out `CrystalBuilder.AppDir/`:
   - `usr/lib/crystal-builder/`: the `COLLECT` folder;
-  - `AppRun`: sets `QT_QPA_PLATFORM` to `wayland;xcb` unless the
-    user set it, then runs `usr/lib/crystal-builder/Crystal Builder`
-    with the arguments it was given;
+  - `AppRun`: runs `usr/lib/crystal-builder/Crystal Builder` with
+    the arguments it was given, and leaves `QT_QPA_PLATFORM` to the
+    window's own start-up (see § 1a);
   - `io.github.julesopp.CrystalBuilder.desktop`: `Name=Crystal
     Builder`, `Exec=AppRun %F`, `Icon`, `Categories=Science;Chemistry;`,
     `MimeType=chemical/x-cif;application/x-crystal-builder-project;`;
@@ -162,7 +175,9 @@ external programs).
 - README and `docs/manual/quickstart/installation.md`: a Linux
   section: download, `chmod +x`, run; the glibc floor in plain
   words ("Ubuntu 22.04 or newer, Debian 12, Fedora 36 or newer");
-  `QT_QPA_PLATFORM=xcb` if the window does not open under Wayland;
+  on a Wayland desktop the window runs on XWayland, a Wayland session
+  without XWayland is not supported, and a `QT_QPA_PLATFORM` the user
+  set still wins;
   menu entries through AppImageLauncher or Gear Lever.
 - Fixed in passing: the Windows packages folder, written as the
   roaming AppData in the README and the installation page, is
@@ -186,14 +201,12 @@ Unit tests, run on every platform:
 - The window icon and desktop file name are set.
 
 CI proves the build, the selftest image under X11 with software GL,
-and the launcher. It cannot prove Wayland on a real desktop or a
-real GPU driver. Before a release is announced: run the AppImage on
-a throwaway x86_64 cloud VM with a desktop, in a Wayland session
-(GNOME's default, and what `AppRun` tries first) and in an X11 one,
-open a sample, rotate it, and switch on Preferences ▸ AI assistant.
-If Wayland misbehaves where X11 does not, `AppRun`'s default flips
-to `xcb;wayland`. This is a checklist item in `PACKAGING.md`, not a
-CI job.
+and the launcher. It cannot prove the XWayland path on a real
+desktop or a real GPU driver. Before a release is announced: run the
+AppImage on a throwaway x86_64 cloud VM with a desktop, in a Wayland
+session (GNOME's default, where the window runs on XWayland) and in
+an X11 one, open a sample, rotate it, and switch on Preferences ▸ AI
+assistant. This is a checklist item in `PACKAGING.md`, not a CI job.
 
 ## Not in scope
 

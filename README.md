@@ -110,9 +110,10 @@ newer (`ldd --version` shows it).  RHEL 9 and its rebuilds (glibc
 2.34) and openSUSE Leap 15 (2.31) are not supported: the AppImage
 refuses to start there.
 
-- **If the window does not open under Wayland**, start it on X11
-  instead: `QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage`.  It
-  tries Wayland first and X11 second unless you set the variable.
+- **On a Wayland desktop the window runs on XWayland**, because the
+  3D view (VTK's) draws on X11 only.  GNOME, KDE and the other common
+  desktops start XWayland for it; a Wayland session without XWayland
+  is not supported.  A `QT_QPA_PLATFORM` you set yourself always wins.
 - **If it says it cannot mount itself**, the system has no FUSE.
   Install it -- the `fuse3` package on most distributions; the
   AppImage brings its own library, so `libfuse2` is not needed.

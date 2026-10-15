@@ -90,14 +90,12 @@ refuses to start there.
    or `.xtalproj` named after it on the command line opens in the
    window.
 
-The window tries Wayland first and X11 second.  **If it does not open
-under Wayland**, start it on X11:
-
-```bash
-QT_QPA_PLATFORM=xcb ./Crystal_Builder-*.AppImage
-```
-
-A value of `QT_QPA_PLATFORM` you have set yourself is always kept.
+**On a Wayland desktop the window runs on XWayland**, the X11 server
+the desktop keeps for programs like this one: the 3D view is drawn by
+VTK, which draws on X11 only.  GNOME, KDE and the other common
+desktops start XWayland when it is asked for; a Wayland session
+without XWayland is not supported.  A value of `QT_QPA_PLATFORM` you
+have set yourself is always kept.
 
 **If it says it cannot mount itself**, the system has no FUSE.
 Install it -- the `fuse3` package on most distributions; the AppImage
