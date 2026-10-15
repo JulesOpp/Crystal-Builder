@@ -315,8 +315,9 @@ def test_the_agent_inherits_no_host_claude_session(monkeypatch):
     """Started from inside a Claude Code session, the agent would
     otherwise take that session's variables -- its id, its SDK, its
     endpoint, its effort -- and run as a part of it, with turns and
-    cost skewed by the host's effort.  A key the person set is theirs,
-    and stays."""
+    cost skewed by the host's effort, and the MCP way started before
+    the server has listed its tools.  A key the person set is theirs,
+    and stays, as does a name that merely contains CLAUDE."""
     run = _run_module()
     for name, value in (("CLAUDECODE", "1"),
                         ("CLAUDE_CODE_SESSION_ID", "x"),
@@ -324,7 +325,11 @@ def test_the_agent_inherits_no_host_claude_session(monkeypatch):
                         ("CLAUDE_EFFORT", "high"),
                         ("CLAUDE_PID", "1"),
                         ("ANTHROPIC_BASE_URL", "z"),
+                        ("MCP_CONNECTION_NONBLOCKING", "true"),
+                        ("MCP_SERVER_CONNECTION_BATCH_SIZE", "4"),
+                        ("DISABLE_MICROCOMPACT", "1"),
                         ("ANTHROPIC_API_KEY", "k"),
+                        ("MY_CLAUDE_X", "1"),
                         ("HOME", "h")):
         monkeypatch.setenv(name, value)
 
@@ -332,9 +337,13 @@ def test_the_agent_inherits_no_host_claude_session(monkeypatch):
 
     for gone in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID",
                  "CLAUDE_AGENT_SDK_VERSION", "CLAUDE_EFFORT",
-                 "CLAUDE_PID", "ANTHROPIC_BASE_URL"):
+                 "CLAUDE_PID", "ANTHROPIC_BASE_URL",
+                 "MCP_CONNECTION_NONBLOCKING",
+                 "MCP_SERVER_CONNECTION_BATCH_SIZE",
+                 "DISABLE_MICROCOMPACT"):
         assert gone not in env
     assert env["ANTHROPIC_API_KEY"] == "k"
+    assert env["MY_CLAUDE_X"] == "1"
     assert env["HOME"] == "h"
     assert env["PATH"].startswith(str(Path(sys.executable).parent))
 

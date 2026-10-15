@@ -66,9 +66,15 @@ SERVER = "crystal-builder"
 
 #: The host Claude Code session's variables, by name and by prefix.
 #: Started from inside one, the agent would inherit its session, SDK,
-#: endpoint and effort -- and the host's effort would skew the turns and
-#: cost the eval measures.
-HOST_SESSION_NAMES = ("CLAUDECODE", "ANTHROPIC_BASE_URL")
+#: endpoint and effort, and the host's effort would skew the turns and
+#: cost the eval measures.  ``MCP_CONNECTION_NONBLOCKING`` would let
+#: ``-p`` start before this server has listed its tools, which skews
+#: the MCP way above all, and ``DISABLE_MICROCOMPACT`` changes how the
+#: context is kept.
+HOST_SESSION_NAMES = ("CLAUDECODE", "ANTHROPIC_BASE_URL",
+                      "MCP_CONNECTION_NONBLOCKING",
+                      "MCP_SERVER_CONNECTION_BATCH_SIZE",
+                      "DISABLE_MICROCOMPACT")
 HOST_SESSION_PREFIXES = ("CLAUDE_",)
 
 
@@ -116,10 +122,11 @@ def find_claude(given: str | None) -> Path | None:
 
 def claude_command(claude, prompt: str, via: str,
                    config=None) -> list[str]:
-    """The ``claude -p`` line for one task.  Raw: the shell and file
-    tools, as before.  MCP: no built-in tool at all (``--tools ""``),
-    this server alone (``--strict-mcp-config`` leaves out the
-    person's own), and its tools allowed without asking."""
+    """The ``claude -p`` line for one task, either way with the
+    project's settings alone (``--setting-sources project``).  Raw:
+    the shell and file tools, as before.  MCP: no built-in tool at all
+    (``--tools ""``), this server alone (``--strict-mcp-config`` leaves
+    out the person's own), and its tools allowed without asking."""
     # The person's own plugins and skills would otherwise reach the
     # agent either way, and a chat client has none of them.
     line = [str(claude), "-p", prompt, "--output-format", "json",

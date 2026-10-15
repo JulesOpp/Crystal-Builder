@@ -34,10 +34,12 @@ your own Claude Code login (there is no API key here).
 
 Both ways run with `--setting-sources project` and with the
 environment cleaned of a host Claude Code session's variables
-(`CLAUDECODE`, every `CLAUDE_*`, `ANTHROPIC_BASE_URL`), so neither
-your own plugins and skills nor the session you started it from --
-its effort included, which would skew turns and cost -- reach the
-agent; a chat client has neither.
+(`CLAUDECODE`, every `CLAUDE_*`, `ANTHROPIC_BASE_URL`,
+`MCP_CONNECTION_NONBLOCKING`, `MCP_SERVER_CONNECTION_BATCH_SIZE`,
+`DISABLE_MICROCOMPACT`), so neither your own plugins and skills nor
+the session you started it from -- its effort, how it connects to
+servers and keeps its context, which would skew turns and cost --
+reach the agent; a chat client has neither.
 
 Both are graded by the same `grade.py`. The table gives each way's
 status, turns and cost (from the JSON's `num_turns` and
