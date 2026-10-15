@@ -10,6 +10,10 @@ installed beside it -- a skill that names a verb this version does not
 have is worse than none, because the agent believes it.  A test holds
 every name in ``SKILL.md`` and ``references/`` to the code.
 
+``mcp.md`` and ``prompts/`` are what an MCP client is served instead
+(:mod:`xtal.agent.context`); ``install`` copies them too, and Claude
+Code reads only ``SKILL.md`` and the references it names.
+
 Claude Code reads skills from ``~/.claude/skills/<name>/`` (every
 project) and ``<project>/.claude/skills/<name>/`` (one project).
 """

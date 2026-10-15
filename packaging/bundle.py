@@ -145,7 +145,8 @@ PACKAGE_DATA = {
     # The AI assistant skill, which Help > Set up an AI assistant
     # copies out of the bundle: without it the entry has nothing to
     # install.
-    "xtal/agent/skill": ["SKILL.md", "references/*.md"],
+    "xtal/agent/skill": ["SKILL.md", "mcp.md", "references/*.md",
+                         "prompts/*.md"],
 }
 
 #: Imported for their side effect and not for a name, or reached only

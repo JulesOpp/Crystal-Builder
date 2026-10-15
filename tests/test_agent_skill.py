@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from xtal import cli, plugins
-from xtal.agent import skill
+from xtal.agent import context, skill
 from xtal.agent.capabilities import VERBS
 from xtal.agent.diagnostics import CODES
 from xtal.agent.session import Session
@@ -51,13 +51,13 @@ def _parameters(function) -> tuple[set, bool]:
 
 def test_the_skill_ships_in_the_package_data():
     names = {n.as_posix() for n in skill.shipped_files()}
-    assert "SKILL.md" in names
+    assert {"SKILL.md", "mcp.md", "prompts/build-mof.md"} <= names
     assert {f"references/{r}" for r in REFERENCES} <= names
     config = tomllib.loads(Path("pyproject.toml").read_text())
     tool = config["tool"]["setuptools"]
     assert "xtal.agent.skill" in tool["packages"]
     assert tool["package-data"]["xtal.agent.skill"] == [
-        "SKILL.md", "references/*.md"]
+        "SKILL.md", "mcp.md", "references/*.md", "prompts/*.md"]
 
 
 def test_the_skill_has_the_frontmatter_an_assistant_reads():
@@ -214,3 +214,38 @@ def test_skill_install_from_the_command_line(tmp_path, capsys):
     assert "crystal-builder" in capsys.readouterr().out
     assert cli.main(["skill", "path"]) == 0
     assert Path(capsys.readouterr().out.strip()) == ROOT
+
+
+def test_the_mcp_instructions_fit_the_budget_every_client_pays():
+    """Every client puts the instructions in front of the model in
+    every conversation, before the person has said anything."""
+    size = len(context.instructions().encode("utf-8"))
+    assert 0 < size <= context.INSTRUCTIONS_LIMIT
+
+
+def test_every_guide_topic_is_a_reference_page_and_every_page_a_topic():
+    """A topic with no page is a guide the model is promised and
+    refused; a page with no topic is one it never hears of."""
+    assert set(context.topics()) == {Path(r).stem for r in REFERENCES}
+
+
+def test_a_guide_is_its_page_and_an_unknown_one_names_them_all():
+    assert context.guide("mof") == PAGES["references/mof.md"]
+    listing = context.guide()
+    for topic, when in context.topics().items():
+        assert f"{topic}: {when}" in listing
+    with pytest.raises(LookupError, match="prepare"):
+        context.guide("nope")
+
+
+def test_each_prompt_names_its_arguments_and_fills_them():
+    prompts = {p.name: p for p in context.prompts()}
+    assert set(prompts) == {"prepare-deposited-cif", "build-mof",
+                            "porosity-report"}
+    assert prompts["build-mof"].arguments == ("topology", "node", "edge")
+    assert prompts["porosity-report"].arguments == ("path",)
+    text = prompts["prepare-deposited-cif"].render(path="MIL-88B.cif")
+    assert "MIL-88B.cif" in text and "$" not in text
+    assert all(p.description for p in prompts.values())
+    with pytest.raises(KeyError):
+        prompts["build-mof"].render(topology="pcu")
