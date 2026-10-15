@@ -69,8 +69,9 @@ SERVER = "crystal-builder"
 #: endpoint and effort, and the host's effort would skew the turns and
 #: cost the eval measures.  ``MCP_CONNECTION_NONBLOCKING`` would let
 #: ``-p`` start before this server has listed its tools, which skews
-#: the MCP way above all, and ``DISABLE_MICROCOMPACT`` changes how the
-#: context is kept.
+#: the MCP way above all; ``MCP_SERVER_CONNECTION_BATCH_SIZE`` changes
+#: how many servers the agent connects at once, so when this one is
+#: ready; and ``DISABLE_MICROCOMPACT`` changes how the context is kept.
 HOST_SESSION_NAMES = ("CLAUDECODE", "ANTHROPIC_BASE_URL",
                       "MCP_CONNECTION_NONBLOCKING",
                       "MCP_SERVER_CONNECTION_BATCH_SIZE",

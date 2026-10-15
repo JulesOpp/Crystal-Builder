@@ -39,7 +39,11 @@ environment cleaned of a host Claude Code session's variables
 `DISABLE_MICROCOMPACT`), so neither your own plugins and skills nor
 the session you started it from -- its effort, how it connects to
 servers and keeps its context, which would skew turns and cost --
-reach the agent; a chat client has neither.
+reach the agent; a chat client has neither. The `CLAUDE_` prefix
+also drops your own `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_USE_BEDROCK` and
+`CLAUDE_CODE_OAUTH_TOKEN`: the agent runs on the login and
+configuration Claude Code finds in its default places, so set those
+up there to run the eval.
 
 Both are graded by the same `grade.py`. The table gives each way's
 status, turns and cost (from the JSON's `num_turns` and
