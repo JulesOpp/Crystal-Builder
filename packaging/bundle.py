@@ -147,6 +147,9 @@ PACKAGE_DATA = {
     # install.
     "xtal/agent/skill": ["SKILL.md", "mcp.md", "references/*.md",
                          "prompts/*.md"],
+    # The window's icon, which nothing but the application gives a
+    # Linux window: see `xtalapp.application.icon_path`.
+    "xtalapp": ["data/app.svg"],
 }
 
 #: Imported for their side effect and not for a name, or reached only
@@ -234,8 +237,15 @@ HIDDEN_IMPORTS = [
 #: is traced: ``sse_starlette`` and ``httpx_sse`` are imported by
 #: ``mcp`` at the top of the modules that use them, and ``anyio``'s
 #: back ends, imported by name, are the contrib hook for ``anyio``.
+#:
+#: ``phonopy`` is the ``phonons`` extra, and ``phonors`` its Rust
+#: kernels (phonopy 4).  Collected whole rather than left to tracing:
+#: phonopy tries its C and Rust kernels inside ``try: import`` and
+#: falls back without a word (``phonopy/_lang.py``), so a bundle that
+#: lost one would still run, on a slower path nobody chose.  The
+#: selftest's phonon check runs phonopy end to end.
 COLLECT = ["rdkit", "matplotlib", "rietx",
-           "mcp", "uvicorn"]
+           "mcp", "uvicorn", "phonopy", "phonors"]
 
 #: Entries of :data:`COLLECT` collected for their submodules and
 #: metadata only, less the subpackages named.  ``mcp.cli`` is the SDK's
@@ -365,9 +375,13 @@ EXCLUDES = [
 def launcher_path(executable: Path) -> Path:
     """Where the ``xtal`` launcher lands: beside the application's own
     ``executable`` -- ``Contents/MacOS/xtal`` inside the ``.app``,
-    ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows.  The same
-    rule as :func:`xtal.agent.discovery.launcher` in a frozen build,
-    which is what the Preferences page shows."""
+    ``xtal.exe`` beside ``Crystal Builder.exe`` on Windows, ``xtal``
+    beside ``crystal-builder`` in the Linux folder
+    (``usr/lib/crystal-builder/`` inside the AppImage).  The same rule
+    as :func:`xtal.agent.discovery.launcher` in a frozen build, which
+    is what the Preferences page shows -- except in an AppImage, where
+    it names the ``.AppImage`` file instead
+    (:func:`~xtal.agent.discovery.launcher_command`)."""
     from xtal.agent.discovery import LAUNCHER_NAME
 
     name = (f"{LAUNCHER_NAME}.exe" if sys.platform == "win32"

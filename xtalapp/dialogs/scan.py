@@ -448,8 +448,25 @@ class ScanDialog(QDialog):
         # The bulk modulus is this dialog with the axis fixed to the
         # volume, one direction, and the cell relaxed before it starts
         # -- the same run underneath, so it reads the engine the same
-        # way and leaves the same files.
-        self.bulk = action.name == "bulk_modulus"
+        # way and leaves the same files.  The quasi-harmonic run is the
+        # bulk modulus with a Hessian at every volume, and its own
+        # rows (the Hessian's, the temperatures, the pressure) are its
+        # action's generated form below the scan's.
+        self.qha = action.name == "qha"
+        self.bulk = action.name == "bulk_modulus" or self.qha
+        self._plans: dict = {}
+        self.qha_form = None
+        if self.qha:
+            own = {"hessian", "supercell", "mesh", "delta", "t_min",
+                   "t_max", "t_step", "pressure"}
+            self.qha_form = ParamForm(tuple(
+                p for p in action.params if p.name in own))
+            self.max_steps.setValue(2000)
+            self.tolerance.setValue(0.01)
+            self.tolerance.setToolTip(
+                "Tight on purpose: a volume left short of its minimum "
+                "has imaginary modes, and a volume with imaginary "
+                "modes is a hole in F(V, T).")
         self.relax_first = QCheckBox("Relax the cell first")
         self.relax_first.setChecked(True)
         self.relax_first.setToolTip(
@@ -494,6 +511,8 @@ class ScanDialog(QDialog):
         self.direction.currentIndexChanged.connect(self.refresh)
         self.max_steps.valueChanged.connect(self.refresh)
         self.seed.currentIndexChanged.connect(self.refresh)
+        if self.qha_form is not None:
+            self.qha_form.changed.connect(self.refresh)
         if initial:
             self.set_values(initial)
         self.refresh()
@@ -548,6 +567,11 @@ class ScanDialog(QDialog):
         inner.addWidget(self.second)
         inner.addLayout(how)
         inner.addWidget(self.pre_box)
+        if self.qha_form is not None:
+            heading = QLabel("Vibrations and temperatures")
+            heading.setStyleSheet("font-weight: bold;")
+            inner.addWidget(heading)
+            inner.addWidget(self.qha_form)
         inner.addStretch(1)
         body = _wrapped(inner)
 
@@ -668,11 +692,56 @@ class ScanDialog(QDialog):
         seconds = driver.estimate(
             plan, SECONDS_PER_ATOM_STEP * atoms,
             self.max_steps.value(), pre_steps)
+        hessian = ""
+        if self.qha:
+            try:
+                count, scale, what = self.hessian_cost()
+            except Exception as error:              # noqa: BLE001
+                self.summary.setText(str(error))
+                set_tone(self.summary, HINT)
+                ok.setEnabled(False)
+                return
+            seconds += plan.n_points * count * scale \
+                * SECONDS_PER_ATOM_STEP * atoms
+            hessian = (f"  At each, a Hessian of {count} evaluations "
+                       f"({what}).")
         self.summary.setText(
             f"{plan.n_points} points, up to about {_spell(seconds)}.  "
-            f"{plan.describe()}")
+            f"{plan.describe()}{hessian}")
         self.summary.setStyleSheet("")
         ok.setEnabled(True)
+
+    def hessian_cost(self):
+        """``(evaluations, cell multiple, how)`` for one volume's
+        Hessian, as the run will choose it; raises for a refusal."""
+        from xtal.core import limits
+        from xtal.ff import phonons, vibrations
+        from xtal.modules.thermo import check_analytic, choose_method
+
+        values = self.qha_form.values()
+        method, _why = choose_method(str(values.get("hessian", "auto")),
+                                     "crystal",
+                                     engine=str(self.engine.currentData()))
+        if method == "phonopy":
+            key = (str(values.get("supercell", "auto")),
+                   float(values.get("delta", vibrations.DELTA)))
+            if key not in self._plans:
+                self._plans[key] = phonons.plan(self.structure, key[0],
+                                                delta=key[1])
+            ahead = self._plans[key]
+            if ahead.verdict.refused:
+                raise ValueError(phonons.said(ahead.verdict))
+            n = "x".join(str(v) for v in ahead.supercell)
+            scale = int(ahead.supercell[0] * ahead.supercell[1]
+                        * ahead.supercell[2])
+            return ahead.evaluations, scale, f"phonopy, supercell {n}"
+        if method == "analytic":
+            verdict = check_analytic(self.structure)
+            gb = verdict.estimate * limits.HESSIAN_MB_PER_ATOM / 1024
+            return (3 * verdict.estimate, 1,
+                    f"analytic rows, about {gb:.1f} GB")
+        return (vibrations.evaluations(self.structure), 1,
+                "Gamma only, every atom displaced")
 
     # -- what it hands back --------------------------------------------
 
@@ -696,6 +765,8 @@ class ScanDialog(QDialog):
         }
         if self.bulk:
             out["relax_first"] = self.relax_first.isChecked()
+        if self.qha_form is not None:
+            out.update(self.qha_form.values())
         out["engine_options"] = self.engine_values()
         out["pre_engine"] = str(self.pre_engine.currentData() or "")
         out["pre_engine_options"] = self.pre_values()
@@ -705,6 +776,8 @@ class ScanDialog(QDialog):
 
     def set_values(self, values) -> None:
         values = dict(values or {})
+        if self.qha_form is not None:
+            self.qha_form.set_values(values)
         if "relax_first" in values:
             self.relax_first.setChecked(bool(values["relax_first"]))
         if "engine" in values:

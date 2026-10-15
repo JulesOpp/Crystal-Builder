@@ -145,6 +145,10 @@ class Table:
     #: :data:`QUANTITY_COLUMNS` -- and a table that says otherwise is
     #: one whose rows carry :attr:`Row.cells`.
     columns: tuple[str, ...] = QUANTITY_COLUMNS
+    #: What the numbers above must not be read without -- G of a
+    #: structure that is not at a minimum -- drawn in warning tone
+    #: under the table, where a row's note is only a tooltip.
+    warning: str = ""
 
     @property
     def named_columns(self) -> bool:
@@ -170,6 +174,8 @@ class Table:
                 f"{head:<{width}s}" for head, width
                 in zip(self.columns, widths, strict=True)).rstrip())
         lines += [row.as_text(widths) for row in self.rows]
+        if self.warning:
+            lines += ["", f"WARNING: {self.warning}"]
         if self.note:
             lines += ["", self.note]
         return "\n".join(lines)
@@ -336,12 +342,16 @@ class Curve:
         if self.n_points < 2:
             return f"{self.title}: nothing to plot"
         y = np.asarray(self.y, dtype=float)
-        top = float(np.max(y)) or 1.0
+        finite = y[np.isfinite(y)]
+        # A hole (NaN) is a gap in the bars, as it is on screen.
+        top = (float(np.max(finite)) if len(finite) else 0.0) or 1.0
         step = max(1, self.n_points // max(rows, 1))
         lines = [self.title] if self.title else []
         for start in range(0, self.n_points, step):
-            height = float(np.max(y[start:start + step]))
-            bar = "#" * int(round(width * height / top))
+            bucket = y[start:start + step]
+            bucket = bucket[np.isfinite(bucket)]
+            height = float(np.max(bucket)) if len(bucket) else 0.0
+            bar = "#" * max(int(round(width * height / top)), 0)
             lines.append(f"{self.x[start]:8.2f}  {bar}")
         if self.x_label:
             lines.append(f"          {self.x_label}")
@@ -529,6 +539,83 @@ class Modes:
         for n, frequency in enumerate(self.frequencies):
             rows.append(f"{n + 1:5d}  {frequency:12.4f}  " + "  ".join(
                 f"{v: .6f}" for v in self.displacements[n].ravel()))
+        return "\n".join(rows) + "\n"
+
+
+@dataclass(frozen=True)
+class Spectrum:
+    """An IR spectrum: a stick per mode, and the band they broaden to.
+
+    The sticks are the answer and the band is a picture of them, so
+    only the sticks are stored and :meth:`broadened` draws the band at
+    whatever width is asked -- the panel's width box redraws it
+    without a second run.  ``modes`` is each stick's row in the
+    report's :class:`Modes` table, so choosing one chooses the mode to
+    animate.  Intensities are km/mol; ``note`` says which charge model
+    they came from, because the frequencies are the engine's and the
+    intensities are not.
+    """
+
+    title: str = ""
+    frequencies: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    intensities: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    modes: tuple = ()
+    fwhm: float = 10.0
+    note: str = ""
+
+    #: Points per wavenumber of the drawn band.
+    SAMPLING = 1.0
+
+    def sticks(self) -> np.ndarray:
+        """``(frequency, intensity)`` rows, cm^-1 and km/mol."""
+        return np.column_stack([np.asarray(self.frequencies, float),
+                                np.asarray(self.intensities, float)])
+
+    def broadened(self, fwhm: float | None = None):
+        """``(x, y)``: Lorentzians of full width ``fwhm`` at half
+        height, each with its stick's area, on a wavenumber axis that
+        falls from left to right as an IR spectrum is drawn."""
+        fwhm = float(fwhm or self.fwhm)
+        nu = np.asarray(self.frequencies, float)
+        area = np.asarray(self.intensities, float)
+        if not len(nu):
+            return np.zeros(0), np.zeros(0)
+        top = float(nu.max()) + 10 * fwhm
+        bottom = max(float(nu.min()) - 10 * fwhm, 0.0)
+        x = np.arange(top, bottom - self.SAMPLING, -self.SAMPLING)
+        gamma = fwhm / 2.0
+        y = (area[None, :] * gamma / np.pi
+             / ((x[:, None] - nu[None, :]) ** 2 + gamma ** 2)).sum(axis=1)
+        return x, y
+
+    def curve(self, fwhm: float | None = None) -> Curve:
+        """The band as a :class:`Curve` with the sticks as its comb."""
+        x, y = self.broadened(fwhm)
+        return Curve(title=self.title, x=x, y=y,
+                     x_label="wavenumber (cm-1)",
+                     y_label="absorbance (km/mol per cm-1)",
+                     tick_sets=(("modes", np.asarray(self.frequencies,
+                                                     float)),),
+                     normalised=True)
+
+    def as_text(self) -> str:
+        lines = [self.title] if self.title else []
+        lines += [f"{f:10.2f} cm-1  {i:12.4f} km/mol"
+                  for f, i in self.sticks()]
+        if self.note:
+            lines.append(self.note)
+        return "\n".join(lines)
+
+    def as_dat(self) -> str:
+        rows = ["# frequency(cm-1)  intensity(km/mol)"]
+        rows += [f"{f:12.4f}  {i:14.6f}" for f, i in self.sticks()]
+        return "\n".join(rows) + "\n"
+
+    def as_xy(self, fwhm: float | None = None) -> str:
+        x, y = self.broadened(fwhm)
+        rows = [f"# Lorentzian FWHM {float(fwhm or self.fwhm):g} cm-1; "
+                f"wavenumber(cm-1)  absorbance(km/mol per cm-1)"]
+        rows += [f"{a:.2f}  {b:.8g}" for a, b in zip(x, y, strict=True)]
         return "\n".join(rows) + "\n"
 
 
@@ -734,6 +821,10 @@ class Report:
         return self.of(Modes)
 
     @property
+    def spectra(self) -> list[Spectrum]:
+        return self.of(Spectrum)
+
+    @property
     def zones(self) -> list[Zone]:
         return self.of(Zone)
 
@@ -763,8 +854,8 @@ REPORT_NAME = "report.json"
 #: Results panel has to know how to draw -- ``tests/test_results_ui``
 #: holds the panel to this list, so a new kind cannot arrive without a
 #: widget.  Written out once; :data:`_BLOCKS` is built from it.
-BLOCK_TYPES = (Table, Histogram, Curve, Bands, Dos, Modes, Zone,
-               Surface)
+BLOCK_TYPES = (Table, Histogram, Curve, Bands, Dos, Modes, Spectrum,
+               Zone, Surface)
 
 _BLOCKS = {cls.__name__: cls for cls in (Row, *BLOCK_TYPES, Report)}
 

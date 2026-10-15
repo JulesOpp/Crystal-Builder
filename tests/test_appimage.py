@@ -1,0 +1,342 @@
+"""The AppDir a Linux download is packed from.
+
+``appimagetool`` reads a folder with a fixed shape -- ``AppRun``, one
+``.desktop`` file and its icon at the top -- and a desktop integrator
+(AppImageLauncher, Gear Lever) reads the ``.desktop`` file and the MIME
+file inside it to make the menu entry and the file associations.  None
+of that is checked by anything but a Linux machine, so it is checked
+here, on a fake ``dist/crystal-builder``, with no ``appimagetool``.
+"""
+
+from __future__ import annotations
+
+import configparser
+import os
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import pytest
+from PySide6.QtGui import QImage
+
+from xtalapp.application import DESKTOP_ID
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "packaging"))
+
+import appimage  # noqa: E402
+
+needs_sh = pytest.mark.skipif(sys.platform == "win32",
+                              reason="AppRun is a POSIX shell script")
+needs_symlinks = pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows runners make no symlinks without developer mode; "
+           "this script runs on Linux only")
+
+#: The window's executable: lowercase and with no space, as PR #59's
+#: spec argued -- the ``.desktop`` entry carries the display name.
+WINDOW = "crystal-builder"
+MIME = "{http://www.freedesktop.org/standards/shared-mime-info}"
+
+
+def _program(path: Path, body: str) -> Path:
+    path.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+@pytest.fixture
+def collected(tmp_path) -> Path:
+    """A ``dist/crystal-builder`` as ``linux.spec`` leaves it: the
+    window, ``xtal`` beside it, and ``_internal`` with a library
+    symlinked under its soname, as PyInstaller collects them."""
+    folder = tmp_path / "dist" / WINDOW
+    internal = folder / "_internal"
+    internal.mkdir(parents=True)
+    # `-unset` and not `:-`: an empty value and no value are different
+    # answers, and AppRun must give the program the second.
+    _program(folder / WINDOW,
+             'echo "window ${QT_QPA_PLATFORM-unset}"')
+    _program(folder / "xtal", 'printf "%s\\n" xtal "$@"')
+    (internal / "libQt6Core.so.6.9.0").write_bytes(b"\x7fELF")
+    (internal / "libQt6Core.so.6").symlink_to("libQt6Core.so.6.9.0")
+    return folder
+
+
+@pytest.fixture
+def appdir(qapp, collected, tmp_path) -> Path:
+    return appimage.layout(collected, tmp_path / "CrystalBuilder.AppDir")
+
+
+def _run(appdir: Path, *args: str, **env: str) -> str:
+    environment = {k: v for k, v in os.environ.items()
+                   if k != "QT_QPA_PLATFORM"}
+    environment.update(env)
+    run = subprocess.run(["sh", str(appdir / "AppRun"), *args],
+                         capture_output=True, text=True, check=True,
+                         env=environment)
+    return run.stdout
+
+
+@needs_symlinks
+def test_the_appdir_has_the_layout_appimagetool_expects(appdir):
+    """``appimagetool`` refuses a folder without ``AppRun`` and a
+    ``.desktop`` file at its top, takes the icon the entry names from
+    there too, and ``.DirIcon`` is what a file manager shows for the
+    AppImage itself."""
+    lib = appdir / "usr" / "lib" / "crystal-builder"
+    share = appdir / "usr" / "share"
+    for path in [
+        appdir / "AppRun",
+        appdir / f"{DESKTOP_ID}.desktop",
+        appdir / f"{DESKTOP_ID}.svg",
+        appdir / f"{DESKTOP_ID}.png",
+        lib / WINDOW,
+        lib / "xtal",
+        share / "applications" / f"{DESKTOP_ID}.desktop",
+        share / "icons" / "hicolor" / "scalable" / "apps"
+        / f"{DESKTOP_ID}.svg",
+        share / "mime" / "packages" / "crystal-builder.xml",
+    ]:
+        assert path.is_file(), path
+
+    assert (appdir / f"{DESKTOP_ID}.svg").read_bytes() == (
+        appimage.bundle.ICONS / "app.svg").read_bytes()
+    icon = appdir / ".DirIcon"
+    assert icon.is_symlink()
+    assert os.readlink(icon) == f"{DESKTOP_ID}.png"
+
+
+@needs_symlinks
+def test_the_dir_icon_is_a_256_pixel_png_for_thumbnailers(appdir):
+    """A file manager draws an AppImage with its ``.DirIcon``, and
+    thumbnailers read a PNG there and ignore an svg: the download
+    would show as a blank file."""
+    for path in [appdir / ".DirIcon",
+                 appdir / "usr" / "share" / "icons" / "hicolor"
+                 / "256x256" / "apps" / f"{DESKTOP_ID}.png"]:
+        assert path.read_bytes().startswith(b"\x89PNG")
+        image = QImage(str(path))
+        assert not image.isNull()
+        assert (image.width(), image.height()) == (256, 256)
+
+
+#: The sizes a hicolor theme looks for, as PR #59's ``write_icons``
+#: renders them: the app icon up to 512, the document icons to 256.
+APP_SIZES = (16, 24, 32, 48, 64, 128, 256, 512)
+DOCUMENT_SIZES = (16, 24, 32, 48, 64, 128, 256)
+
+
+def _png_side(path: Path) -> tuple[int, int]:
+    assert path.read_bytes().startswith(b"\x89PNG"), path
+    image = QImage(str(path))
+    assert not image.isNull(), path
+    return image.width(), image.height()
+
+
+@needs_symlinks
+def test_the_app_icon_is_drawn_at_every_size_the_theme_looks_for(
+        appdir):
+    """A panel, a title bar and a launcher each ask the theme for
+    their own size; with only 256 the desktop scales it down to 16
+    itself, and a 16 px blur is what the title bar shows."""
+    hicolor = appdir / "usr" / "share" / "icons" / "hicolor"
+    for size in APP_SIZES:
+        icon = hicolor / f"{size}x{size}" / "apps" / f"{DESKTOP_ID}.png"
+        assert _png_side(icon) == (size, size)
+    assert (hicolor / "scalable" / "apps" / f"{DESKTOP_ID}.svg").is_file()
+
+
+@needs_symlinks
+def test_both_document_types_have_an_icon_named_by_their_mime_type(
+        appdir):
+    """A file manager draws a ``.cif`` or a ``.xtalproj`` with the
+    icon named after its MIME type, slash spelled ``-``; without one
+    a project is a blank page beside every other file."""
+    hicolor = appdir / "usr" / "share" / "icons" / "hicolor"
+    for name in ("chemical-x-cif", "application-x-xtalproj"):
+        for size in DOCUMENT_SIZES:
+            icon = hicolor / f"{size}x{size}" / "mimetypes" / f"{name}.png"
+            assert _png_side(icon) == (size, size)
+
+
+@needs_symlinks
+def test_apprun_is_executable_and_runs_the_collected_program(appdir):
+    """The AppImage runtime executes ``AppRun`` directly; without the
+    executable bit the download does nothing when it is run."""
+    apprun = appdir / "AppRun"
+    if sys.platform != "win32":
+        assert apprun.stat().st_mode & 0o777 == 0o755
+    assert ('"$HERE/usr/lib/crystal-builder/crystal-builder"'
+            in apprun.read_text(encoding="utf-8"))
+
+
+@needs_sh
+@needs_symlinks
+def test_apprun_leaves_the_platform_unset_for_the_window_to_choose(
+        appdir):
+    """The window's own start-up asks for xcb on a Wayland session
+    that has XWayland, because VTK's Qt bridge is X11 -- and only
+    when the variable is unset.  An AppRun that set ``wayland;xcb``
+    first was the path whose first 3D view died with BadWindow."""
+    assert _run(appdir).strip() == "window unset"
+
+
+@needs_sh
+@needs_symlinks
+def test_apprun_honours_a_platform_the_user_chose(appdir):
+    """Somebody who set the variable knows something about their
+    desktop that neither AppRun nor the window does."""
+    assert _run(appdir, QT_QPA_PLATFORM="xcb").strip() == "window xcb"
+    assert _run(appdir, QT_QPA_PLATFORM="wayland").strip() == (
+        "window wayland")
+
+
+@needs_sh
+@needs_symlinks
+def test_apprun_runs_the_bundled_cli_when_asked_for_xtal(appdir):
+    """An AI assistant's client is configured with ``<the AppImage>
+    xtal mcp``: the mount the ``xtal`` beside the window lives in is
+    gone when the window quits, so the AppImage file itself is the
+    only path that lasts, and it has to start the CLI, not the
+    window."""
+    assert _run(appdir, "xtal", "mcp", "--headless").split() == [
+        "xtal", "mcp", "--headless"]
+    assert _run(appdir, "a structure.cif").strip() == "window unset"
+
+
+@needs_symlinks
+def test_the_desktop_entry_names_the_app_its_icon_and_both_file_types(
+        appdir):
+    """The menu entry and the file associations an integrator makes
+    come from this file alone; an ``Icon`` that is not the desktop ID
+    is a menu entry with a blank icon."""
+    entry = configparser.ConfigParser(interpolation=None)
+    entry.optionxform = str
+    entry.read(appdir / f"{DESKTOP_ID}.desktop", encoding="utf-8")
+    desktop = entry["Desktop Entry"]
+
+    assert desktop["Type"] == "Application"
+    assert desktop["Name"] == "Crystal Builder"
+    assert desktop["Exec"] == "AppRun %F"
+    assert desktop["Icon"] == DESKTOP_ID
+    types = desktop["MimeType"].split(";")
+    assert "chemical/x-cif" in types
+    assert "application/x-xtalproj" in types
+    # One main category (Science): a second puts the entry in two
+    # menus.  Chemistry and Physics are additional ones, as PR #59
+    # had them, for the menus that sort by them.
+    assert desktop["Categories"] == "Science;Chemistry;Physics;"
+    assert desktop["StartupWMClass"] == "Crystal Builder"
+    shared = (appdir / "usr" / "share" / "applications"
+              / f"{DESKTOP_ID}.desktop")
+    assert shared.read_bytes() == (
+        appdir / f"{DESKTOP_ID}.desktop").read_bytes()
+
+
+@needs_symlinks
+def test_the_mime_file_declares_both_globs(appdir):
+    """A desktop that has never seen ``.xtalproj`` learns it here, and
+    one without ``chemical-mime-data`` learns ``.cif`` too."""
+    tree = ET.parse(appdir / "usr" / "share" / "mime" / "packages"
+                    / "crystal-builder.xml")
+    root = tree.getroot()
+    assert root.tag == f"{MIME}mime-info"
+    globs = {kind.get("type"): (kind.find(f"{MIME}comment").text,
+                                kind.find(f"{MIME}glob").get("pattern"))
+             for kind in root.findall(f"{MIME}mime-type")}
+    assert globs == {
+        "application/x-xtalproj":
+            ("Crystal Builder project", "*.xtalproj"),
+        "chemical/x-cif":
+            ("Crystallographic Information File", "*.cif"),
+    }
+
+
+@needs_symlinks
+def test_the_mime_file_names_each_types_icon_and_the_icon_is_there(
+        appdir):
+    """A type that names no icon is drawn with whatever the theme
+    guesses; the name each one gives is a file this AppDir carries,
+    under ``mimetypes/``, as PR #59's MIME file had it."""
+    root = ET.parse(appdir / "usr" / "share" / "mime" / "packages"
+                    / "crystal-builder.xml").getroot()
+    icons = {kind.get("type"): kind.find(f"{MIME}icon").get("name")
+             for kind in root.findall(f"{MIME}mime-type")}
+    assert icons == {"application/x-xtalproj": "application-x-xtalproj",
+                     "chemical/x-cif": "chemical-x-cif"}
+    hicolor = appdir / "usr" / "share" / "icons" / "hicolor"
+    for name in icons.values():
+        assert (hicolor / "48x48" / "mimetypes" / f"{name}.png").is_file()
+
+
+@needs_symlinks
+def test_the_collected_folder_is_copied_with_its_symlinks(appdir):
+    """PyInstaller links a library's soname to its file; followed, each
+    is carried twice and the download grows by the size of Qt."""
+    link = (appdir / "usr" / "lib" / "crystal-builder" / "_internal"
+            / "libQt6Core.so.6")
+    assert link.is_symlink()
+    assert os.readlink(link) == "libQt6Core.so.6.9.0"
+
+
+@needs_symlinks
+def test_pack_names_the_appimage_after_the_version_and_sets_arch(
+        appdir, tmp_path):
+    """``appimagetool`` guesses the architecture from the files inside
+    and stops when it cannot, and the release attaches the file by the
+    name this gives it."""
+    record = tmp_path / "record.txt"
+    script = tmp_path / "fake_tool.py"
+    script.write_text(
+        "import os, sys\n"
+        f"with open({str(record)!r}, 'w', encoding='utf-8') as out:\n"
+        "    out.write(os.environ.get('ARCH', '') + '\\n')\n"
+        "    out.write('\\n'.join(sys.argv[1:]))\n",
+        encoding="utf-8")
+    if sys.platform == "win32":
+        tool = tmp_path / "appimagetool.cmd"
+        tool.write_text(f'@"{sys.executable}" "{script}" %*\n',
+                        encoding="utf-8")
+    else:
+        tool = _program(tmp_path / "appimagetool",
+                        f'exec "{sys.executable}" "{script}" "$@"')
+    out = tmp_path / "out"
+    out.mkdir()
+
+    made = appimage.pack(appdir, tool, out, "1.2.3")
+
+    assert made == out / "Crystal_Builder-1.2.3-x86_64.AppImage"
+    arch, *argv = record.read_text(encoding="utf-8").splitlines()
+    assert arch == "x86_64"
+    assert argv == ["--no-appstream", str(appdir), str(made)]
+    assert "--runtime-file" not in argv
+
+    runtime = tmp_path / "runtime-x86_64"
+    runtime.write_bytes(b"")
+    appimage.pack(appdir, tool, out, "1.2.3", runtime=runtime)
+
+    _arch, *argv = record.read_text(encoding="utf-8").splitlines()
+    # The runtime is the first bytes of every shipped AppImage, and
+    # appimagetool fetches whatever its upstream calls current unless
+    # it is handed one; CI hands it the pinned file.
+    assert argv == ["--runtime-file", str(runtime), "--no-appstream",
+                    str(appdir), str(made)]
+
+
+@needs_symlinks
+def test_layout_refuses_a_non_empty_appdir(qapp, collected, tmp_path):
+    """A folder left from an earlier build would carry its files into
+    this one's download, where nothing would notice them."""
+    stale = tmp_path / "CrystalBuilder.AppDir"
+    stale.mkdir()
+    (stale / "left-over").write_text("", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        appimage.layout(collected, stale)
+    assert sorted(p.name for p in stale.iterdir()) == ["left-over"]
+
+    empty = tmp_path / "empty.AppDir"
+    empty.mkdir()
+    assert appimage.layout(collected, empty) == empty

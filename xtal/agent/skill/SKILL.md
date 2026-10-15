@@ -111,8 +111,8 @@ raises, because that is a bug in your call.
    when the geometry is where you want it (§3).
 7. **`inspect()` again.** Compare against step 3: atom count, formula,
    coordination, detected group.
-8. **Calculate** (`energy`, `optimize`, `run`) only on a structure that
-   passed step 7.
+8. **Calculate** (`energy`, `optimize`, `thermochemistry`, `run`)
+   only on a structure that passed step 7.
 9. **`inspect()` after a relaxation too.** A relaxation that moved an
    atom 2 Å has told you something about your structure.
 10. **Look at it** when the task is geometric: `s.render("x.png",

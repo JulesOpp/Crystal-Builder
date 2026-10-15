@@ -67,6 +67,8 @@ def write_project(structure, path, view=None,
     of the crystallography.  The argument order is (structure, path),
     matching every other writer so the format registry can call it.
     """
+    from xtal.core import bonding
+
     path = Path(path)
     if path.suffix != EXTENSION:
         path = path.with_suffix(EXTENSION)
@@ -81,7 +83,9 @@ def write_project(structure, path, view=None,
         # it then was, so a graph the user had recalculated -- and was
         # relying on -- could come back different from the one they
         # saved.
-        bonds["perceived"] = structure.perceived.to_dict()
+        # Each length as it is now, not as it was perceived: the graph
+        # is held through a relaxation and its lengths are not.
+        bonds["perceived"] = bonding.remeasured(structure).to_dict()
     header = {"format": "xtalproj", "version": FORMAT_VERSION}
 
     # Built beside the project and renamed over it, never written

@@ -51,7 +51,22 @@ BUDGETS = {
     "supercell": (50_000, 200_000),
     "grid": (1_500_000, 4_000_000),
     "carbon": (10_000, 30_000),
+    # A phonopy supercell is evaluated once per displacement, so its
+    # size is an engine's single point many times over: 2,000 atoms
+    # is a few seconds a point under an ML engine on a laptop.
+    "phonons": (2_000, 8_000),
+    # An analytic Hessian holds the force graph for every row, and the
+    # graph grows with the atoms (HESSIAN_MB_PER_ATOM): 300 is 4 GB of
+    # it beside the model.
+    "hessian": (100, 300),
 }
+
+#: What an analytic Hessian's retained graph costs, MB a P1 atom:
+#: MIL-53's 104 atoms under MACE-MPA-0 in float64 on the CPU went
+#: from 1.6 GB after one evaluation to 2.9 GB, a row at a time.
+#: MACE's own vmapped ``get_hessian`` peaked at 7.1 GB, which is why
+#: it is not what runs.
+HESSIAN_MB_PER_ATOM = 13
 
 OK, WARN, REFUSE = "ok", "warn", "refuse"
 
@@ -221,3 +236,22 @@ def check_carbon(recipe, profile=None) -> Verdict:
     return _judge("carbon", estimate, profile,
                   "the build would have {} atoms",
                   lambda limit: _cube_that_fits(per_cell, limit))
+
+
+def check_phonons(n_atoms: int, p, profile=None) -> Verdict:
+    return _judge("phonons", supercell_atoms(n_atoms, p), profile,
+                  "the phonon supercell would have {} atoms",
+                  lambda limit: _cube_that_fits(n_atoms, limit)
+                  + ", or Gamma only needs none")
+
+
+def check_hessian(n_atoms: int, profile=None) -> Verdict:
+    """An analytic Hessian over ``n_atoms`` free atoms.  Over the hard
+    limit the finite differences are the way: they hold one
+    evaluation's memory at a time."""
+    return _judge("hessian", n_atoms, profile,
+                  "an analytic Hessian over {} atoms would hold about "
+                  + f"{n_atoms * HESSIAN_MB_PER_ATOM / 1024:.1f} GB",
+                  lambda limit: f"up to {count(limit)} atoms fit, and "
+                  "finite differences need no more than one "
+                  "evaluation does")

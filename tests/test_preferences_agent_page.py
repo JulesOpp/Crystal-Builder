@@ -102,3 +102,35 @@ def test_without_the_extra_the_switch_is_off_and_says_what_to_install(
     assert not page.serve.isEnabled()
     assert install.command("mcp") in page.status.text()
     assert "(install the mcp extra)" in page.stdio_note.text()
+
+
+def test_the_stdio_line_runs_the_appimage_when_the_app_is_one(
+        qtbot, settings, tmp_path, monkeypatch):
+    """The ``xtal`` beside the window is inside the AppImage's mount,
+    gone once the window quits; a client pasted that path fails on its
+    next start.  The line names the ``.AppImage`` file, quoted where a
+    folder has a space, as the launcher's path always was."""
+    image = tmp_path / "My Apps" / "Crystal_Builder-1.0-x86_64.AppImage"
+    image.parent.mkdir()
+    image.write_bytes(b"")
+    monkeypatch.setenv("APPIMAGE", str(image))
+    # Which AppImage is ours is test_agent_discovery's question.
+    monkeypatch.setattr(discovery, "_inside_appdir", lambda: True)
+
+    assert AgentPage.stdio_line() == f'"{image}" xtal mcp'
+    page = AgentPage(settings)
+    qtbot.addWidget(page)
+    assert page.stdio.text().startswith(f'"{image}" ')
+
+
+def test_the_stdio_line_quotes_a_launcher_path_with_a_space_outside_an_appimage(  # noqa: E501
+        tmp_path, monkeypatch):
+    """A packaged macOS build's ``xtal`` is inside ``Crystal
+    Builder.app``; unquoted, a client runs ``.../Crystal`` with
+    ``Builder.app/...`` as its first argument."""
+    monkeypatch.delenv("APPIMAGE", raising=False)
+    launcher = (tmp_path / "Crystal Builder.app" / "Contents" / "MacOS"
+                / "xtal")
+    monkeypatch.setattr(discovery, "launcher", lambda: launcher)
+
+    assert AgentPage.stdio_line() == f'"{launcher}" mcp'

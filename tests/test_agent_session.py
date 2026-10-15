@@ -8,6 +8,7 @@ around a command instead of pushing one.
 """
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -186,6 +187,67 @@ def test_a_refused_scan_is_a_diagnostic_not_an_exception(halite):
     assert answer.diagnostics[0].code == "MODULE_FAILED"
     assert "space group ties it" in answer.message
     assert session.stack.depth == 1       # only the recalculation
+
+
+def test_the_thermochemistry_verb_reports_g_and_logs_the_entry(
+        tmp_path, rutile):
+    """G at the asked temperature comes back as a number an agent can
+    read, the run is filed in the entry, the session's structure is not
+    relaxed under it, and the log names the verb rather than the
+    module it runs."""
+    cif = tmp_path / "rutile.cif"
+    write_cif(rutile, cif)
+    session = Session.open(cif, workspace=tmp_path / "ws")
+    before = [site.frac.copy() for site in session.structure.sites]
+    answer = session.thermochemistry(
+        engine="uff", temperature=300.0, method="gamma",
+        tolerance=0.05, parameter_set="uff")
+    assert answer.ok, answer.message
+    data = answer.data
+    assert data["temperature"] == 300.0
+    assert data["system"] == "crystal"
+    assert data["g"] == pytest.approx(data["h"] - data["ts"])
+    assert data["s"] > 0
+    assert "UFF (uff)" in data["report_text"]
+    assert (Path(data["run"]) / "thermo.dat").is_file()
+    assert all(np.array_equal(a, site.frac) for a, site in
+               zip(before, session.structure.sites, strict=True))
+    assert session.stack.depth == 0
+    rows = [json.loads(line) for line in
+            session.log_path.read_text().splitlines()]
+    assert rows[-1]["verb"] == "thermochemistry"
+    assert rows[-1]["args"]["tolerance"] == 0.05
+
+
+def test_imaginary_modes_are_said_by_code_and_counted_in_the_data(rutile):
+    """An agent reading G off a structure that was not at a minimum is
+    told so by a code it can look up, not by a sentence in a table."""
+    squeezed = rutile.copy()
+    squeezed.set_frac(1, squeezed.sites[1].frac * 0.9)
+    answer = Session(squeezed).thermochemistry(
+        relax_first=False, method="gamma")
+    assert answer.ok
+    assert answer.data["imaginary_modes"] > 0
+    assert "IMAGINARY_MODES" in [d.code for d in answer.diagnostics]
+
+
+def test_a_phonopy_supercell_over_the_limit_is_size_limit_not_a_failure(
+        rutile):
+    """Refused before the relaxation, by the code the supercell verb
+    uses, and naming the size -- not a ``MODULE_FAILED`` to retry."""
+    pytest.importorskip("phonopy")
+    answer = Session(rutile).thermochemistry(method="phonopy",
+                                             supercell="20 20 20")
+    assert not answer.ok
+    assert [d.code for d in answer.diagnostics] == ["SIZE_LIMIT"]
+
+
+def test_a_thermochemistry_option_neither_run_nor_engine_has_is_a_typeerror(
+        rutile):
+    """Dropped silently, a misspelt ``tolerence`` would run at the
+    default and hand back a G the agent thinks it asked for."""
+    with pytest.raises(TypeError, match="tolerence"):
+        Session(rutile).thermochemistry(tolerence=0.001)
 
 
 def test_an_unknown_engine_is_refused_by_code(rutile):

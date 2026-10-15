@@ -62,7 +62,8 @@ squeezed column is a divider to drag, and a layout beyond rescue is
    for the rendering.  On macOS it is in the application menu.
 
 The *Workspace* panel has a context menu of its own -- {ref}`Open
-<cmd-workspace_open>`, {ref}`Reveal in Finder <cmd-workspace_reveal>`,
+<cmd-workspace_open>`, {ref}`Reveal in Finder <cmd-workspace_reveal>`
+(*Show in Explorer* on Windows, *Show in File Manager* on Linux),
 {ref}`Copy Path <cmd-workspace_copy_path>` and {ref}`Move to Trash
 <cmd-workspace_trash>` -- listed under *Elsewhere* in the command
 reference because no menu-bar menu holds them.  *Move to Trash* takes

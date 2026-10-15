@@ -66,6 +66,7 @@ from xtal import mof as mof_extra
 from xtal.ff import mace as mace_extra
 from xtal.ff import mattersim as mattersim_extra
 from xtal.ff import orb as orb_extra
+from xtal.ff import phonons as phonons_extra
 from xtal.ff.registry import ENGINES
 from xtal.references import PORMAKE, Reference, doi, github
 from xtalapp import applog
@@ -180,6 +181,7 @@ _CHECKS = {
     "mace": lambda: mace_extra.installed(),
     "orb_models": lambda: orb_extra.installed(),
     "mattersim": lambda: mattersim_extra.installed(),
+    "phonopy": lambda: phonons_extra.installed(),
 }
 
 
@@ -221,6 +223,16 @@ EXTRAS = (
           references=(github("yue-here/rietx"),
                       Reference("rietx.org",
                                 "https://rietx.org/manual.html"))),
+    Extra("Phonons", "phonopy", "phonons",
+          "Frequencies and thermochemistry with displacements reduced "
+          "by the crystal's symmetry, a supercell for a small cell "
+          "and a q-mesh across the zone.  Without it every atom is "
+          "displaced at Gamma alone.", True,
+          references=(doi("phonopy: Togo, J. Phys. Soc. Jpn. 2023",
+                          "10.7566/JPSJ.92.012001"),
+                      doi("Togo et al., J. Phys.: Condens. Matter "
+                          "2023", "10.1088/1361-648X/acd831"),
+                      github("phonopy/phonopy"))),
     Extra("MOF builder", "ase", "ase",
           "Build a framework from a net, a node and a linker.  PORMAKE "
           "is part of this application; ASE is what it is written "
@@ -330,7 +342,7 @@ def target_command(package: str = "<package>") -> str:
 
 
 def reveal() -> bool:
-    """Show the folder in Finder or Explorer, making it first."""
+    """Show the folder in the file manager, making it first."""
     from PySide6.QtCore import QUrl
     from PySide6.QtGui import QDesktopServices
     return bool(QDesktopServices.openUrl(

@@ -431,6 +431,27 @@ def test_a_test_button_reports_what_the_program_printed(
     assert page.tests["tools/dftb"].isEnabled()
 
 
+def test_a_test_button_starts_its_program_with_the_probes_environment(
+        qtbot, dialog, monkeypatch):
+    """A frozen Linux build's package probe is the application started
+    again, and must start as a program of its own rather than as a
+    worker of the window (``PYINSTALLER_RESET_ENVIRONMENT``); the
+    button is what starts it, so the button must hand it over, and
+    the rest of the environment with it."""
+    monkeypatch.setenv("XTAL_PROBE_KEPT", "kept")
+    page = dialog.page("Engines")
+    _answering(page, monkeypatch,
+               [sys.executable, "-c",
+                "import os; print(os.environ['XTAL_PROBE_ADDED'], "
+                "os.environ['XTAL_PROBE_KEPT'])"],
+               env=(("XTAL_PROBE_ADDED", "added"),))
+
+    page.test("rdkit")
+
+    qtbot.waitUntil(lambda: not page.is_testing("rdkit"), timeout=5000)
+    assert page.results["rdkit"].text() == "added kept"
+
+
 def test_a_test_button_is_disabled_while_its_probe_runs(
         qtbot, dialog, monkeypatch):
     """Blender takes three seconds to say its version, and a second

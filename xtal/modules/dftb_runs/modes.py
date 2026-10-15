@@ -15,6 +15,15 @@ held at the wrong bond length bends at an imaginary 355 cm^-1 -- so an
 imaginary mode is flagged in the table and counted in the message,
 not hidden.
 
+**The thermochemistry is the Force Field's.**  ``hessian.out`` goes
+through :func:`xtal.ff.vibrations.from_hessian` -- symmetrised, the
+rigid motions projected out, which ``modes`` does not do, so a
+molecule's rotation at +20 cm^-1 is not summed as a vibration -- and
+then through the same table as ``forcefield.thermo``, so G from DFTB+
+and G from MACE read alike.  E is a single point at the reference
+first: the ``detailed.out`` a SecondDerivatives run leaves is its last
+displaced geometry's, off by the gradient times the step.
+
 What a mode is *for* is seeing it: :func:`mode_trajectory` turns one
 into a loop of frames for the transport bar, the atoms moving along
 it sinusoidally about the geometry the Hessian was taken at.
@@ -24,14 +33,17 @@ from __future__ import annotations
 
 import numpy as np
 
-from xtal.core import p1
+from xtal.core import molecule, p1
+from xtal.ff import vibrations
 from xtal.ff.dftb import hsd, outputs
+from xtal.ff.dftb.calculator import BOHR, HARTREE, parse_energy
 from xtal.io.trajectory import Frame, Trajectory
 from xtal.modules.dftb_runs import common
 from xtal.modules.dftb_runs.driver import moved_atoms
 from xtal.modules.job import JobResult
 from xtal.modules.process import ExternalProcess, Program
-from xtal.modules.report import Modes, Report, Row, Table
+from xtal.modules.report import Modes, Report
+from xtal.modules.thermo import tabulate
 
 MODES = Program(
     name="modes", label="modes", env_var="XTAL_MODES",
@@ -77,14 +89,24 @@ def vibrational_modes(job) -> JobResult:
     free = list(range(cell.n_atoms)) if moved is None \
         else [atom - 1 for atom in moved]
 
+    k_points = common.mesh(structure, options)
     with common.folder(job) as directory:
+        job.say("the energy at the reference geometry")
+        common.invoke(job, directory, structure, hsd.hsd_string(
+            symbols, options, k_points=k_points,
+            analysis=hsd.Analysis(forces=False)))
+        energy = parse_energy(common.read(directory, "detailed.out"))
+        if energy is None:
+            return JobResult.failure(
+                "DFTB+ wrote no total energy into detailed.out")
         job.say(f"second derivatives: {6 * len(free)} evaluations")
         common.invoke(job, directory, structure, hsd.hsd_string(
-            symbols, options, k_points=common.mesh(structure, options),
+            symbols, options, k_points=k_points,
             driver=hsd.SecondDerivatives(
                 delta=float(job.param("delta", 1e-4)), moved=moved),
             analysis=hsd.Analysis(forces=False)))
-        common.read(directory, "hessian.out")
+        hessian = read_hessian(common.read(directory, "hessian.out"),
+                               len(free))
         (directory / MODES_INPUT).write_text(modes_input(moved),
                                              encoding="utf-8")
         process = ExternalProcess([MODES.name], cwd=directory,
@@ -115,21 +137,49 @@ def vibrational_modes(job) -> JobResult:
                            "frequencies are imaginary.")
         (directory / "modes.dat").write_text(block.as_dat(),
                                              encoding="utf-8")
+        kind = "molecule" if molecule.is_isolated(structure) \
+            else "crystal"
+        found = vibrations.from_hessian(
+            structure, hessian, kind=kind, free=free,
+            energy=energy * HARTREE, evaluations=6 * len(free) + 1,
+            method="dftb")
+        chosen, tables, dat = tabulate(
+            job, structure, found, kind,
+            [i for i in range(cell.n_atoms) if i not in set(free)])
+        (directory / "thermo.dat").write_text(dat, encoding="utf-8")
 
-    rows = [Row("Modes", str(block.n_modes)),
-            Row("Imaginary", str(block.n_imaginary),
-                note="" if not block.n_imaginary else
-                "An imaginary mode is a direction the energy falls "
-                "along: the structure was not at a minimum.  Relax it "
-                "first."),
-            Row("Free atoms", str(len(free)))]
     highest = float(block.frequencies.max()) if block.n_modes else 0.0
-    message = (f"{block.n_modes} modes up to {highest:.0f} cm-1"
-               + (f", {block.n_imaginary} imaginary -- relax first"
-                  if block.n_imaginary else ""))
+    t = chosen.temperature
+    imaginary = chosen.vibrations.n_imaginary
+    message = (f"{block.n_modes} modes up to {highest:.0f} cm-1, "
+               f"G({t:g} K) = {chosen.per_unit(chosen.g):.3f} kcal/mol "
+               + ("per formula unit" if kind == "crystal"
+                  else "per molecule")
+               + (f", {imaginary} imaginary -- relax first"
+                  if imaginary else ""))
+    warnings = ()
+    if imaginary:
+        warnings = (("IMAGINARY_MODES",
+                     f"{imaginary} imaginary modes:"
+                     f" the structure is not at a minimum, and they are"
+                     f" left out of every sum"),)
     return JobResult(message=message, report=Report(
         title="DFTB+ vibrational modes",
-        blocks=(Table("Summary", tuple(rows)), block)))
+        blocks=(*tables, block)),
+        answer=chosen, warnings=warnings)
+
+
+def read_hessian(text: str, n_free: int) -> np.ndarray:
+    """``hessian.out`` in kcal/mol/A^2: the 3N square over the moved
+    atoms, Hartree/Bohr^2, written row after row whatever the line
+    breaks."""
+    values = np.array(text.split(), dtype=float)
+    size = 3 * n_free
+    if values.size != size * size:
+        raise common.RunFailed(JobResult.failure(
+            f"hessian.out holds {values.size} numbers; {n_free} moved "
+            f"atoms need {size * size}"))
+    return values.reshape(size, size) * (HARTREE / BOHR**2)
 
 
 def mode_trajectory(block: Modes, mode: int, amplitude: float = 0.3,

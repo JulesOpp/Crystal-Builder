@@ -30,7 +30,9 @@ from pathlib import Path
 import numpy as np
 
 from xtal import powder
-from xtal.ff.registry import ENGINES
+from xtal.ff.registry import (
+    engine_choices,
+)
 from xtal.modules.job import JobResult
 from xtal.modules.registry import Action, Param
 from xtal.modules.report import REPORT_NAME, Curve, Report, Row, Table
@@ -1331,7 +1333,7 @@ ENERGY_PARAMS = (
                                "sets the energy's scale and again for "
                                "the fit", default=500),
     Param("engine", "Engine", kind="choice", default="uff",
-          choices=tuple((e.name, e.label) for e in ENGINES),
+          choices=engine_choices,
           help="The energy engine.  In the workbench, choosing one "
                "chooses it in the Force Field panel, where its options "
                "are set."),
@@ -1593,7 +1595,7 @@ PARETO_PARAMS = (
                                "that runs out is not converged, and has "
                                "no numbers", minimum=1, default=500),
     Param("engine", "Engine", kind="choice", default="uff",
-          choices=tuple((e.name, e.label) for e in ENGINES),
+          choices=engine_choices,
           help="The energy engine.  In the workbench, choosing one "
                "chooses it in the Force Field panel, where its options "
                "are set."),

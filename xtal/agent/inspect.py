@@ -161,9 +161,11 @@ def _sites(structure, cell, graph, coordination) -> list[dict]:
             continue
         first = int(atoms[0])
         neighbours = sorted(
-            ((cell.elements[j], round(float(bond.distance), 3))
-             for j, bond in zip(graph.neighbors(first),
-                                graph.bonds_of(first), strict=True)),
+            ((cell.elements[j], round(float(d), 3))
+             for j, d in zip(graph.neighbors(first),
+                             bonding.lengths(structure,
+                                             graph.bonds_of(first)),
+                             strict=True)),
             key=lambda pair: pair[1])
         rows.append({
             "index": k,
@@ -307,14 +309,17 @@ def _coordination(structure, cell, coordination) -> list[Diagnostic]:
 def _bond_lengths(structure, cell, graph) -> list[Diagnostic]:
     out = []
     seen = set()
-    for bond in graph.bonds:
+    # Measured, never ``CellBond.distance``: that is the length when
+    # the bond was perceived, and a relaxation keeps the bond, not it.
+    now = bonding.lengths(structure, graph.bonds)
+    for bond, length in zip(graph.bonds, now, strict=True):
         a, b = cell.elements[bond.i], cell.elements[bond.j]
         if a not in _NONMETALS or b not in _NONMETALS:
             continue
         if el.is_dummy(a) or el.is_dummy(b):
             continue
         reference = bonding.bond_distance(a, b)
-        if abs(bond.distance - reference) <= BOND_DEVIATION * reference:
+        if abs(length - reference) <= BOND_DEVIATION * reference:
             continue
         key = tuple(sorted((int(cell.site_idx[bond.i]),
                             int(cell.site_idx[bond.j]))))
@@ -325,7 +330,7 @@ def _bond_lengths(structure, cell, graph) -> list[Diagnostic]:
             "BOND_LENGTH_UNUSUAL",
             f"{_name(structure, cell, bond.i)}-"
             f"{_name(structure, cell, bond.j)} is "
-            f"{bond.distance:.3f} A against {reference:.2f} A for "
+            f"{length:.3f} A against {reference:.2f} A for "
             f"{a}-{b}",
             where=f"atoms {bond.i}, {bond.j}"))
     return out

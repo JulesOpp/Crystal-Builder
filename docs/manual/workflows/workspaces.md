@@ -4,9 +4,9 @@
 A {term}`workspace` is the folder a session works in: every structure
 gets an entry in it and every run is filed under the structure it was
 run against, whether the window or the `xtal` command started it.
-After this page you can read a workspace from the outside -- in the
-Finder, from a shell, from a script -- and know why a file is where
-it is.
+After this page you can read a workspace from the outside -- in your
+file manager, from a shell, from a script -- and know why a file is
+where it is.
 
 ```{index} single: workspace; on disk
 ```
@@ -22,17 +22,19 @@ nothing in it needs Crystal Builder to read: every artefact is a real
 file with a real name in a format something else can open.  The
 application makes a default one on a first run rather than working
 without one -- a scratch folder cleaned on exit would one day throw
-away a six-hour run, and a folder under `~/Library/Application
-Support` is one nobody can find -- and where new workspaces go is a
-preference (*Preferences ▸ General*).  Deleting a folder in the Finder
-is a supported way to clean up, and so is adding a file by hand.
+away a six-hour run, and a folder under the system's application
+data (`~/Library/Application Support`, `%LOCALAPPDATA%`,
+`~/.local/share`) is one nobody can find -- and where new
+workspaces go is a preference (*Preferences ▸ General*).  Deleting a
+folder in your file manager is a supported way to clean up, and so is
+adding a file by hand.
 
 :::{note}
 **The workspace is asked for before anything opens, and everything
 lives in it.**  The window opens on the workspace chooser
-({doc}`the GUI </quickstart/gui>`), and a file launched from the
-Finder that is already inside a workspace skips the question, because
-there is only one answer.  On the command line the answer is
+({doc}`the GUI </quickstart/gui>`), and a file launched from your
+file manager that is already inside a workspace skips the question,
+because there is only one answer.  On the command line the answer is
 `--workspace DIR`; without it a command prints, writes what `-o`
 asked for, and files nothing.
 :::

@@ -40,5 +40,6 @@ dftb
 orca
 ml
 dispersion
+thermochemistry
 choosing
 ```

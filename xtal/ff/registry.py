@@ -170,3 +170,15 @@ class EngineRegistry(Registry):
 
 
 ENGINES = EngineRegistry()
+
+
+def engine_choices() -> tuple:
+    """``(name, label)`` per engine, for a :class:`~xtal.params.Param`
+    to name as its ``choices`` -- the function, not its answer, which
+    is empty for anything declared while the engines are importing."""
+    return tuple((e.name, e.label) for e in ENGINES)
+
+
+def engine_choices_or_none() -> tuple:
+    """:func:`engine_choices`, after a choice of none at all."""
+    return (("", "Nothing"), *engine_choices())

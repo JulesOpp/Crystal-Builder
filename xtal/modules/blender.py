@@ -64,7 +64,11 @@ from xtal.modules.registry import MODULES, Action, Module, Param
 PROGRAM = Program(
     name="blender", label="Blender", env_var="XTAL_BLENDER",
     url="https://www.blender.org/", setting="tools/blender",
-    known=("/Applications/Blender.app/Contents/MacOS/Blender",))
+    # macOS's bundle first, as it always was; then where a Linux
+    # distribution's package and the snap put it, for a launch from
+    # the desktop whose PATH is not the shell's.
+    known=("/Applications/Blender.app/Contents/MacOS/Blender",
+           "/usr/bin/blender", "/snap/bin/blender"))
 
 DATA = Path(__file__).resolve().parent / "data"
 VENDORED = DATA / "pdb_to_printable_stl.py"

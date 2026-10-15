@@ -122,7 +122,7 @@ pattern: a `QObject` moved to a thread, stopped from
 has one slot `call(fn) -> result`; `WindowSession` invokes it with
 `QMetaObject.invokeMethod(..., Qt.BlockingQueuedConnection)` and reads
 the result (or re-raises the exception) from a holder. Calculations
-(`energy`, `optimize`, `run`) execute on the server thread over
+(`energy`, `optimize`, `thermochemistry`, `run`) execute on the server thread over
 `document.structure.copy()`, as the Force Field panel does; only
 reading the structure for the copy and applying the result cross to the
 GUI thread.
@@ -208,10 +208,11 @@ Asserted by tests on the MOF-5 sample: `inspect().to_json()` under
 | `BONDING_WOULD_CHANGE` | warning | after `optimize`, `bonding.perceive` of the result differs from `bonding.perceive` of the start; message counts bonds gained and lost. Nothing is recalculated. |
 | `SCAN_SIZE` | info | `run` of a `scan.*` action with more than one point: the point count (axes' steps multiplied, times two when both directions are walked), and that each point is a relaxation written as it finishes |
 | `WORKSPACE_IGNORED` | info | `Session.open(path, workspace=...)` where the file already sits inside another workspace, on `session.opened` |
+| `IMAGINARY_MODES` | warning | `thermochemistry` (or the `forcefield.thermo` / `forcefield.infrared` runs) found modes below -50 cm-1, left out of H, S and G |
 | `WINDOW_BUSY` | error | a window tool refused while a trajectory is open or a calculation runs (§2) |
 | `DOCUMENT_CHANGED` | error | the tab changed during an agent calculation; the result was not applied (§2) |
 
-All five go into `CODES` and `references/diagnostics.md`; the existing
+All six go into `CODES` and `references/diagnostics.md`; the existing
 test holds the two lists equal.
 
 ### 6. The eval harness

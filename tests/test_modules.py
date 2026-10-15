@@ -112,14 +112,18 @@ def test_a_broken_availability_check_does_not_take_the_menu_with_it():
     assert "unreadable" in available.reason
 
 
-def test_the_forcefield_is_registered_with_its_three_entries():
+def test_the_forcefield_has_its_panels_three_entries_then_its_runs():
+    """The panel's three are performed by the panel that predates the
+    registry; the thermochemistry after them is an ordinary run, with a
+    run folder, a worker and Stop, which ``xtal run`` reaches too."""
     from xtal.modules import MODULES
 
     module = MODULES.get("forcefield")
     assert [a.name for a in module.actions] == [
-        "setup", "single-point", "optimise"]
-    # All three are performed by the panel that predates the registry.
-    assert all(a.shell for a in module.actions)
+        "setup", "single-point", "optimise", "thermo", "infrared"]
+    assert all(a.shell for a in module.actions[:3])
+    assert all(a.run is not None and not a.shell
+               for a in module.actions[3:])
 
 
 def test_dftb_is_its_own_module_with_its_panels_three_entries_first():
