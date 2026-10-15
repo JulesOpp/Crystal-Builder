@@ -421,3 +421,38 @@ def test_the_prompts_are_listed_with_their_arguments_and_render():
         "topology", "node", "edge"]
     text = got.messages[0].content.text
     assert "pcu" in text and "N16" in text and "E14" in text
+
+
+def test_the_proxy_lists_what_the_server_serves():
+    """``xtal mcp`` with no window answers the resource and prompt
+    lists itself, written out beside the server's; if the two drift,
+    a client sees a different playbook depending on which door it
+    came in by."""
+    from xtal.agent import proxy
+
+    async def conversation(client):
+        return ((await client.list_resources()).resources,
+                (await client.list_prompts()).prompts)
+
+    resources, prompts = _talk(conversation)
+
+    def rows(listed):
+        return sorted((str(r.uri), r.name, r.description, r.mimeType)
+                      for r in listed)
+
+    def asks(listed):
+        return sorted((p.name, p.description,
+                       [(a.name, a.description, a.required)
+                        for a in p.arguments or []])
+                      for p in listed)
+
+    assert rows(proxy._resources()) == rows(resources)
+    assert asks(proxy._prompts()) == asks(prompts)
+
+
+def test_a_proxy_prompt_missing_an_argument_says_which():
+    from xtal.agent import proxy
+
+    with pytest.raises(ValueError, match="missing argument 'path' for "
+                                         "prompt 'porosity-report'"):
+        proxy._prompt("porosity-report", {})

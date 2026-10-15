@@ -192,32 +192,45 @@ def _lost(exc: Exception) -> bool:
 
 async def _forward(window: _Window, name: str, arguments: dict):
     """The window's answer, or an error result saying why there is
-    none.  A session that failed is dropped, so the next call finds
-    the window afresh, and a call the window refused unseen (its 404)
-    is made once more at once."""
+    none."""
     from mcp.types import CallToolResult, TextContent
 
+    try:
+        return await _asked(
+            window, lambda session: session.call_tool(name, arguments))
+    except Exception as exc:              # noqa: BLE001 -- answered
+        return CallToolResult(isError=True, content=[
+            TextContent(type="text", text=_reason(exc))])
+
+
+def _reason(exc: Exception) -> str:
+    return f"window: {str(exc) or type(exc).__name__}"
+
+
+async def _asked(window: _Window, ask):
+    """``ask(session)`` of the window, watched; raises why there is no
+    answer.  A session that failed is dropped, so the next request
+    finds the window afresh, and one the window refused unseen (its
+    404) is made once more at once."""
     for again in (True, False):
         session = None
         try:
             session = await window.session()
-            return await _watched(window, session, name, arguments)
-        except Exception as exc:          # noqa: BLE001 -- answered
-            error = exc
+            return await _watched(window, session, ask)
+        except Exception as exc:
             if not _lost(exc):
-                break
+                raise
             window.drop(session)
             if not (again and str(exc) == TERMINATED):
-                break
-    reason = str(error) or type(error).__name__
-    return CallToolResult(isError=True, content=[
-        TextContent(type="text", text=f"window: {reason}")])
+                raise
 
 
-async def _watched(window: _Window, session, name: str, arguments: dict):
-    """``session.call_tool``, given up when the window stops answering
-    a probe -- or the session is dropped under it, which ends the
-    SDK's reading of its answers and would leave it waiting."""
+async def _watched(window: _Window, session, ask):
+    """``ask(session)``, given up when the window stops answering a
+    probe -- or the session is dropped under it, which ends the SDK's
+    reading of its answers and would leave it waiting.  A read needs
+    this as much as a call: the SDK never answers either once the
+    window's stream ends under it."""
     import anyio
 
     outcome = {}
@@ -232,8 +245,7 @@ async def _watched(window: _Window, session, name: str, arguments: dict):
             # Kept rather than raised: out of a task group it would be
             # an exception group, and the client would read that.
             try:
-                outcome["result"] = await session.call_tool(
-                    name, arguments)
+                outcome["result"] = await ask(session)
             except Exception as exc:      # noqa: BLE001 -- raised below
                 outcome["error"] = exc
             group.cancel_scope.cancel()
@@ -272,15 +284,14 @@ async def _read(window: _Window, uri: str):
         topic = uri.removeprefix(context.GUIDE_URI.format(""))
         return [ReadResourceContents(content=context.guide(topic),
                                      mime_type="text/markdown")]
-    session = None
     try:
-        session = await window.session()
-        text = (await session.read_resource(uri)).contents[0].text
+        read = await _asked(
+            window, lambda session: session.read_resource(uri))
     except Exception as exc:              # noqa: BLE001 -- answered
-        if _lost(exc):
-            window.drop(session)
-        text = f"window: {str(exc) or type(exc).__name__}"
-    return [ReadResourceContents(content=text,
+        # Not the document, so not labelled as its JSON.
+        return [ReadResourceContents(content=_reason(exc),
+                                     mime_type="text/plain")]
+    return [ReadResourceContents(content=read.contents[0].text,
                                  mime_type="application/json")]
 
 
@@ -302,11 +313,16 @@ def _prompt(name: str, arguments):
         raise ValueError(f"no prompt called {name!r}; the prompts are "
                          f"{', '.join(found)}")
     prompt = found[name]
+    try:
+        text = prompt.render(**(arguments or {}))
+    except KeyError as exc:
+        raise ValueError(f"missing argument {exc.args[0]!r} for prompt "
+                         f"{name!r}") from None
     return types.GetPromptResult(
         description=prompt.description,
         messages=[types.PromptMessage(
-            role="user", content=types.TextContent(
-                type="text", text=prompt.render(**(arguments or {}))))])
+            role="user", content=types.TextContent(type="text",
+                                                   text=text))])
 
 
 async def _serve(folder) -> None:

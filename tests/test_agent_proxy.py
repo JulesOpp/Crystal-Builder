@@ -388,6 +388,10 @@ def test_a_proxy_with_no_window_still_gives_the_playbook(
 @pytest.mark.slow
 def test_a_proxy_reads_the_current_document_from_the_window(
         qtbot, window, tmp_path, appdata, rutile):
+    """The current document is the one thing the proxy cannot answer
+    itself: if it stopped forwarding the read, a client attaching the
+    document would get nothing, or the proxy's own error, with the
+    window serving."""
     _serving(qtbot, window, tmp_path, rutile)
     proxy = _Proxy(qtbot, tmp_path, appdata)
     try:
@@ -397,3 +401,44 @@ def test_a_proxy_reads_the_current_document_from_the_window(
     finally:
         proxy.finish()
         window.agent_server.stop()
+
+
+@pytest.mark.slow
+def test_a_document_read_is_answered_when_the_window_stops_under_it(
+        qtbot, window, tmp_path, appdata, rutile, monkeypatch):
+    """The SDK's client never answers a read whose window stopped
+    serving under it: the stream it was waiting on just ends.  Without
+    the probe a tool call has, the proxy waited for ever.  Here the
+    window's inspection is held on its worker thread, the window stops,
+    and the read is answered with the reason within a probe or two."""
+    from xtal.agent import tools
+
+    _serving(qtbot, window, tmp_path, rutile)
+    real = tools._inspection
+    entered, release = threading.Event(), threading.Event()
+
+    def held(*args, **kwargs):
+        entered.set()
+        release.wait(30)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(tools, "_inspection", held)
+    proxy = _Proxy(qtbot, tmp_path, appdata)
+    try:
+        proxy.request(1)
+        asked = time.monotonic()
+        proxy.send(_message("resources/read", 2, {
+            "uri": context.DOCUMENT_URI}))
+        qtbot.waitUntil(entered.is_set, timeout=15000)
+        window.agent_server.stop()
+        document = proxy.request(2, timeout=20000)["result"]
+        assert time.monotonic() - asked < 20
+        contents = document["contents"][0]
+        assert contents["text"].startswith("window: "), contents
+        assert contents["mimeType"] == "text/plain"
+        assert proxy.process.poll() is None
+    finally:
+        release.set()
+        said = proxy.finish()
+        window.agent_server.stop()
+    assert "Traceback" not in said
