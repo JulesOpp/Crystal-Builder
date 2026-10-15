@@ -25,19 +25,25 @@ Every rule below is here because one of those happened.
 
 ## The order of work
 
-1. `documents`: in the window, the person may already have it open.
-2. `open` the file with a workspace, or `build` a framework.
-3. `inspect` before anything else. An error such as `COINCIDENT_ATOMS`
+1. Ask what the deliverable is if the person has not said: a
+   structure to look at, one ready for a calculation, a built
+   framework, a relaxed structure or a property. It decides which
+   checks stop you.
+2. `documents`: in the window, the person may already have it open.
+3. `open` the file with a workspace, or `build` a framework.
+4. `inspect` before anything else. An error such as `COINCIDENT_ATOMS`
    means every later number is for the wrong crystal: fix it first.
-4. `prepare` a structure from a database or a paper before any
+5. `prepare` a structure from a database or a paper before any
    calculation, and report every step it names.
-5. Edit one verb at a time, reading each answer.
-6. `recalculate_bonds` only when the geometry is where you want it.
-7. `inspect` again and compare: atom count, formula, coordination,
+6. Edit one verb at a time, reading each answer.
+7. `recalculate_bonds` only when the geometry is where you want it.
+8. `inspect` again and compare: atom count, formula, coordination,
    detected group.
-8. Only then `energy`, `optimize` or `run`; `inspect` after a
+9. Only then `energy`, `optimize` or `run`; `inspect` after a
    relaxation too.
-9. `save`, and give the person the path.
+10. `render` and look when the task is geometric; numbers first,
+    pixels second.
+11. `save`, and give the person the path.
 
 ## Never
 
@@ -45,8 +51,9 @@ Every rule below is here because one of those happened.
   or a rebuild of the cell; a force field never changes the atoms or
   the bonds.
 - Never name the `cap` step of `prepare` without asking the person: it
-  adds what the file never located (`CHEMISTRY_CHANGED`). Left out,
-  say `CELL_NOT_NEUTRAL` in so many words.
+  adds what the file never located, so when it ran, say
+  `CHEMISTRY_CHANGED` in so many words. Left out, say
+  `CELL_NOT_NEUTRAL`.
 - Never report a `NOT_CONVERGED` energy as a minimum, nor compare it
   with a converged one.
 - Never turn a refusal into a number. A scan refused because the space
@@ -64,14 +71,17 @@ what you could not do and why, and give the saved project's path.
 
 The person is watching: each verb lands in their tab as one undo step.
 `WINDOW_BUSY` during a calculation or playback means wait, then call
-again. `DOCUMENT_CHANGED` means the person edited while you computed:
+again; `WINDOW_BUSY` because the window is closing or stopped serving
+means it is gone: tell the person rather than waiting.
+`DOCUMENT_CHANGED` means the person edited while you computed:
 `inspect` again before deciding anything.
 
 ## Guides
 
 Call `guide` with a topic before the work it covers; with no topic it
-lists these. A guide writes calls as Python: `s.prepare(steps=["cap"])`
-there is `prepare` called with `{"steps": ["cap"]}` here.
+lists these. A guide writes calls as Python:
+`s.optimize(engine="uff", max_steps=500)` there is `optimize` called
+with `{"engine": "uff", "max_steps": 500}` here.
 
 - `api`: you are about to call a verb and want every argument and what it returns
 - `diagnostics`: a diagnostic fired and you need its remedy

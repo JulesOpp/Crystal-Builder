@@ -230,6 +230,9 @@ def test_every_guide_topic_is_a_reference_page_and_every_page_a_topic():
 
 
 def test_a_guide_is_its_page_and_an_unknown_one_names_them_all():
+    """A guide that is not the page Claude Code reads tells a chat
+    client something else; a refusal that does not list the guides
+    leaves the model guessing names it will be refused again."""
     assert context.guide("mof") == PAGES["references/mof.md"]
     listing = context.guide()
     for topic, when in context.topics().items():
@@ -239,6 +242,9 @@ def test_a_guide_is_its_page_and_an_unknown_one_names_them_all():
 
 
 def test_each_prompt_names_its_arguments_and_fills_them():
+    """A prompt whose arguments are not the ones its text uses either
+    asks the person for nothing it fills, or hands the model a literal
+    ``$path`` to open."""
     prompts = {p.name: p for p in context.prompts()}
     assert set(prompts) == {"prepare-deposited-cif", "build-mof",
                             "porosity-report"}

@@ -8,6 +8,8 @@ Prepare $path for a calculation.
    asking me first.
 4. Report every step `prepare` names, then `inspect` again and compare
    the atom count, formula and coordination with step 2.
-5. If `OPEN_TRIMERS` or `CELL_NOT_NEUTRAL` is left, tell me and ask
-   whether to add the terminal ligands; do not add them yourself.
+5. If `OPEN_TRIMERS` is left, tell me and ask whether to add the
+   terminal ligands (`cap`); do not add them yourself. If
+   `CELL_NOT_NEUTRAL` is left, say so; do not add or remove anything
+   to balance it.
 6. `save`, and give me the path and every diagnostic by its code.
