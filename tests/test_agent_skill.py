@@ -161,10 +161,8 @@ def _tool_names_the_skill_mentions() -> set:
     return named
 
 
-def test_every_tool_the_skill_names_is_registered():
-    """A tool the skill names and the server does not list is one the
-    assistant calls and is told does not exist -- and reads that as
-    the window's fault."""
+def _registered_tools() -> set:
+    """The tools the headless server lists, as a client sees them."""
     pytest.importorskip("mcp")
     import anyio
     from mcp.shared.memory import (
@@ -179,10 +177,53 @@ def test_every_tool_the_skill_names_is_registered():
                 build_server(HeadlessHost())) as client:
             return {t.name for t in (await client.list_tools()).tools}
 
+    return anyio.run(listed)
+
+
+def test_every_tool_the_skill_names_is_registered():
+    """A tool the skill names and the server does not list is one the
+    assistant calls and is told does not exist -- and reads that as
+    the window's fault."""
     named = _tool_names_the_skill_mentions()
     assert {"documents", "switch", "open"} <= named, sorted(named)
-    registered = anyio.run(listed)
+    registered = _registered_tools()
     assert named <= registered, sorted(named - registered)
+
+
+#: What the served playbook backticks that is not a tool, a guide or a
+#: ``mof.build`` parameter -- each a name the model meets in an answer,
+#: not one it calls or asks for.
+NOT_CALLED = {
+    "ok",           # the field every answer carries
+    "cap",          # a step ``prepare`` takes only when named
+    "first_atom",   # the column of a site row that bond verbs take
+}
+
+
+def _unaccounted(text: str, registered: set) -> set:
+    """Each backticked lowercase name in ``text`` that is none of a
+    registered tool, a guide topic, a ``mof.build`` parameter or
+    :data:`NOT_CALLED`.  ``s.verb(...)``, ``module.action`` and codes
+    are not lowercase words, so they are not read here."""
+    build = {p.name for p in _actions()["mof.build"].params}
+    known = registered | set(context.topics()) | build | NOT_CALLED
+    return set(re.findall(r"`([a-z_][a-z0-9_]*)`", text)) - known
+
+
+def test_every_name_the_served_playbook_backticks_is_one_it_can_use():
+    """A chat client has only ``mcp.md`` and the prompts: a backticked
+    name there that the server does not register, the guide does not
+    know or the build does not take is one the model calls, asks for
+    or passes, and is refused -- with nothing on disk to correct it.
+    The tool sentences alone did not catch a verb renamed in prose."""
+    served = "\n".join(text for name, text in PAGES.items()
+                       if name == "mcp.md" or name.startswith("prompts/"))
+    registered = _registered_tools()
+    assert not _unaccounted(served, registered), \
+        sorted(_unaccounted(served, registered))
+    # It bites: a misspelt verb, and a guide topic that is not one.
+    assert _unaccounted("`optimise` then `porosities`; `ok`",
+                        registered) == {"optimise", "porosities"}
 
 
 def test_skill_install_writes_to_the_directory_it_was_given(tmp_path):
