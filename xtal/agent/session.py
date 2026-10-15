@@ -34,6 +34,7 @@ and not two orbits.
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -62,6 +63,11 @@ PROJECT_EXTENSION = ".xtalproj"
 #: What :meth:`Session.render` looks along, spelled out for an MCP
 #: client, which can only send what a parameter's schema says it takes.
 View = Literal[VIEWS] | Sequence[float] | dict[str, Sequence[int]]
+
+#: A path as either caller has one: text from an MCP client (the schema
+#: says string), a ``Path`` from a script, which ``str`` alone told a
+#: type checker it could not pass.
+PathName = str | os.PathLike[str]
 
 #: A bond's order by name, the window's Set Bond Type menu.
 BondTypeName = Literal[tuple(bond_commands.BOND_TYPE_ORDERS)]
@@ -94,7 +100,8 @@ class Session:
     # ------------------------------------------------------------------
 
     @classmethod
-    def open(cls, path: str, workspace: str | None = None) -> Session:
+    def open(cls, path: PathName,
+             workspace: PathName | None = None) -> Session:
         """Open a structure file or a project.
 
         With ``workspace`` (a directory, made if it is not one yet) the
@@ -177,7 +184,8 @@ class Session:
         return session
 
     @classmethod
-    def build(cls, action: str, workspace: str, **params) -> Session:
+    def build(cls, action: str, workspace: PathName,
+              **params) -> Session:
         """Run a builder (``mof.build``, ``build.smiles`` ...) and open
         what it built, filed in ``workspace`` as the window files it.
 
@@ -254,7 +262,7 @@ class Session:
         from xtal.agent.inspect import DEFAULT_SYMPREC, inspect
         return inspect(self.structure, symprec or DEFAULT_SYMPREC)
 
-    def render(self, path: str, view: View = "diagonal",
+    def render(self, path: PathName, view: View = "diagonal",
                size: tuple[int, int] = (800, 600),
                style: str = "ball_stick", highlight: Sequence[int] = (),
                show_cell: bool = True) -> VerbResult:
@@ -975,7 +983,7 @@ class Session:
         self._record("redo", {}, answer)
         return answer
 
-    def save(self, path: str | None = None) -> Path:
+    def save(self, path: PathName | None = None) -> Path:
         """Write the session as a project -- what Save does in the
         window.  A structure opened as a CIF becomes the ``.xtalproj``
         of the same name beside it; the CIF is left as it is."""
@@ -995,7 +1003,7 @@ class Session:
                                 atoms_after=self.n_atoms))
         return target
 
-    def export(self, path: str) -> Path:
+    def export(self, path: PathName) -> Path:
         """Write a copy for another program: no markers, no net, no
         suppressions -- :func:`xtal.io.export.for_export`."""
         from xtal.io import FORMATS
