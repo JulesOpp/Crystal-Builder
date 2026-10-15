@@ -112,7 +112,11 @@ and, being set, kept the window from choosing.
   - `io.github.julesopp.CrystalBuilder.desktop`: `Name=Crystal
     Builder`, `Exec=AppRun %F`, `Icon`, `Categories=Science;Chemistry;`,
     `MimeType=chemical/x-cif;application/x-crystal-builder-project;`;
-  - the icon: `app.svg` and a 256 px PNG rendered from it;
+  - the icons: `app.svg`, and PNGs rendered from it at every
+    `hicolor` size from 16 to 512 px under `usr/share/icons/hicolor/`,
+    with the two document icons (`chemical-x-cif.png`,
+    `application-x-xtalproj.png`, 16 to 256 px) under `mimetypes/`
+    -- the set PR #59's `write_icons` made;
   - `usr/share/mime/packages/crystal-builder.xml`: both types,
     `.xtalproj` and `.cif` as `chemical/x-cif`. A desktop that
     already knows `.cif` from `chemical-mime-data` keeps its own

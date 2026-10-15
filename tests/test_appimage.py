@@ -122,6 +122,45 @@ def test_the_dir_icon_is_a_256_pixel_png_for_thumbnailers(appdir):
         assert (image.width(), image.height()) == (256, 256)
 
 
+#: The sizes a hicolor theme looks for, as PR #59's ``write_icons``
+#: renders them: the app icon up to 512, the document icons to 256.
+APP_SIZES = (16, 24, 32, 48, 64, 128, 256, 512)
+DOCUMENT_SIZES = (16, 24, 32, 48, 64, 128, 256)
+
+
+def _png_side(path: Path) -> tuple[int, int]:
+    assert path.read_bytes().startswith(b"\x89PNG"), path
+    image = QImage(str(path))
+    assert not image.isNull(), path
+    return image.width(), image.height()
+
+
+@needs_symlinks
+def test_the_app_icon_is_drawn_at_every_size_the_theme_looks_for(
+        appdir):
+    """A panel, a title bar and a launcher each ask the theme for
+    their own size; with only 256 the desktop scales it down to 16
+    itself, and a 16 px blur is what the title bar shows."""
+    hicolor = appdir / "usr" / "share" / "icons" / "hicolor"
+    for size in APP_SIZES:
+        icon = hicolor / f"{size}x{size}" / "apps" / f"{DESKTOP_ID}.png"
+        assert _png_side(icon) == (size, size)
+    assert (hicolor / "scalable" / "apps" / f"{DESKTOP_ID}.svg").is_file()
+
+
+@needs_symlinks
+def test_both_document_types_have_an_icon_named_by_their_mime_type(
+        appdir):
+    """A file manager draws a ``.cif`` or a ``.xtalproj`` with the
+    icon named after its MIME type, slash spelled ``-``; without one
+    a project is a blank page beside every other file."""
+    hicolor = appdir / "usr" / "share" / "icons" / "hicolor"
+    for name in ("chemical-x-cif", "application-x-xtalproj"):
+        for size in DOCUMENT_SIZES:
+            icon = hicolor / f"{size}x{size}" / "mimetypes" / f"{name}.png"
+            assert _png_side(icon) == (size, size)
+
+
 @needs_symlinks
 def test_apprun_is_executable_and_runs_the_collected_program(appdir):
     """The AppImage runtime executes ``AppRun`` directly; without the

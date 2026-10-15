@@ -9,7 +9,8 @@ Lay the Linux build out as an AppDir and pack it as an AppImage.
 ``usr/lib/crystal-builder/``, and around it the three things
 ``appimagetool`` insists on at the top of an AppDir -- ``AppRun``, one
 ``.desktop`` file, and the icon that file names -- with copies of the
-entry, the icon and the MIME file under ``usr/share``, where a desktop
+entry and the MIME file under ``usr/share``, and the icons there at
+every ``hicolor`` size, the document icons too, where a desktop
 integrator (AppImageLauncher, Gear Lever) looks for them when it makes
 the menu entry and the file associations.  An AppImage registers
 neither by itself.
@@ -53,6 +54,26 @@ MIME = "crystal-builder.xml"
 #: ``.DirIcon`` size, and a ``hicolor`` size every theme has.
 ICON_SIZE = 256
 
+#: The ``hicolor`` sizes the app icon is drawn at, as PR #59's
+#: ``write_icons`` drew them: a panel, a title bar and a launcher each
+#: ask the theme for their own, and one the theme lacks is scaled from
+#: another by the desktop -- a 16 px blur in the title bar.
+APP_ICON_SIZES = (16, 24, 32, 48, 64, 128, 256, 512)
+#: At or below this the app icon is drawn from ``app-small.svg``, as
+#: ``icons/build_icons.py`` (``SMALL``) does for the .icns and .ico:
+#: ``app.svg`` at 16 px is a smudge.
+SMALL = 32
+
+#: The document icons, by the SVG they are drawn from and the name a
+#: theme looks them up by -- the MIME type with its slash spelled
+#: ``-``, which is how freedesktop names a ``mimetypes/`` icon -- and
+#: the sizes PR #59 drew them at.
+DOCUMENT_ICONS = {
+    "cif.svg": "chemical-x-cif",
+    "xtalproj.svg": "application-x-xtalproj",
+}
+DOCUMENT_ICON_SIZES = (16, 24, 32, 48, 64, 128, 256)
+
 
 def render_png(svg: Path, png: Path, size: int = ICON_SIZE) -> None:
     """Draw ``svg`` as a ``size`` square PNG with a transparent
@@ -67,10 +88,38 @@ def render_png(svg: Path, png: Path, size: int = ICON_SIZE) -> None:
     image = QImage(size, size, QImage.Format.Format_ARGB32)
     image.fill(Qt.GlobalColor.transparent)
     painter = QPainter(image)
+    # As build_icons.py draws them: without it a shape drawn at 1024
+    # aliases into noise at 16 px.
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
     renderer.render(painter)
     painter.end()
     if not image.save(str(png), "PNG"):
         raise OSError(f"could not write {png}")
+
+
+def app_icon_source(size: int) -> Path:
+    """The drawing the app icon is rendered from at ``size``."""
+    small = bundle.ICONS / "app-small.svg"
+    if size <= SMALL and small.is_file():
+        return small
+    return bundle.ICONS / "app.svg"
+
+
+def write_icons(hicolor: Path, png: str) -> None:
+    """The app icon at every size in :data:`APP_ICON_SIZES` under
+    ``apps/``, named ``png``, and the two document icons under
+    ``mimetypes/``.  Needs a ``QGuiApplication``: the document icons
+    carry text, and resolving a font needs one."""
+    for size in APP_ICON_SIZES:
+        into = hicolor / f"{size}x{size}" / "apps"
+        into.mkdir(parents=True, exist_ok=True)
+        render_png(app_icon_source(size), into / png, size)
+    for svg, name in DOCUMENT_ICONS.items():
+        for size in DOCUMENT_ICON_SIZES:
+            into = hicolor / f"{size}x{size}" / "mimetypes"
+            into.mkdir(parents=True, exist_ok=True)
+            render_png(bundle.ICONS / svg, into / f"{name}.png", size)
 
 
 def layout(collected: Path, appdir: Path) -> Path:
@@ -100,11 +149,11 @@ def layout(collected: Path, appdir: Path) -> Path:
     share = appdir / "usr" / "share"
     hicolor = share / "icons" / "hicolor"
     render_png(bundle.ICONS / "app.svg", appdir / png)
+    write_icons(hicolor, png)
     for source, *targets in [
         (LINUX / entry, appdir / entry, share / "applications" / entry),
         (bundle.ICONS / "app.svg", appdir / icon,
          hicolor / "scalable" / "apps" / icon),
-        (appdir / png, hicolor / "256x256" / "apps" / png),
         (LINUX / MIME, share / "mime" / "packages" / MIME),
     ]:
         for target in targets:

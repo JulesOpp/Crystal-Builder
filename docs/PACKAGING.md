@@ -754,7 +754,9 @@ CrystalBuilder.AppDir/
     .DirIcon -> io.github.julesopp.CrystalBuilder.png
     usr/lib/crystal-builder/                # the COLLECT folder, whole
     usr/share/applications/                 # the .desktop again,
-    usr/share/icons/hicolor/{scalable,256x256}/apps/   # the icons and
+    usr/share/icons/hicolor/scalable/apps/  # the icons and
+    usr/share/icons/hicolor/NxN/apps/       # N = 16 ... 512
+    usr/share/icons/hicolor/NxN/mimetypes/  # N = 16 ... 256
     usr/share/mime/packages/crystal-builder.xml        # the MIME types,
                                             # where an integrator looks
 ```
@@ -781,6 +783,14 @@ CrystalBuilder.AppDir/
   these files.
 - **The PNG** because thumbnailers draw an AppImage from `.DirIcon`
   and skip an svg.  `appimage.py` draws it with Qt, offscreen.
+- **The icon set**, from PR #59's `write_icons`: the app icon at 16,
+  24, 32, 48, 64, 128, 256 and 512 px under `hicolor/NxN/apps/`
+  (`app-small.svg` at 32 and below, as `build_icons.py` does), and
+  the document icons from `cif.svg` and `xtalproj.svg` at 16 to 256
+  px under `hicolor/NxN/mimetypes/`, named by MIME type the way
+  freedesktop looks them up: `chemical-x-cif.png`,
+  `application-x-xtalproj.png`.  Drawn at build time with the same
+  QtSvg renderer, not committed.
 
 **Which libraries are bundled and which are the user's.**  The rule is
 PyInstaller's own exclude list (`PyInstaller/depend/dylib.py`): glibc,
