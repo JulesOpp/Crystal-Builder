@@ -77,8 +77,11 @@ ANSWERED = re.compile(r"^(yes|no)\b[^?]{0,20}$", re.IGNORECASE)
 #: One sentence, with what ends it; a line break ends one too.
 SENTENCE = re.compile(r"[^.?!\n]*[.?!]+|[^.?!\n]+")
 
-#: A number as a report writes it, a typeset minus included.
-NUMBER = re.compile(r"[-+−]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
+#: A number as a report writes it, a typeset minus included.  A sign
+#: glued to a word or a number before it is a hyphen: "2.60-2.65" is
+#: a range and "MOF-5" a name, not -2.65 and -5.
+NUMBER = re.compile(
+    r"(?:(?<![\w.])[-+−])?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?")
 #: A thousands separator, taken out before :data:`NUMBER` is matched.
 THOUSANDS = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
 

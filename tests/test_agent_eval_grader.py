@@ -232,6 +232,15 @@ def test_the_grader_reads_a_typeset_minus_and_a_thousands_separator():
         == [-1234.5, 2002.33, 7.0]
 
 
+def test_a_hyphen_between_numbers_is_a_range_not_a_minus():
+    """A report writes a range as "2.60-2.65" and a name as "MOF-5";
+    reading either hyphen as a minus fails a report that gave the
+    upper end of a range."""
+    grade = _grade_module()
+    assert grade.numbers_in("Cu-Cu 2.60-2.65 A in MOF-5; E = -12.5") \
+        == [2.6, 2.65, 5.0, -12.5]
+
+
 def test_a_report_must_name_each_word_case_aside(tmp_path):
     grade = _grade_module()
     task = _task(tmp_path, report_names=["HKUST"])
