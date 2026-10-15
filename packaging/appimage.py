@@ -17,9 +17,13 @@ neither by itself.
 
 **Everything is named after the desktop ID**,
 :data:`xtalapp.application.DESKTOP_ID`, which the window also hands Qt
-as its desktop file name: on Wayland that is the ``app_id`` a
-compositor matches against the ``.desktop`` file to find the window's
-icon, so a second spelling here would be a window with no icon.
+as its desktop file name.  On X11, and on XWayland where a Wayland
+desktop runs the window, the window is matched to the ``.desktop``
+file by its WM_CLASS, Qt's application name, against
+``StartupWMClass``; the desktop file name is still set because a
+native Wayland session (if VTK ever supports one, or a user who forces
+it) matches by the ``app_id`` instead, and there a second spelling
+here would be a window with no icon.
 PR #59's ``.deb`` named its entry ``crystal-builder.desktop``; the
 reverse-DNS ID is kept because it is what ``setDesktopFileName`` says
 and what freedesktop recommends.  The project's MIME type

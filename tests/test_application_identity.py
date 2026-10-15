@@ -1,11 +1,13 @@
 """The running window says which application it is.
 
 macOS and Windows read a window's icon off the bundle and the
-``.exe``.  A Linux executable carries no icon at all, and a Wayland
-desktop matches a window to its ``.desktop`` entry by the name the
-application gives itself -- so without both, the AppImage's window is
-a generic cog, its windows are not grouped, and the dock shows a
-second, nameless entry beside the one that launched it.
+``.exe``.  A Linux executable carries no icon at all, and the desktop
+matches a window to its ``.desktop`` entry by the name the application
+gives itself -- its WM_CLASS against ``StartupWMClass`` on X11 and
+XWayland, its app_id on a native Wayland session -- so without both,
+the AppImage's window is a generic cog, its windows are not grouped,
+and the dock shows a second, nameless entry beside the one that
+launched it.
 """
 
 import sys
@@ -27,8 +29,10 @@ import bundle  # noqa: E402
 
 
 def test_the_application_names_its_desktop_entry(qapp):
-    """GNOME on Wayland finds the window's entry by this name; without
-    it the window is an unknown application beside its own launcher."""
+    """A native Wayland session (not XWayland, which matches by
+    WM_CLASS) finds the window's entry by this name, its app_id;
+    without it the window is an unknown application beside its own
+    launcher."""
     assert qapp.desktopFileName() == DESKTOP_ID
 
 

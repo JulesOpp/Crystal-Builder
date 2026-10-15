@@ -743,8 +743,12 @@ Three steps, each its own file:
    folder and runs `appimagetool` over it.
 
 The AppDir, every name after the desktop ID
-`io.github.julesopp.CrystalBuilder` (the window hands Qt the same ID,
-and on Wayland that is how the compositor finds the icon):
+`io.github.julesopp.CrystalBuilder`.  The window hands Qt the same ID
+as its desktop file name; on X11 and on XWayland, where a Wayland
+desktop runs it, the window is matched to the entry by its
+`WM_CLASS`, Qt's application name, against `StartupWMClass`, and the
+ID is what a native Wayland session (if VTK ever supports one, or a
+user who forces it) matches by, as the app_id:
 
 ```
 CrystalBuilder.AppDir/

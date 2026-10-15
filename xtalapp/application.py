@@ -54,11 +54,15 @@ from PySide6.QtWidgets import QApplication
 QUIT_EVENTS = (QEvent.Type.Quit, QEvent.Type.Close)
 
 #: The name the desktop knows this application by on Linux: the
-#: ``.desktop`` entry's basename and its icon's name.  A Wayland
-#: compositor matches a running window to its entry by the name the
-#: application gives itself, so without it GNOME shows the window as
-#: an unknown application, with a generic icon, beside the launcher
-#: that started it.
+#: ``.desktop`` entry's basename and its icon's name.  On X11, and on
+#: XWayland where a Wayland desktop runs the window (VTK's Qt bridge
+#: is X11 only), the window is matched to its entry by its WM_CLASS,
+#: Qt's application name, against the entry's ``StartupWMClass``.  It
+#: is still handed Qt as the desktop file name, because a native
+#: Wayland session -- if VTK ever supports one, or a user who forces
+#: it -- matches by the app_id instead, and without it GNOME there
+#: shows the window as an unknown application, with a generic icon,
+#: beside the launcher that started it.
 DESKTOP_ID = "io.github.julesopp.CrystalBuilder"
 
 

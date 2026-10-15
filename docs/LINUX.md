@@ -61,9 +61,14 @@ external programs).
 ## 1. The application
 
 - `xtalapp/application.py` sets the window icon from the bundled
-  icon and `setDesktopFileName("io.github.julesopp.CrystalBuilder")`,
-  so the running window is matched to the `.desktop` entry: Wayland
-  and GNOME show the right icon and group the windows. Harmless on
+  icon and `setDesktopFileName("io.github.julesopp.CrystalBuilder")`.
+  On X11, and on XWayland where a Wayland desktop runs the window
+  (§ 1a), the running window is matched to the `.desktop` entry by
+  its `WM_CLASS`, Qt's application name, against
+  `StartupWMClass=Crystal Builder`, which is what gives it the right
+  icon and groups the windows. The desktop file name is still set,
+  because a native Wayland session (if VTK ever supports one, or a
+  user who forces it) matches by the app_id instead. Harmless on
   macOS and Windows.
 - A double-clicked `.cif` or `.xtalproj` arrives on the command
   line, which `xtalapp/main.py` already opens. No change.
