@@ -318,3 +318,45 @@ Tasks:
   its own keeps the session the others share.  The proxy exits only
   when the client closes stdin, and `_Leaving`, `_Stdout`, `_Stdin`
   and the exit codes went with the exits.
+
+## Served context and the parity eval (2026-10)
+
+A chemist in a chat client reaches Crystal Builder through MCP alone;
+Claude Code with the skill and a shell was the better experience,
+because the playbook never reached an MCP client. This part measures
+the gap (`tools/agent_eval/run.py --via both`) and serves the
+playbook.
+
+### Baseline, before the playbook was served
+
+2026-10-15, `--via both`, Opus 5.5, both ways with
+`--setting-sources project` and the host session's variables dropped:
+
+```
+task                 | raw | turns | $    | mcp | turns | $    | failed checks
+---------------------+-----+-------+------+-----+-------+------+--------------
+build-overlap        | yes | 6     | 0.25 | yes | 4     | 0.11 |
+compare-two          | yes | 8     | 0.26 | yes | 5     | 0.11 |
+copies-and-hydrogens | yes | 7     | 0.31 | yes | 7     | 0.17 |
+open-trimers         | no  | 9     | 0.32 | no  | 7     | 0.16 | raw: asks the person; mcp: asks the person
+short-relax          | yes | 6     | 0.21 | yes | 4     | 0.06 |
+strain-sweep         | yes | 8     | 0.27 | yes | 340   | 2.13 |
+tied-scan            | yes | 9     | 0.30 | no  | 10    | 0.12 | mcp: reports MODULE_FAILED; log has scan.run
+---------------------+-----+-------+------+-----+-------+------+--------------
+passed               | 6/7 |       |      | 5/7 |       |      |
+```
+
+What the runs show:
+
+- **tied-scan** is the trap the skill warns of: over MCP, with no
+  skill, the agent scanned the cell parameter (a = 2d) and reported a
+  landscape, never meeting `MODULE_FAILED`. Through the skill it did.
+- **strain-sweep** cost 340 turns over MCP because `set_cell` failed
+  every time: its parameters had no JSON type, so the client sent
+  strings and the lattice compared a string with a number. Seventeen
+  tools had an untyped parameter; raw Python never noticed.
+- **compare-two** passed over MCP by hand: the agent worked the
+  distances out from `inspect`'s coordinates and cell.
+- **open-trimers** failed both ways on the grader's question check:
+  both reports asked the person, but as an instruction ("Tell me which
+  you want") rather than a sentence ending in "?".
