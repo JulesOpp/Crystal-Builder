@@ -455,6 +455,34 @@ def test_the_proxy_lists_what_the_server_serves():
     assert asks(proxy._prompts()) == asks(prompts)
 
 
+@pytest.mark.parametrize("contents", ["empty", "blob"])
+def test_a_document_read_with_no_text_is_the_windows_reason(
+        monkeypatch, contents):
+    """The proxy hands on the text of the window's answer; an answer
+    with none -- empty, or a blob -- raised out of the read and reached
+    the client as a JSON-RPC error rather than a "window: ..." it can
+    tell the person."""
+    import anyio
+    from mcp import types
+
+    from xtal.agent import proxy
+
+    answers = {"empty": [], "blob": [types.BlobResourceContents(
+        uri=context.DOCUMENT_URI, blob="AA==")]}
+
+    class Window:
+        async def read_resource(self, uri):
+            return types.ReadResourceResult(contents=answers[contents])
+
+    async def asked(window, ask):
+        return await ask(window)
+
+    monkeypatch.setattr(proxy, "_asked", asked)
+    [read] = anyio.run(proxy._read, Window(), context.DOCUMENT_URI)
+    assert read.content.startswith("window: "), read.content
+    assert read.mime_type == "text/plain"
+
+
 def test_a_proxy_prompt_missing_an_argument_says_which():
     """A prompt asked for without an argument must say which one: a
     bare KeyError reads to the person as the proxy breaking."""

@@ -356,7 +356,9 @@ def test_a_proxy_with_no_window_still_gives_the_playbook(
     """Claude Desktop starts ``xtal mcp`` before the person opens the
     window, and reads the instructions once, at the handshake: with
     nothing behind the proxy they must still be the playbook, and the
-    guides and prompts are the proxy's own."""
+    guides and prompts are the proxy's own.  The window lists no
+    resource templates; a proxy that answered "method not found"
+    instead would read to a client as a broken server."""
     proxy = _Proxy(qtbot, tmp_path, appdata, argv=NO_WINDOW)
     try:
         hello = proxy.request(1)["result"]
@@ -379,6 +381,8 @@ def test_a_proxy_with_no_window_still_gives_the_playbook(
             "uri": context.DOCUMENT_URI})["result"]
         assert "no window is listening" in \
             document["contents"][0]["text"]
+        templates = proxy.request(7, "resources/templates/list")
+        assert templates["result"]["resourceTemplates"] == []
         assert proxy.process.poll() is None
     finally:
         said = proxy.finish()

@@ -23,10 +23,11 @@ probed (:func:`xtal.agent.discovery.alive`, a few milliseconds) as a
 call goes out and every :data:`WATCH` seconds while it is out.
 
 **The playbook is the proxy's own.**  The instructions go out at the
-handshake, before any window is reached, and the guides and prompts
-are static text from this same install, so they are answered here,
-window or no window.  Only the current document is the window's: it
-is forwarded, and with no window it says why, as a tool does.
+handshake, before any window is reached, and the guide resources and
+prompts are static text from this same install, so they are answered
+here, window or no window.  The current document is the window's: it
+is forwarded, and with no window it says why, as a tool does -- as is
+the ``guide`` tool, forwarded like every tool.
 
 Imports ``mcp`` only when called, like the rest of the agent's MCP
 side.
@@ -284,14 +285,23 @@ async def _read(window: _Window, uri: str):
         topic = uri.removeprefix(context.GUIDE_URI.format(""))
         return [ReadResourceContents(content=context.guide(topic),
                                      mime_type="text/markdown")]
+    async def text(session):
+        # Taken here, inside the watched call, so an answer with no
+        # text is said as a reason like any other, not raised to the
+        # client as a protocol error.
+        read = await session.read_resource(uri)
+        found = [c.text for c in read.contents if hasattr(c, "text")]
+        if not found:
+            raise ValueError("the window's answer held no text")
+        return found[0]
+
     try:
-        read = await _asked(
-            window, lambda session: session.read_resource(uri))
+        document = await _asked(window, text)
     except Exception as exc:              # noqa: BLE001 -- answered
         # Not the document, so not labelled as its JSON.
         return [ReadResourceContents(content=_reason(exc),
                                      mime_type="text/plain")]
-    return [ReadResourceContents(content=read.contents[0].text,
+    return [ReadResourceContents(content=document,
                                  mime_type="application/json")]
 
 
@@ -353,6 +363,12 @@ async def _serve(folder) -> None:
         @server.list_resources()
         async def list_resources():
             return _resources()
+
+        # The window's server answers an empty list; "method not
+        # found" from the proxy reads to a client as a broken server.
+        @server.list_resource_templates()
+        async def list_resource_templates():
+            return []
 
         @server.read_resource()
         async def read_resource(uri):
