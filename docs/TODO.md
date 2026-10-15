@@ -228,8 +228,8 @@ their `--json`, and on 2026-10-01 the live link to the window
 
 - **A manual chapter**, *Working with an AI assistant*, once
   `docs/manual/` exists (interface stretch, phase 4).
-- **MCP parity, the rest** (part 1 shipped: served context and the
-  parity eval, `docs/AI_ASSISTANT.md`'s "Served context and the parity
+- **MCP parity, the rest** (served context and the parity eval
+  shipped: `docs/AI_ASSISTANT.md`'s "Served context and the parity
   eval"). In this order:
   - **E: guardrails.** A checkpoint per agent turn, an *Agent changes*
     strip in the window with one-click revert, and cost estimates up
