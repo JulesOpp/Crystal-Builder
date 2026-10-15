@@ -29,7 +29,8 @@ probe went unanswered and a second window started over it.  The host
 says whether its sessions take one call at a time themselves
 (``serialises``: the window's bridge does, and refuses with
 ``WINDOW_BUSY`` what must wait); for any other host the tools take a
-lock, so the headless sessions are never touched by two threads.
+lock, so the headless sessions are never touched by two threads.  The
+playbook's own tools touch no session and take none.
 
 The SDK is the ``mcp`` extra and is imported by :func:`build_server`
 alone, so the core imports this module without it.
@@ -112,10 +113,13 @@ def build_server(host: Host, name: str = SERVER_NAME):
         "and which one is current -- the one every verb acts on.")
     add(_switch_tool(host), "switch",
         "Make the open document at ``path`` the current one.")
-    add(_capabilities_tool(), "capabilities",
-        pyinspect.getdoc(capabilities))
-    add(_help_tool(), "help_for", pyinspect.getdoc(help_for))
-    add(_guide_tool(), "guide", pyinspect.getdoc(context.guide))
+    # These touch no session, so they take no lock: the model asking
+    # which guide to read must not wait out a relaxation for it.
+    free = functools.partial(_add, server, contextlib.nullcontext())
+    free(_capabilities_tool(), "capabilities",
+         pyinspect.getdoc(capabilities))
+    free(_help_tool(), "help_for", pyinspect.getdoc(help_for))
+    free(_guide_tool(), "guide", pyinspect.getdoc(context.guide))
     _add_context(server, host, one_at_a_time)
     return server
 

@@ -376,6 +376,50 @@ def test_guide_lists_the_topics_gives_a_page_and_refuses_an_unknown_one():
     assert "prepare" in answer["message"]
 
 
+def test_the_playbook_tools_do_not_wait_behind_a_long_call():
+    """``guide``, ``capabilities`` and ``help_for`` touch no session.
+    Behind the headless host's lock, the model asking which guide to
+    read waited out a whole relaxation -- or timed out -- before it
+    could read it.  Here ``documents`` is held on its thread and the
+    three must still answer."""
+    import threading
+
+    import anyio
+    from mcp.shared.memory import (
+        create_connected_server_and_client_session,
+    )
+
+    entered, release = threading.Event(), threading.Event()
+    host = HeadlessHost()
+    real = host.sessions
+
+    def held():
+        entered.set()
+        release.wait(30)
+        return real()
+
+    host.sessions = held
+
+    async def main():
+        async with create_connected_server_and_client_session(
+                build_server(host)) as client:
+            async with anyio.create_task_group() as group:
+                group.start_soon(client.call_tool, "documents", {})
+                try:
+                    await anyio.to_thread.run_sync(entered.wait, 10)
+                    with anyio.fail_after(10):
+                        return [await client.call_tool(name, arguments)
+                                for name, arguments in (
+                                    ("guide", {"topic": "mof"}),
+                                    ("capabilities", {}),
+                                    ("help_for", {"name": "inspect"}))]
+                finally:
+                    release.set()
+
+    for answer in anyio.run(main):
+        assert not answer.isError, answer.content[0].text
+
+
 def test_every_guide_is_a_resource_and_reads_as_its_page():
     """For a client where the person attaches context: every guide,
     and the current document, can be attached."""
