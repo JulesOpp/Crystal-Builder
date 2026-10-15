@@ -1,6 +1,6 @@
 """The eval harness's grader, on canned answers.
 
-``tools/agent_eval/`` runs a real agent over five scripted tasks and
+``tools/agent_eval/`` runs a real agent over seven scripted tasks and
 costs tokens, so it is run by hand before a release and never here.
 What can be held here is the half that decides: given what an agent
 said, saved and logged, does the grader pass what it should and fail
@@ -22,7 +22,7 @@ from xtal.io.project import write_project
 
 EVAL = Path(__file__).resolve().parents[1] / "tools" / "agent_eval"
 TASKS = ("copies-and-hydrogens", "build-overlap", "tied-scan",
-         "open-trimers", "short-relax")
+         "open-trimers", "short-relax", "strain-sweep", "compare-two")
 
 
 def _grade_module():
@@ -155,7 +155,7 @@ def test_the_grader_fails_a_log_that_ran_what_the_task_forbids(
         ["log has no optimize", "log has prepare"]
 
 
-def test_a_dry_run_lists_the_five_tasks_without_calling_claude(tmp_path):
+def test_a_dry_run_lists_every_task_without_calling_claude(tmp_path):
     called = tmp_path / "claude-was-called"
     fake = tmp_path / "claude"
     fake.write_text(f"#!/bin/sh\ntouch {called}\n", encoding="utf-8")

@@ -1,5 +1,5 @@
 """
-Run the skill eval: five scripted tasks, each given to Claude Code
+Run the skill eval: seven scripted tasks, each given to Claude Code
 headless (``claude -p``) in a project of its own with the skill
 installed, and graded by ``grade.py``.
 
@@ -9,7 +9,7 @@ tools; ``--via both`` runs each task both ways and prints them side by
 side.
 
     python tools/agent_eval/run.py --dry-run     # what would run
-    python tools/agent_eval/run.py               # all five; tokens
+    python tools/agent_eval/run.py               # all seven; tokens
     python tools/agent_eval/run.py --only tied-scan
 
 Run it with the Python that has Crystal Builder installed: the agent
@@ -18,7 +18,7 @@ uses the person's own Claude Code login; there is no key here.
 
 Each task runs in a temporary folder **outside** the checkout, so the
 agent reads the skill and nothing of this repository's own
-``CLAUDE.md``; what it left is copied to ``runs/<time>/<task>/``
+``CLAUDE.md``; what it left is copied to ``runs/<time>/<via>/<task>/``
 afterwards (ignored by git).
 """
 
@@ -178,6 +178,7 @@ def dry_run(tasks: list[Path], claude: Path | None,
         print()
     return 0
 
+
 def _expectation_lines(expect: dict):
     if expect.get("codes"):
         yield "report names", ", ".join(expect["codes"])
@@ -313,6 +314,7 @@ def usage(stdout: str) -> tuple[int | None, float | None]:
     parsed = _result_of(stdout)
     return parsed.get("num_turns"), parsed.get("total_cost_usd")
 
+
 def _run_folder(stamp: str) -> Path:
     """``runs/<stamp>``, or ``<stamp>-2`` ... for a second run started
     within the same second."""
@@ -364,6 +366,7 @@ def table(names: list[str], vias, results: dict) -> str:
         "-" * len(head[-1])
     return "\n".join([line(head), rule, *map(line, rows), rule,
                       line(parity)])
+
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -432,6 +435,7 @@ def _attempt(task: Path, claude: Path, out: Path, via: str):
     failed = [name for name, ok, _detail in verdict.checks if not ok]
     return ("yes" if verdict.passed else "no", turns, cost,
             "; ".join(failed))
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

@@ -2,16 +2,16 @@
 
 `tests/test_agent_skill.py` holds the skill's *names* to the code.
 Nothing there checks that an agent given the skill *follows* it. This
-does: five scripted tasks with known answers, each given to Claude
+does: seven scripted tasks with known answers, each given to Claude
 Code headless, and graded automatically.
 
 It is run by hand, before a release. It is not in the wheel, it never
-runs in CI, and a full run spends the tokens of five agent sessions on
+runs in CI, and a full run spends the tokens of seven agent sessions on
 your own Claude Code login (there is no API key here).
 
 ```bash
 .venv/bin/python tools/agent_eval/run.py --dry-run         # what would run; calls nothing
-.venv/bin/python tools/agent_eval/run.py                   # all five
+.venv/bin/python tools/agent_eval/run.py                   # all seven
 .venv/bin/python tools/agent_eval/run.py --only tied-scan  # one
 .venv/bin/python tools/agent_eval/run.py --claude PATH     # claude not on PATH
 ```
@@ -83,17 +83,21 @@ combination was found; run it again if the catalogue changes.
 | `tied-scan` | `resources/samples/simple/NaCl.cif`, a Na-Cl distance Fm-3m ties | `MODULE_FAILED` reported; no `reduce_to_p1` |
 | `open-trimers` | `resources/samples/cod/MIL-88B.cif`, Cr3O trimers | `OPEN_TRIMERS` and `CELL_NOT_NEUTRAL` reported; no `cap`; the person asked; the saved project still has `OPEN_TRIMERS` |
 | `short-relax` | `resources/samples/MIL53.cif`, `max_steps=3` | `NOT_CONVERGED` reported; atom count unchanged |
+| `strain-sweep` | `resources/samples/MIL53.cif`, *a* at 98, 100 and 102 % | `numbers`: the three UFF energies; no `optimize` |
+| `compare-two` | `resources/samples/HKUST1.cif` and `MOF-5.cif` | `numbers`: the shortest metal-metal distance; `report_names`: HKUST |
 
 `expect.json` keys, all optional:
 
 | Key | Checked by |
 |---|---|
-| `input` | the structure handed to the agent, relative to the repository; none for a build |
+| `input` | the structure handed to the agent, relative to the repository, or a list of them; none for a build |
 | `codes` | each code appears, as the code, in the final report |
 | `inspect` | `{CODE: "present" \| "absent"}` from `inspect()` of the saved project; no project fails each |
 | `log_must_not_contain`, `log_must_contain` | verb names in the session logs; a `prepare` step counts too, so `cap` is caught either way. A refused verb is a row too, and counts: trying `cap` is the failure, whether or not it ran |
 | `report_must_ask` | a question that itself names `cap`, a trimer or a ligand (code names like `OPEN_TRIMERS` do not count), or a short question pointing back -- "Shall I run it?" -- after a sentence that does; a sign-off ("anything else?") or a question the report answers itself ("...? No.") is not one |
 | `atoms_unchanged` | the saved project's P1 atom count equals the input's |
+| `numbers` | each `{"label", "value", "tol"}` is a number in the final report, within `tol` |
+| `report_names` | each word is in the final report, case aside |
 | `needs` | extras the task cannot run without; not graded, skipped |
 
 The grading is strict on purpose: a report that paraphrases a warning

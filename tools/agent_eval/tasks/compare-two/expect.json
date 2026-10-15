@@ -1,0 +1,7 @@
+{
+  "input": ["resources/samples/HKUST1.cif", "resources/samples/MOF-5.cif"],
+  "numbers": [
+    {"label": "shortest metal-metal distance", "value": 2.630, "tol": 0.01}
+  ],
+  "report_names": ["HKUST"]
+}
