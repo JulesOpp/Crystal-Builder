@@ -15,6 +15,13 @@ A verb's ``**options`` (``energy``, ``optimize``, ``run``, ``select``,
 ``build``) arrive as one object of that name, because a JSON schema
 has no open-ended keywords.
 
+Beside the tools the server serves the playbook
+(:mod:`xtal.agent.context`): ``instructions`` at the handshake, a
+``guide`` tool the model calls for a reference page, the same pages
+and the current document's ``inspect`` as resources, and three
+prompts.  A chat client has no skill on disk, so without these it had
+the tool list and none of the protocol.
+
 **Every tool runs on a worker thread, never on the server's event
 loop.**  The SDK calls a plain function inline, so one relaxation
 silenced the whole server for its length: the window's discovery
@@ -39,6 +46,7 @@ import typing
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from xtal.agent import context
 from xtal.agent.answers import SITES, VerbResult
 from xtal.agent.capabilities import VERBS, capabilities, help_for
 from xtal.agent.diagnostics import Diagnostic, to_json
@@ -84,7 +92,8 @@ def build_server(host: Host, name: str = SERVER_NAME):
 
     # The SDK logs every request at INFO, which on stdio is a line in
     # the client's log per tool call.
-    server = FastMCP(name, log_level="WARNING")
+    server = FastMCP(name, instructions=context.instructions(),
+                     log_level="WARNING")
     one_at_a_time = (contextlib.nullcontext()
                      if getattr(host, "serialises", False)
                      else threading.Lock())
@@ -106,6 +115,8 @@ def build_server(host: Host, name: str = SERVER_NAME):
     add(_capabilities_tool(), "capabilities",
         pyinspect.getdoc(capabilities))
     add(_help_tool(), "help_for", pyinspect.getdoc(help_for))
+    add(_guide_tool(), "guide", pyinspect.getdoc(context.guide))
+    _add_context(server, host, one_at_a_time)
     return server
 
 
@@ -159,12 +170,7 @@ def _verb_tool(host: Host, verb: str):
         except LookupError as exc:
             return _text(_no_session(verb, exc))
         if verb == "inspect":
-            sites = kwargs.pop("sites")
-            found = session.inspect(**kwargs)
-            if isinstance(found, VerbResult):
-                # A window that is closing refuses even a look.
-                return _text(found)
-            return to_json(found.to_dict(sites), compact=True)
+            return _inspection(session, kwargs.pop("sites"), **kwargs)
         _spread(verb, kwargs, spread)
         answer = getattr(session, verb)(**kwargs)
         if verb == "render":
@@ -193,6 +199,16 @@ def _picture(answer: VerbResult):
             type="image", data=base64.b64encode(png).decode("ascii"),
             mimeType="image/png"))
     return content
+
+
+def _inspection(session: Session, sites, **kwargs) -> str:
+    """``inspect`` as an assistant reads it, for the tool and the
+    current-document resource alike."""
+    found = session.inspect(**kwargs)
+    if isinstance(found, VerbResult):
+        # A window that is closing refuses even a look.
+        return _text(found)
+    return to_json(found.to_dict(sites), compact=True)
 
 
 def _written(verb: str, path: Path, session: Session) -> VerbResult:
@@ -328,6 +344,58 @@ def _row(host: Host, session: Session) -> dict:
 
 def _name(session: Session) -> str:
     return session.path.name if session.path else "untitled"
+
+
+# ----------------------------------------------------------------------
+#  THE PLAYBOOK
+# ----------------------------------------------------------------------
+
+def _guide_tool():
+    def guide(topic: str | None = None):
+        try:
+            return context.guide(topic)
+        except LookupError as exc:
+            return _text(_refused("guide", str(exc.args[0])))
+    return guide
+
+
+def _add_context(server, host: Host, one_at_a_time) -> None:
+    """The guides and the current document as resources, and the
+    prompts: for a client where the person attaches context or picks
+    a workflow.  The model itself reads a guide through ``guide``."""
+    import anyio
+    from mcp.server.fastmcp.prompts.base import Prompt, PromptArgument
+    from mcp.server.fastmcp.resources import TextResource
+
+    for topic, when in context.topics().items():
+        server.add_resource(TextResource(
+            uri=context.GUIDE_URI.format(topic), name=f"guide: {topic}",
+            description=when, mime_type="text/markdown",
+            text=context.guide(topic)))
+
+    def look():
+        with one_at_a_time:
+            try:
+                session = host.current()
+            except LookupError as exc:
+                return _text(_no_session("inspect", exc))
+            return _inspection(session, "problems")
+
+    # Off the event loop, as every tool is: the window's inspect
+    # crosses to its GUI thread.
+    @server.resource(context.DOCUMENT_URI, name="current document",
+                     description=context.DOCUMENT_DESCRIPTION,
+                     mime_type="application/json")
+    async def current_document() -> str:
+        return await anyio.to_thread.run_sync(look,
+                                              abandon_on_cancel=True)
+
+    for prompt in context.prompts():
+        server.add_prompt(Prompt(
+            name=prompt.name, description=prompt.description,
+            arguments=[PromptArgument(name=a, required=True)
+                       for a in prompt.arguments],
+            fn=prompt.render))
 
 
 # ----------------------------------------------------------------------

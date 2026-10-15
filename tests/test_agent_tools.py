@@ -15,9 +15,10 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import needs_offscreen_gl
+from xtal.agent import context
 from xtal.agent.capabilities import VERBS
 from xtal.agent.serve import HeadlessHost
-from xtal.agent.tools import build_server
+from xtal.agent.tools import NO_SESSION, build_server
 
 pytest.importorskip("mcp")
 
@@ -350,3 +351,73 @@ def test_set_cell_takes_numbers_a_client_sent_as_text(rutile_cif):
 
     answer = _answer(_talk(conversation))
     assert answer["ok"], answer["message"]
+
+
+def test_the_handshake_carries_the_instructions():
+    """A chat client has no skill on disk: the instructions are the
+    only protocol it reads before its first call."""
+    async def conversation(client):
+        return (await client.initialize()).instructions
+
+    assert _talk(conversation) == context.instructions()
+
+
+def test_guide_lists_the_topics_gives_a_page_and_refuses_an_unknown_one():
+    async def conversation(client):
+        return [await client.call_tool("guide", arguments)
+                for arguments in ({}, {"topic": "mof"},
+                                  {"topic": "nope"})]
+
+    listing, page, unknown = _talk(conversation)
+    assert "prepare:" in listing.content[0].text
+    assert page.content[0].text == context.guide("mof")
+    answer = _answer(unknown)
+    assert answer["ok"] is False
+    assert "prepare" in answer["message"]
+
+
+def test_every_guide_is_a_resource_and_reads_as_its_page():
+    """For a client where the person attaches context: every guide,
+    and the current document, can be attached."""
+    async def conversation(client):
+        listed = (await client.list_resources()).resources
+        read = await client.read_resource(context.GUIDE_URI.format(
+            "prepare"))
+        return listed, read
+
+    listed, read = _talk(conversation)
+    uris = {str(r.uri) for r in listed}
+    assert {context.GUIDE_URI.format(t) for t in context.topics()} <= uris
+    assert context.DOCUMENT_URI in uris
+    assert read.contents[0].text == context.guide("prepare")
+
+
+def test_the_current_document_resource_is_inspect_once_one_is_open(
+        rutile_cif):
+    async def conversation(client):
+        before = await client.read_resource(context.DOCUMENT_URI)
+        await client.call_tool("open", {"path": rutile_cif})
+        after = await client.read_resource(context.DOCUMENT_URI)
+        looked = await client.call_tool("inspect", {})
+        return before, after, looked
+
+    before, after, looked = _talk(conversation)
+    assert json.loads(before.contents[0].text)["message"] == NO_SESSION
+    assert json.loads(after.contents[0].text) == _answer(looked)
+
+
+def test_the_prompts_are_listed_with_their_arguments_and_render():
+    async def conversation(client):
+        listed = (await client.list_prompts()).prompts
+        got = await client.get_prompt("build-mof", {
+            "topology": "pcu", "node": "N16", "edge": "E14"})
+        return listed, got
+
+    listed, got = _talk(conversation)
+    by_name = {p.name: p for p in listed}
+    assert set(by_name) == {"prepare-deposited-cif", "build-mof",
+                            "porosity-report"}
+    assert [a.name for a in by_name["build-mof"].arguments] == [
+        "topology", "node", "edge"]
+    text = got.messages[0].content.text
+    assert "pcu" in text and "N16" in text and "E14" in text
