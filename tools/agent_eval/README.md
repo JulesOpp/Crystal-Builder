@@ -16,15 +16,36 @@ your own Claude Code login (there is no API key here).
 .venv/bin/python tools/agent_eval/run.py --claude PATH     # claude not on PATH
 ```
 
+`--via` chooses how the agent reaches Crystal Builder:
+
+```bash
+.venv/bin/python tools/agent_eval/run.py --via mcp     # a chat client's view
+.venv/bin/python tools/agent_eval/run.py --via both    # side by side
+```
+
+- `raw` (the default): the skill installed, a `CLAUDE.md`, and Bash,
+  Read, Write and Edit, driving the Python `Session` API.
+- `mcp`: no skill, no `CLAUDE.md` and no built-in tool (`--tools ""`).
+  `--mcp-config` names one server, this Python's `xtal mcp --headless`,
+  with an `XTAL_APP_DATA` of its own so it never reaches your window.
+  `--strict-mcp-config` leaves out your own servers. The prompt opens
+  with what the raw `CLAUDE.md` says: the input, the workspace, and
+  "name every diagnostic by its code".
+
+Both are graded by the same `grade.py`. The table gives each way's
+status, turns and cost (from the JSON's `num_turns` and
+`total_cost_usd`), then a parity line of passed over run. What each
+agent left is in `runs/<time>/<via>/<task>/`.
+
 Use the Python that has Crystal Builder installed: the agent is told
 to use it, and the grader imports `xtal`. `claude` is looked for on
 `PATH`, then at `~/.claude/local/claude`; the desktop app bundles its
 own and does not put it on `PATH`, so pass `--claude` then.
 
-It prints `task | passed | failed checks` and exits 1 if any task
-failed. A task whose `needs` are not installed is skipped and says
-which. A task `claude` itself could not run -- not logged in, a crash
--- is `not run` with its last line, rather than every check failing.
+It prints that table and exits 1 if any task failed. A task whose
+`needs` are not installed is skipped and says which. A task `claude`
+itself could not run -- not logged in, a crash -- is `not run` with
+its last line, rather than every check failing.
 
 ## What one task does
 
@@ -40,7 +61,7 @@ which. A task `claude` itself could not run -- not logged in, a crash
 5. `grade.py` reads the JSON's `result` (the final report), the newest
    `.xtalproj` the agent saved, and every `agent-session.jsonl` in the
    workspace.
-6. The folder, minus the skill, is copied to `runs/<time>/<task>/`
+6. The folder, minus the skill, is copied to `runs/<time>/<via>/<task>/`
    (ignored by git) with `transcript.json` and `verdict.json`, for
    reading what the agent actually did.
 

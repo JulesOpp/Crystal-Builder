@@ -3,6 +3,11 @@ Run the skill eval: five scripted tasks, each given to Claude Code
 headless (``claude -p``) in a project of its own with the skill
 installed, and graded by ``grade.py``.
 
+``--via mcp`` gives the agent a chat client's view instead: no skill,
+no ``CLAUDE.md``, no built-in tool, only ``xtal mcp --headless``'s
+tools; ``--via both`` runs each task both ways and prints them side by
+side.
+
     python tools/agent_eval/run.py --dry-run     # what would run
     python tools/agent_eval/run.py               # all five; tokens
     python tools/agent_eval/run.py --only tied-scan
@@ -23,6 +28,7 @@ import argparse
 import importlib.util
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -48,6 +54,15 @@ TIMEOUT = 1800
 #: Above this line of ``task.md`` is the prompt; below it, notes for
 #: the person running the eval.
 RULE = "---"
+
+#: What ``--via`` chooses between: Claude Code with the skill and a
+#: shell, or a chat client's view -- this server's tools and nothing
+#: else.
+VIAS = ("raw", "mcp")
+
+#: The server's name in the agent's MCP config, which its tools are
+#: listed under (``mcp__crystal-builder__open``).
+SERVER = "crystal-builder"
 
 
 class ClaudeFailed(RuntimeError):
@@ -92,12 +107,50 @@ def find_claude(given: str | None) -> Path | None:
     return local if local.is_file() else None
 
 
+def claude_command(claude, prompt: str, via: str,
+                   config=None) -> list[str]:
+    """The ``claude -p`` line for one task.  Raw: the shell and file
+    tools, as before.  MCP: no built-in tool at all (``--tools ""``),
+    this server alone (``--strict-mcp-config`` leaves out the
+    person's own), and its tools allowed without asking."""
+    line = [str(claude), "-p", prompt, "--output-format", "json"]
+    if via == "raw":
+        return [*line, "--allowedTools", ALLOWED_TOOLS]
+    return [*line, "--tools", "", "--mcp-config", str(config),
+            "--strict-mcp-config", "--allowedTools", f"mcp__{SERVER}"]
+
+
+def server_entry(folder: Path) -> dict:
+    """``xtal mcp --headless`` under this Python, with application
+    data of its own, so it never finds the person's window."""
+    return {"command": sys.executable,
+            "args": ["-m", "xtal.cli", "mcp", "--headless"],
+            "env": {"XTAL_APP_DATA": str(folder / "appdata")}}
+
+
+def preamble(folder: Path, inputs: list[Path]) -> str:
+    """What the raw harness's ``CLAUDE.md`` tells the agent, said in
+    the prompt instead: a chat client has no ``CLAUDE.md``."""
+    lines = []
+    if inputs:
+        named = ", ".join(f"`{folder / p.name}`" for p in inputs)
+        lines.append(f"The input: {named}.")
+    lines.append(f"The Crystal Builder workspace is "
+                 f"`{folder / 'workspace'}`: pass it as `workspace` "
+                 f"when you open or build a structure, and save there.")
+    lines.append("In your final report, name every diagnostic you met "
+                 "by its code, as the tools give it.")
+    return "\n".join(lines)
+
+
 # ----------------------------------------------------------------------
 
-def dry_run(tasks: list[Path], claude: Path | None) -> int:
+def dry_run(tasks: list[Path], claude: Path | None,
+            vias=("raw",)) -> int:
     print(f"claude: {claude or 'not found (pass --claude PATH)'}")
     print(f"python: {sys.executable}")
-    print(f"{len(tasks)} task(s); nothing is run\n")
+    print(f"{len(tasks)} task(s) via {', '.join(vias)}; nothing is "
+          f"run\n")
     for task in tasks:
         expect = grade.expectations(task)
         print(f"== {task.name}")
@@ -111,12 +164,19 @@ def dry_run(tasks: list[Path], claude: Path | None) -> int:
             print(f"   | {line}")
         for label, value in _expectation_lines(expect):
             print(f"   {label:<22}{value}")
+        for via in vias:
+            line = claude_command(claude or "claude", "<prompt>", via,
+                                  "<folder>/mcp.json")
+            print(f"   via {via}: {shlex.join(line)}")
+            if via == "mcp":
+                entry = server_entry(Path("<folder>"))
+                print(f"   server:  "
+                      f"{shlex.join([entry['command'], *entry['args']])}")
         missing = missing_needs(task)
         if missing:
             print(f"   would be skipped: needs {', '.join(missing)}")
         print()
     return 0
-
 
 def _expectation_lines(expect: dict):
     if expect.get("codes"):
@@ -142,14 +202,23 @@ def _expectation_lines(expect: dict):
 
 # ----------------------------------------------------------------------
 
-def run_task(task: Path, claude: Path, out: Path) -> grade.Verdict:
-    folder = Path(tempfile.mkdtemp(prefix=f"xtal-eval-{task.name}-"))
+def run_task(task: Path, claude: Path, out: Path, via: str = "raw"):
+    """``(verdict, turns, cost)`` of one task run one way."""
+    folder = Path(tempfile.mkdtemp(
+        prefix=f"xtal-eval-{via}-{task.name}-"))
     try:
-        _set_up(task, folder)
+        prompt, config = prompt_of(task), None
+        if via == "raw":
+            _set_up(task, folder)
+        else:
+            inputs = _copy_inputs(task, folder)
+            config = folder / "mcp.json"
+            config.write_text(json.dumps(
+                {"mcpServers": {SERVER: server_entry(folder)}},
+                indent=1), encoding="utf-8")
+            prompt = f"{preamble(folder, inputs)}\n\n{prompt}"
         done = subprocess.run(
-            [str(claude), "-p", prompt_of(task),
-             "--output-format", "json",
-             "--allowedTools", ALLOWED_TOOLS],
+            claude_command(claude, prompt, via, config),
             cwd=folder, capture_output=True, text=True,
             timeout=TIMEOUT, env=_environment())
         (folder / "transcript.json").write_text(done.stdout,
@@ -167,22 +236,31 @@ def run_task(task: Path, claude: Path, out: Path) -> grade.Verdict:
         verdict = grade.grade(task, report,
                               projects[-1] if projects else None,
                               workspace=folder / "workspace")
+        turns, cost = usage(done.stdout)
         (folder / "verdict.json").write_text(json.dumps(
-            {"passed": verdict.passed, "checks": verdict.checks},
-            indent=1), encoding="utf-8")
-        return verdict
+            {"passed": verdict.passed, "checks": verdict.checks,
+             "turns": turns, "cost": cost}, indent=1), encoding="utf-8")
+        return verdict, turns, cost
     finally:
-        shutil.copytree(folder, out / task.name,
-                        ignore=shutil.ignore_patterns(".claude"))
+        shutil.copytree(folder, out / via / task.name,
+                        ignore=shutil.ignore_patterns(".claude",
+                                                      "appdata"))
         shutil.rmtree(folder, ignore_errors=True)
+
+
+def _copy_inputs(task: Path, folder: Path) -> list[Path]:
+    copied = []
+    for source in grade.input_files(task):
+        shutil.copy2(source, folder / source.name)
+        copied.append(folder / source.name)
+    return copied
 
 
 def _set_up(task: Path, folder: Path) -> None:
     subprocess.run([sys.executable, "-m", "xtal.cli", "skill",
                     "install", "--project", str(folder)],
                    check=True, capture_output=True, text=True)
-    for source in grade.input_files(task):
-        shutil.copy2(source, folder / source.name)
+    _copy_inputs(task, folder)
     workspace = folder / "workspace"
     (folder / "CLAUDE.md").write_text(textwrap.dedent(f"""\
         # Crystal Builder
@@ -206,21 +284,34 @@ def _environment() -> dict:
     return env
 
 
-def final_text(stdout: str) -> str:
-    """The ``result`` of ``claude -p --output-format json``: one
-    object, or (with ``--verbose``) a list whose last ``result`` entry
-    is it."""
+def _result_of(stdout: str) -> dict:
+    """The result object of ``claude -p --output-format json``: one
+    object, or (with ``--verbose``) the last ``result`` of a list."""
     try:
         parsed = json.loads(stdout)
     except json.JSONDecodeError:
-        return stdout
+        return {}
     if isinstance(parsed, list):
         results = [m for m in parsed if isinstance(m, dict)
                    and m.get("type") == "result"]
         parsed = results[-1] if results else {}
-    return str(parsed.get("result", "")) if isinstance(parsed, dict) \
-        else ""
+    return parsed if isinstance(parsed, dict) else {}
 
+
+def final_text(stdout: str) -> str:
+    """The agent's final report; the raw output when it is not
+    JSON."""
+    parsed = _result_of(stdout)
+    if not parsed and stdout.strip()[:1] not in ("{", "["):
+        return stdout
+    return str(parsed.get("result", ""))
+
+
+def usage(stdout: str) -> tuple[int | None, float | None]:
+    """``num_turns`` and ``total_cost_usd``: fewer turns for the same
+    answer is what easier context looks like as a number."""
+    parsed = _result_of(stdout)
+    return parsed.get("num_turns"), parsed.get("total_cost_usd")
 
 def _run_folder(stamp: str) -> Path:
     """``runs/<stamp>``, or ``<stamp>-2`` ... for a second run started
@@ -236,18 +327,43 @@ def _run_folder(stamp: str) -> Path:
     raise SystemExit(f"{RUNS} has 99 runs stamped {stamp}")
 
 
-def table(rows: list[tuple[str, str, str]]) -> str:
-    head = ("task", "passed", "failed checks")
-    width = [max(len(r[i]) for r in [head, *rows]) for i in range(2)]
-    lines = [f"{head[0]:<{width[0]}} | {head[1]:<{width[1]}} | "
-             f"{head[2]}"]
-    lines.append(f"{'-' * width[0]}-+-{'-' * width[1]}-+-"
-                 f"{'-' * len(head[2])}")
-    for name, passed, failed in rows:
-        lines.append(f"{name:<{width[0]}} | {passed:<{width[1]}} | "
-                     f"{failed}")
-    return "\n".join(lines)
+def table(names: list[str], vias, results: dict) -> str:
+    """One row a task, a status, turns and cost for each way it ran,
+    then the failed checks, and a parity line: passed of those run."""
+    head = ["task"]
+    for via in vias:
+        head += [via, "turns", "$"]
+    head.append("failed checks")
+    rows = []
+    for name in names:
+        row, said = [name], []
+        for via in vias:
+            status, turns, cost, detail = results[(name, via)]
+            row += [status, "" if turns is None else str(turns),
+                    "" if cost is None else f"{cost:.2f}"]
+            if detail:
+                said.append(f"{via}: {detail}" if len(vias) > 1
+                            else detail)
+        rows.append([*row, "; ".join(said)])
+    parity = ["passed"]
+    for via in vias:
+        ran = [results[(n, via)][0] for n in names
+               if results[(n, via)][0] != "skipped"]
+        parity += [f"{ran.count('yes')}/{len(ran)}", "", ""]
+    parity.append("")
+    widths = [max(len(r[i]) for r in [head, *rows, parity])
+              for i in range(len(head) - 1)]
 
+    def line(cells):
+        # The last cell is not padded, so zip stops short of it.
+        return " | ".join(c.ljust(w) for c, w in
+                          zip(cells, widths, strict=False)) + \
+            " | " + cells[-1]
+
+    rule = "-+-".join("-" * w for w in widths) + "-+-" + \
+        "-" * len(head[-1])
+    return "\n".join([line(head), rule, *map(line, rows), rule,
+                      line(parity)])
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -259,11 +375,17 @@ def main(argv=None) -> int:
     parser.add_argument("--dry-run", action="store_true",
                         help="list the tasks and what each is graded "
                              "on; run nothing")
+    parser.add_argument("--via", choices=(*VIAS, "both"),
+                        default="raw",
+                        help="raw: the skill and a shell (default); "
+                             "mcp: xtal mcp's tools alone, as a chat "
+                             "client has them; both: side by side")
     args = parser.parse_args(argv)
+    vias = VIAS if args.via == "both" else (args.via,)
     tasks = task_dirs(args.only)
     claude = find_claude(args.claude)
     if args.dry_run:
-        return dry_run(tasks, claude)
+        return dry_run(tasks, claude, vias)
     if args.claude and not claude.is_file():
         raise SystemExit(f"--claude {args.claude}: no such file")
     if claude is None:
@@ -274,45 +396,42 @@ def main(argv=None) -> int:
                          f"run this with the Python that does")
 
     out = _run_folder(time.strftime("%Y-%m-%d-%H%M%S"))
-    rows, failed_any = [], False
+    results = {}
     for task in tasks:
         missing = missing_needs(task)
-        if missing:
-            rows.append((task.name, "skipped",
-                         f"needs {', '.join(missing)}"))
-            continue
-        print(f"running {task.name} ...", flush=True)
-        try:
-            verdict = run_task(task, claude, out)
-        except subprocess.TimeoutExpired:
-            rows.append((task.name, "no", f"timed out at {TIMEOUT} s"))
-            failed_any = True
-            continue
-        except ClaudeFailed as exc:
-            rows.append((task.name, "not run", str(exc)))
-            failed_any = True
-            continue
-        except subprocess.CalledProcessError as exc:
-            said = (exc.stderr or "").strip().splitlines()
-            rows.append((task.name, "not run",
-                         f"{' '.join(exc.cmd[2:5])} failed"
-                         f"{': ' + said[-1] if said else ''}"))
-            failed_any = True
-            continue
-        except OSError as exc:
-            rows.append((task.name, "not run", str(exc)))
-            failed_any = True
-            continue
-        failed = [name for name, ok, _detail in verdict.checks
-                  if not ok]
-        rows.append((task.name, "yes" if verdict.passed else "no",
-                     "; ".join(failed)))
-        failed_any |= not verdict.passed
+        for via in vias:
+            if missing:
+                results[(task.name, via)] = (
+                    "skipped", None, None,
+                    f"needs {', '.join(missing)}")
+                continue
+            print(f"running {task.name} via {via} ...", flush=True)
+            results[(task.name, via)] = _attempt(task, claude, out, via)
     print()
-    print(table(rows))
+    print(table([t.name for t in tasks], vias, results))
     print(f"\nwhat each agent left: {out}")
-    return 1 if failed_any else 0
+    return 1 if any(r[0] not in ("yes", "skipped")
+                    for r in results.values()) else 0
 
+
+def _attempt(task: Path, claude: Path, out: Path, via: str):
+    """``(status, turns, cost, detail)``: what the table shows."""
+    try:
+        verdict, turns, cost = run_task(task, claude, out, via)
+    except subprocess.TimeoutExpired:
+        return "no", None, None, f"timed out at {TIMEOUT} s"
+    except ClaudeFailed as exc:
+        return "not run", None, None, str(exc)
+    except subprocess.CalledProcessError as exc:
+        said = (exc.stderr or "").strip().splitlines()
+        return ("not run", None, None,
+                f"{' '.join(exc.cmd[2:5])} failed"
+                f"{': ' + said[-1] if said else ''}")
+    except OSError as exc:
+        return "not run", None, None, str(exc)
+    failed = [name for name, ok, _detail in verdict.checks if not ok]
+    return ("yes" if verdict.passed else "no", turns, cost,
+            "; ".join(failed))
 
 if __name__ == "__main__":
     raise SystemExit(main())

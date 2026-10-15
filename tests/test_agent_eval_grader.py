@@ -277,3 +277,81 @@ def test_the_dry_run_lists_every_input_of_a_task(tmp_path, capsys):
     assert ("   input:  resources/samples/HKUST1.cif, "
             "resources/samples/MOF-5.cif") in out
     assert any("d: 2.63 +/- 0.01" in line for line in out)
+
+
+def test_the_mcp_line_has_no_builtin_tool_and_this_server_alone():
+    """A chat client has no shell and no file tools.  If the MCP run
+    kept Bash, the agent would read the skill off disk and the eval
+    would measure raw access twice."""
+    run = _run_module()
+    line = run.claude_command("claude", "Do it.", "mcp",
+                              Path("cfg.json"))
+    assert line[line.index("--tools") + 1] == ""
+    assert "--strict-mcp-config" in line
+    assert line[line.index("--mcp-config") + 1] == "cfg.json"
+    assert line[line.index("--allowedTools") + 1] == \
+        "mcp__crystal-builder"
+    raw = run.claude_command("claude", "Do it.", "raw")
+    assert raw[raw.index("--allowedTools") + 1] == "Bash,Read,Write,Edit"
+    assert "--mcp-config" not in raw
+
+
+def test_the_eval_server_is_headless_with_app_data_of_its_own(tmp_path):
+    """Pointed at the person's own application data, ``xtal mcp``
+    would find their window and the eval would edit their tabs."""
+    run = _run_module()
+    entry = run.server_entry(tmp_path)
+    assert entry["args"] == ["-m", "xtal.cli", "mcp", "--headless"]
+    assert entry["env"]["XTAL_APP_DATA"] == str(tmp_path / "appdata")
+
+
+def test_the_mcp_preamble_says_what_the_raw_claude_md_says(tmp_path):
+    run = _run_module()
+    text = run.preamble(tmp_path, [Path("anywhere/MIL53.cif")])
+    assert str(tmp_path / "MIL53.cif") in text
+    assert str(tmp_path / "workspace") in text
+    assert "by its code" in text
+
+
+def test_turns_and_cost_are_read_from_the_json_answer():
+    run = _run_module()
+    out = json.dumps({"type": "result", "result": "done",
+                      "num_turns": 7, "total_cost_usd": 0.31})
+    assert run.usage(out) == (7, 0.31)
+    assert run.final_text(out) == "done"
+    assert run.usage("not json") == (None, None)
+
+
+def test_the_table_puts_the_two_ways_side_by_side_with_a_parity_line():
+    run = _run_module()
+    results = {
+        ("a", "raw"): ("yes", 9, 0.2, ""),
+        ("a", "mcp"): ("no", 20, 0.5, "reports X"),
+        ("b", "raw"): ("yes", 5, 0.1, ""),
+        ("b", "mcp"): ("skipped", None, None, "needs mace")}
+    lines = run.table(["a", "b"], ("raw", "mcp"), results).splitlines()
+    # Padded to the widest cell: "passed" widens the task column.
+    assert [c.strip() for c in lines[0].split(" | ")[:4]] == \
+        ["task", "raw", "turns", "$"]
+    assert "mcp: reports X" in lines[2]
+    assert "0.50" in lines[2]
+    parity = lines[-1]
+    assert "2/2" in parity and "0/1" in parity
+
+
+def test_a_dry_run_via_mcp_shows_the_line_and_the_server_and_calls_nothing(
+        tmp_path):
+    called = tmp_path / "claude-was-called"
+    fake = tmp_path / "claude"
+    fake.write_text(f"#!/bin/sh\ntouch {called}\n", encoding="utf-8")
+    fake.chmod(0o755)
+
+    done = subprocess.run(
+        [sys.executable, str(EVAL / "run.py"), "--dry-run",
+         "--via", "mcp", "--only", "short-relax", "--claude", str(fake)],
+        capture_output=True, text=True, timeout=120)
+
+    assert done.returncode == 0, done.stderr
+    assert "--strict-mcp-config" in done.stdout
+    assert "xtal.cli mcp --headless" in done.stdout
+    assert not called.exists()
