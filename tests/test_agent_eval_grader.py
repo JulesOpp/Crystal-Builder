@@ -314,12 +314,15 @@ def test_both_ways_load_the_project_settings_alone():
 def test_the_agent_inherits_no_host_claude_session(monkeypatch):
     """Started from inside a Claude Code session, the agent would
     otherwise take that session's variables -- its id, its SDK, its
-    endpoint -- and run as a part of it rather than as an agent of its
-    own.  A key the person set is theirs, and stays."""
+    endpoint, its effort -- and run as a part of it, with turns and
+    cost skewed by the host's effort.  A key the person set is theirs,
+    and stays."""
     run = _run_module()
     for name, value in (("CLAUDECODE", "1"),
                         ("CLAUDE_CODE_SESSION_ID", "x"),
                         ("CLAUDE_AGENT_SDK_VERSION", "y"),
+                        ("CLAUDE_EFFORT", "high"),
+                        ("CLAUDE_PID", "1"),
                         ("ANTHROPIC_BASE_URL", "z"),
                         ("ANTHROPIC_API_KEY", "k"),
                         ("HOME", "h")):
@@ -328,7 +331,8 @@ def test_the_agent_inherits_no_host_claude_session(monkeypatch):
     env = run._environment()
 
     for gone in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID",
-                 "CLAUDE_AGENT_SDK_VERSION", "ANTHROPIC_BASE_URL"):
+                 "CLAUDE_AGENT_SDK_VERSION", "CLAUDE_EFFORT",
+                 "CLAUDE_PID", "ANTHROPIC_BASE_URL"):
         assert gone not in env
     assert env["ANTHROPIC_API_KEY"] == "k"
     assert env["HOME"] == "h"

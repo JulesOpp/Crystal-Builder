@@ -64,12 +64,12 @@ VIAS = ("raw", "mcp")
 #: listed under (``mcp__crystal-builder__open``).
 SERVER = "crystal-builder"
 
-#: Variables a Claude Code session sets for itself, by name and by
-#: prefix.  Started from inside one, the agent would inherit that
-#: session's id, SDK and endpoint and run as a part of it rather than
-#: as an agent of its own.
+#: The host Claude Code session's variables, by name and by prefix.
+#: Started from inside one, the agent would inherit its session, SDK,
+#: endpoint and effort -- and the host's effort would skew the turns and
+#: cost the eval measures.
 HOST_SESSION_NAMES = ("CLAUDECODE", "ANTHROPIC_BASE_URL")
-HOST_SESSION_PREFIXES = ("CLAUDE_CODE_", "CLAUDE_AGENT_SDK_")
+HOST_SESSION_PREFIXES = ("CLAUDE_",)
 
 
 class ClaudeFailed(RuntimeError):
