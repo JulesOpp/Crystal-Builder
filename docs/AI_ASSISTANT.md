@@ -346,9 +346,9 @@ playbook.
   `set_cell`'s numbers arrived as strings and it failed every call.
 
 `xtal/agent/context.py` is the one reader. `build_server` serves it to
-both hosts. The proxy answers the instructions, the guides and the
-prompts itself, so they arrive with no window behind it, and forwards
-the current document and every tool.
+both hosts. The proxy answers the instructions, the guide resources
+and the prompts itself, so they arrive with no window behind it, and
+forwards the current document and every tool, `guide` among them.
 
 ### Baseline, before the playbook was served
 

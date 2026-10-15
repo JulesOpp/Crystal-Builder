@@ -58,8 +58,9 @@ gives it the same protocol: a short set of instructions when it
 connects, and the skill's reference pages, which it fetches itself when
 a task needs one. Three prompts, which your client may offer as
 commands, start a common job with the checks in place: *Prepare a
-structure from a database or a paper*, *Build a framework on a net*,
-and *Measure the porosity and the powder pattern*.
+structure from a database or a paper for a calculation*, *Build a
+metal-organic framework on a net*, and *Measure the porosity and the
+powder pattern of a structure*.
 
 ## Connecting to the window
 
