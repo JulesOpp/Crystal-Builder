@@ -226,3 +226,13 @@ assistant. This is a checklist item in `PACKAGING.md`, not a CI job.
 
 ARM; Flatpak; `.deb`; RHEL 9 and other systems with glibc older
 than 2.35; a self-hosted runner.
+
+## Credits
+
+The Wayland fix is Jose Ivan's (@jigonzalez930209) PR #61, cherry-picked
+with his authorship: `xtalapp/main.py` asks for xcb on a Wayland
+session that has XWayland (§ 1a). The lowercase `crystal-builder`
+executable, the full icon set with the document icons, the
+`application/x-xtalproj` MIME type, the `Science;Chemistry;Physics;`
+categories and the glibc-floor check come from his PR #59, whose
+`.deb` route is not taken here.

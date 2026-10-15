@@ -10,7 +10,8 @@ Zeo++ on the result.
 
 - **Linux: an AppImage for x86_64 (Ubuntu 22.04+, Debian 12+, Fedora
   36+).** One file: make it executable and double-click it. See
-  *Linux* under *Opening it the first time*.
+  *Linux* under *Opening it the first time*. With thanks to Jose Ivan
+  (@jigonzalez930209).
 
 ## Crystal Builder 1.0
 
