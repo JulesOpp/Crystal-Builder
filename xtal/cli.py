@@ -310,10 +310,12 @@ def cmd_bonds(args) -> int:
             "atoms": [{"atom": k, "element": cell.elements[k],
                        "site": int(cell.site_idx[k]),
                        "coordination": int(coordination[k]),
-                       "neighbours": [[int(j), round(b.distance, 4)]
-                                      for j, b in zip(
+                       "neighbours": [[int(j), round(float(d), 4)]
+                                      for j, d in zip(
                                           graph.neighbors(k),
-                                          graph.bonds_of(k),
+                                          bonding.lengths(
+                                              structure,
+                                              graph.bonds_of(k)),
                                           strict=True)]}
                       for k in range(cell.n_atoms)],
             "fragments": [{"kind": f.kind, "n_atoms": len(f)}
@@ -325,8 +327,9 @@ def cmd_bonds(args) -> int:
     print("atom      coordination  neighbours")
     for k in range(cell.n_atoms):
         partners = ", ".join(
-            f"{cell.elements[j]}{j} {b.distance:.3f} A"
-            for j, b in zip(graph.neighbors(k), graph.bonds_of(k),
+            f"{cell.elements[j]}{j} {d:.3f} A"
+            for j, d in zip(graph.neighbors(k),
+                            bonding.lengths(structure, graph.bonds_of(k)),
                             strict=True))
         name = f"{cell.elements[k]}{k}"
         print(f"{name:<9s} {coordination[k]:<12d} {partners}")

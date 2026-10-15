@@ -11,7 +11,7 @@ import pytest
 
 from xtal import Lattice, Structure
 from xtal.core import bonding, p1
-from xtal.core.structure import Bond
+from xtal.core.structure import Bond, Change
 from xtal.io import (
     FORMATS,
     is_project,
@@ -209,3 +209,16 @@ def test_a_non_ascii_title_survives_a_save_and_reopen(tmp_path, rutile,
     path = write_project(rutile, tmp_path / "t.xtalproj")
     back, _view, _session = read_project(path)
     assert back.n_sites == rutile.n_sites
+
+
+def test_a_saved_graph_carries_the_lengths_its_bonds_have_now(
+        tmp_path, dry_ice):
+    """A move keeps the stored graph, and the project wrote the
+    lengths it was perceived at: a stretched C-O went into the file
+    as the 1.15 A it no longer was."""
+    bonding.graph(dry_ice)
+    dry_ice.sites[1].frac = [0.21, 0.21, 0.21]
+    dry_ice.touch(Change.POSITIONS)
+    path = write_project(dry_ice, tmp_path / "co2")
+    back, _view, _session = read_project(path)
+    assert {round(b.distance, 3) for b in back.perceived.bonds} == {2.046}
