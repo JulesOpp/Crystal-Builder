@@ -1,5 +1,5 @@
 HKUST1.cif and MOF-5.cif: which has the shorter metal-metal distance,
-and how long is it?
+and how long is it, in Å?
 
 ---
 

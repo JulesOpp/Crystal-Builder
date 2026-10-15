@@ -64,6 +64,13 @@ VIAS = ("raw", "mcp")
 #: listed under (``mcp__crystal-builder__open``).
 SERVER = "crystal-builder"
 
+#: Variables a Claude Code session sets for itself, by name and by
+#: prefix.  Started from inside one, the agent would inherit that
+#: session's id, SDK and endpoint and run as a part of it rather than
+#: as an agent of its own.
+HOST_SESSION_NAMES = ("CLAUDECODE", "ANTHROPIC_BASE_URL")
+HOST_SESSION_PREFIXES = ("CLAUDE_CODE_", "CLAUDE_AGENT_SDK_")
+
 
 class ClaudeFailed(RuntimeError):
     """``claude`` itself did not run the task -- not logged in, a bad
@@ -113,7 +120,10 @@ def claude_command(claude, prompt: str, via: str,
     tools, as before.  MCP: no built-in tool at all (``--tools ""``),
     this server alone (``--strict-mcp-config`` leaves out the
     person's own), and its tools allowed without asking."""
-    line = [str(claude), "-p", prompt, "--output-format", "json"]
+    # The person's own plugins and skills would otherwise reach the
+    # agent either way, and a chat client has none of them.
+    line = [str(claude), "-p", prompt, "--output-format", "json",
+            "--setting-sources", "project"]
     if via == "raw":
         return [*line, "--allowedTools", ALLOWED_TOOLS]
     return [*line, "--tools", "", "--mcp-config", str(config),
@@ -279,7 +289,9 @@ def _set_up(task: Path, folder: Path) -> None:
 
 
 def _environment() -> dict:
-    env = dict(os.environ)
+    env = {name: value for name, value in os.environ.items()
+           if name not in HOST_SESSION_NAMES
+           and not name.startswith(HOST_SESSION_PREFIXES)}
     env["PATH"] = os.pathsep.join(
         [str(Path(sys.executable).parent), env.get("PATH", "")])
     return env

@@ -172,6 +172,9 @@ def test_a_dry_run_lists_every_task_without_calling_claude(tmp_path):
     assert "BUILD_OVERLAP" in done.stdout
     assert "   input:  resources/samples/Ni2Cl2BTDD.cif" in \
         done.stdout.splitlines()
+    assert "report says" in done.stdout
+    assert ("   input:  resources/samples/HKUST1.cif, "
+            "resources/samples/MOF-5.cif") in done.stdout.splitlines()
     assert not called.exists()
 
 
@@ -294,6 +297,42 @@ def test_the_mcp_line_has_no_builtin_tool_and_this_server_alone():
     raw = run.claude_command("claude", "Do it.", "raw")
     assert raw[raw.index("--allowedTools") + 1] == "Bash,Read,Write,Edit"
     assert "--mcp-config" not in raw
+
+
+def test_both_ways_load_the_project_settings_alone():
+    """Without ``--setting-sources project`` the agent loads the
+    person's own settings: their plugins' hooks and skills reach it
+    either way, which no chat client has, and the eval measures their
+    setup instead of Crystal Builder's."""
+    run = _run_module()
+    for line in (run.claude_command("claude", "Do it.", "raw"),
+                 run.claude_command("claude", "Do it.", "mcp",
+                                    Path("cfg.json"))):
+        assert line[line.index("--setting-sources") + 1] == "project"
+
+
+def test_the_agent_inherits_no_host_claude_session(monkeypatch):
+    """Started from inside a Claude Code session, the agent would
+    otherwise take that session's variables -- its id, its SDK, its
+    endpoint -- and run as a part of it rather than as an agent of its
+    own.  A key the person set is theirs, and stays."""
+    run = _run_module()
+    for name, value in (("CLAUDECODE", "1"),
+                        ("CLAUDE_CODE_SESSION_ID", "x"),
+                        ("CLAUDE_AGENT_SDK_VERSION", "y"),
+                        ("ANTHROPIC_BASE_URL", "z"),
+                        ("ANTHROPIC_API_KEY", "k"),
+                        ("HOME", "h")):
+        monkeypatch.setenv(name, value)
+
+    env = run._environment()
+
+    for gone in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID",
+                 "CLAUDE_AGENT_SDK_VERSION", "ANTHROPIC_BASE_URL"):
+        assert gone not in env
+    assert env["ANTHROPIC_API_KEY"] == "k"
+    assert env["HOME"] == "h"
+    assert env["PATH"].startswith(str(Path(sys.executable).parent))
 
 
 def test_the_eval_server_is_headless_with_app_data_of_its_own(tmp_path):

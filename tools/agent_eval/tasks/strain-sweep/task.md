@@ -1,7 +1,7 @@
 Give me the UFF single-point energy of MIL53.cif with its a axis at
 98 %, 100 % and 102 % of its length. Carry the atoms with the cell
 (keep their fractional coordinates), keep b, c and the angles as they
-are, and relax nothing.
+are, and relax nothing. Give each energy in kcal/mol.
 
 ---
 
