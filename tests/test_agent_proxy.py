@@ -72,7 +72,8 @@ def _stdio_inspect(qtbot, tmp_path, appdata, *flags):
     process = subprocess.Popen(
         [sys.executable, "-m", "xtal.cli", "mcp", *flags],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, text=True, cwd=tmp_path, env=env)
+        stderr=subprocess.PIPE, text=True, encoding="utf-8",
+        cwd=tmp_path, env=env)
     out = {}
 
     def talk():
@@ -137,10 +138,14 @@ class _Proxy:
         env = dict(os.environ, PYTHONWARNINGS="error::DeprecationWarning")
         env[discovery.ENV] = str(appdata)
         self.qtbot = qtbot
+        # UTF-8 both ways, as the SDK's stdio speaks it: the guides
+        # carry an Angstrom sign, which Windows' default code page
+        # read as two other characters.
         self.process = subprocess.Popen(
             [sys.executable, *argv],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, cwd=tmp_path, env=env)
+            stderr=subprocess.PIPE, text=True, encoding="utf-8",
+            cwd=tmp_path, env=env)
         self.replies = {}
         threading.Thread(target=self._read, daemon=True).start()
         self.send(_message("initialize", 1, {
