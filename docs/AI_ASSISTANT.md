@@ -377,9 +377,40 @@ What the runs show:
 - **strain-sweep** cost 340 turns over MCP because `set_cell` failed
   every time: its parameters had no JSON type, so the client sent
   strings and the lattice compared a string with a number. Seventeen
-  tools had an untyped parameter; raw Python never noticed.
+  tools had an untyped parameter; raw Python never noticed. The agent
+  passed anyway by building each strained cell afresh with `new` and
+  typing in all 104 atoms, having also found `scan.run` refuse
+  `engine: "uff"` and take an optimiser step at `max_steps: 0`.
 - **compare-two** passed over MCP by hand: the agent worked the
   distances out from `inspect`'s coordinates and cell.
 - **open-trimers** failed both ways on the grader's question check:
   both reports asked the person, but as an instruction ("Tell me which
   you want") rather than a sentence ending in "?".
+
+### After the playbook was served
+
+2026-10-15, the same command on this branch (served context and typed
+tool parameters):
+
+```
+task                 | raw | turns | $    | mcp | turns | $    | failed checks
+---------------------+-----+-------+------+-----+-------+------+--------------
+build-overlap        | yes | 7     | 0.28 | yes | 5     | 0.21 |
+compare-two          | yes | 11    | 0.31 | yes | 16    | 0.21 |
+copies-and-hydrogens | yes | 5     | 0.26 | yes | 9     | 0.21 |
+open-trimers         | yes | 8     | 0.31 | yes | 8     | 0.17 |
+short-relax          | yes | 4     | 0.18 | yes | 8     | 0.12 |
+strain-sweep         | yes | 8     | 0.29 | yes | 14    | 0.18 |
+tied-scan            | yes | 6     | 0.26 | yes | 10    | 0.15 |
+---------------------+-----+-------+------+-----+-------+------+--------------
+passed               | 7/7 |       |      | 7/7 |       |      |
+```
+
+MCP now passes what raw access passes: tied-scan meets
+`MODULE_FAILED` instead of scanning the cell, and strain-sweep takes 14
+turns instead of 340 with `set_cell` typed. It still takes more turns
+than raw access on the composition tasks (compare-two 16 against 11,
+strain-sweep 14 against 8), which is what sub-projects B (queries) and
+D (composition) are scheduled to close. One run each way: open-trimers
+passing on both sides here and failing on both in the baseline is the
+run-to-run spread of the grader's question check, not a change.
