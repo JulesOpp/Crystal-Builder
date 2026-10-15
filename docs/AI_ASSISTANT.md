@@ -327,6 +327,29 @@ because the playbook never reached an MCP client. This part measures
 the gap (`tools/agent_eval/run.py --via both`) and serves the
 playbook.
 
+### What a client is served
+
+- **Instructions** at the handshake: `xtal/agent/skill/mcp.md`, the
+  protocol condensed for tool calls (order of work, what never to do,
+  what to report, when to read which guide), at most 6 kB.
+- **`guide(topic)`**, a tool: the skill's reference pages, the same
+  ones Claude Code reads, fetched by the model when it needs one. The
+  topics and when to read each are `mcp.md`'s own list.
+- **Resources**: each guide (`crystal-builder://guide/<topic>`) and
+  the current document's `inspect`
+  (`crystal-builder://document/current`), for a client where the
+  person attaches context.
+- **Prompts**: `prepare-deposited-cif`, `build-mof`, `porosity-report`,
+  from `xtal/agent/skill/prompts/`.
+- **Every tool parameter has a JSON type**, which
+  `tests/test_agent_tools.py` holds. The baseline found it: untyped,
+  `set_cell`'s numbers arrived as strings and it failed every call.
+
+`xtal/agent/context.py` is the one reader. `build_server` serves it to
+both hosts. The proxy answers the instructions, the guides and the
+prompts itself, so they arrive with no window behind it, and forwards
+the current document and every tool.
+
 ### Baseline, before the playbook was served
 
 2026-10-15, `--via both`, Opus 5.5, both ways with

@@ -52,6 +52,15 @@ $ xtal skill path                 # where the shipped copy is
 as tools an assistant can call.  Two sides can answer it, and which one
 is in use decides what the assistant works on.
 
+An assistant that reaches Crystal Builder only through the connection,
+such as Claude Desktop, has no skill on disk. The connection therefore
+gives it the same protocol: a short set of instructions when it
+connects, and the skill's reference pages, which it fetches itself when
+a task needs one. Three prompts, which your client may offer as
+commands, start a common job with the checks in place: *Prepare a
+structure from a database or a paper*, *Build a framework on a net*,
+and *Measure the porosity and the powder pattern*.
+
 ## Connecting to the window
 
 *Help ▸* {ref}`Connect an AI assistant… <cmd-connect_ai_assistant>`
