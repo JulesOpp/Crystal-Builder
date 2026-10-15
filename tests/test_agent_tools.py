@@ -311,3 +311,42 @@ def test_reopening_in_another_workspace_says_that_workspace_was_not_used(
     assert ignored["code"] == "WORKSPACE_IGNORED"
     assert "is already open" in ignored["message"]
     assert str(tmp_path / "other") in ignored["message"]
+
+
+#: What makes a schema property say what JSON it takes.
+_TYPED = {"type", "anyOf", "$ref", "enum", "allOf"}
+
+
+def test_every_tool_parameter_has_a_json_type():
+    """A parameter with no type in its schema is one a client guesses
+    at, and guesses text: the baseline eval's ``set_cell`` failed on
+    every call, its lengths arriving as strings that
+    ``Lattice.from_parameters`` compared with numbers, and the agent
+    spent 340 turns working round it."""
+    async def conversation(client):
+        return (await client.list_tools()).tools
+
+    untyped = {}
+    for tool in _talk(conversation):
+        names = [name for name, prop in
+                 tool.inputSchema.get("properties", {}).items()
+                 if not _TYPED & set(prop)]
+        if names:
+            untyped[tool.name] = names
+    assert untyped == {}
+
+
+def test_set_cell_takes_numbers_a_client_sent_as_text(rutile_cif):
+    """A client that sends ``"4.5937"`` for a length must still set
+    the cell: the schema's type is what lets the server read the
+    number in it, and without one the verb compared a string with a
+    number and refused every call."""
+    async def conversation(client):
+        await client.call_tool("open", {"path": rutile_cif})
+        cell = _answer(await client.call_tool("inspect", {}))["cell"]
+        text = {k: str(cell[k])
+                for k in ("a", "b", "c", "alpha", "beta", "gamma")}
+        return await client.call_tool("set_cell", text)
+
+    answer = _answer(_talk(conversation))
+    assert answer["ok"], answer["message"]
