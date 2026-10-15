@@ -161,6 +161,10 @@ MODES_PARAMS = (
           minimum=1e-6, maximum=1e-2, step=1e-4, decimals=6,
           suffix=" Bohr",
           help="How far each atom is moved each way along each axis"),
+    Param("temperature", "Temperature", "float", default=298.15,
+          minimum=1.0, maximum=5000.0, decimals=2, suffix=" K",
+          help="The temperature the thermochemistry table is at; the "
+               "curves and thermo.dat run from 10 to 800 K."),
     FREEZE,
 )
 

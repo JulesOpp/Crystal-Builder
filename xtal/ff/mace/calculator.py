@@ -60,6 +60,8 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
 from xtal import install
 from xtal.ff.api import CalculatorError
 from xtal.ff.ase_engine import (  # noqa: F401 -- implements_stress, too
@@ -412,6 +414,69 @@ class MACECalculator(ASECalculator):
         return (f"{self.n_atoms} atoms, {what}, on "
                 f"{_device(self.options.device)}")
 
+    def hessian(self, positions, matrix, atoms=None, progress=None):
+        """The model's own second derivatives, one row at a time.
+
+        **Our loop and not ``get_hessian``**: MACE's vmaps sixteen
+        rows at once over the retained graph, and on MIL-53 (104
+        atoms, MACE-MPA-0, float64, CPU) that peaked at 7.1 GB and
+        took 665 s.  A row at a time peaked at 2.9 GB, the model's
+        1.3 GB included, at 1.0 s a row against 0.83 s an evaluation
+        -- 320 s for what finite differences take 520.  The graph
+        still grows with the cell, which is
+        :data:`xtal.core.limits.HESSIAN_MB_PER_ATOM`.
+
+        Only the rows of ``atoms`` are taken, so a frozen atom costs
+        nothing, and Stop is heard between them.  A model of somebody's
+        own that is not a MACE energy model has none (``None``).
+        """
+        model = self._model
+        if getattr(model, "model_type", None) != "MACE" \
+                or not hasattr(model, "_atoms_to_batch"):
+            return None
+        import torch
+
+        from xtal.ff.api import CalculatorStopped
+
+        atoms = (np.arange(self.n_atoms) if atoms is None
+                 else np.asarray(atoms, dtype=int))
+        coords = (3 * atoms[:, None] + np.arange(3)).ravel()
+        self._atoms.set_cell(np.asarray(matrix, dtype=float),
+                             scale_atoms=False)
+        self._atoms.set_positions(
+            np.asarray(positions, dtype=float).reshape(-1, 3))
+        try:
+            batch = model._clone_batch(
+                model._atoms_to_batch(self._atoms)).to_dict()
+            # training=True is what keeps the forces' own graph, which
+            # their derivatives are taken through; nothing is trained.
+            out = model.models[0](batch, training=True,
+                                  compute_force=True,
+                                  compute_virials=False,
+                                  compute_stress=False)
+            forces = out["forces"].reshape(-1)
+            placed = batch["positions"]
+            block = np.zeros((len(coords), len(coords)))
+            for row, coord in enumerate(coords):
+                if getattr(self.cancel, "requested", False):
+                    raise CalculatorStopped(
+                        "stopped between rows of the Hessian")
+                (grad,) = torch.autograd.grad(
+                    -forces[int(coord)], placed,
+                    retain_graph=row < len(coords) - 1)
+                block[row] = grad.detach().cpu().numpy() \
+                    .reshape(-1)[coords]
+                if progress is not None:
+                    progress(row + 1, len(coords))
+        except CalculatorError:
+            raise
+        except Exception as exc:                    # noqa: BLE001
+            raise CalculatorError(
+                f"MACE could not take this structure's Hessian: {exc}"
+            ) from None
+        self.calls += 1
+        return block * KCAL_PER_EV
+
 
 def _refuse_unfitted(model, symbols, options) -> None:
     """Name the elements a fitted model has never seen.
@@ -463,7 +528,7 @@ ENGINES.register(Engine(
                 "a force field's and tight binding's.",
     build=build,
     order=30,
-    provides=frozenset({"forces", "stress", "periodic"}),
+    provides=frozenset({"forces", "stress", "periodic", "hessian"}),
     options=OPTIONS,
     check=available,
     references=references,

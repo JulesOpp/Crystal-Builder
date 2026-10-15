@@ -236,8 +236,15 @@ HIDDEN_IMPORTS = [
 #: is traced: ``sse_starlette`` and ``httpx_sse`` are imported by
 #: ``mcp`` at the top of the modules that use them, and ``anyio``'s
 #: back ends, imported by name, are the contrib hook for ``anyio``.
+#:
+#: ``phonopy`` is the ``phonons`` extra, and ``phonors`` its Rust
+#: kernels (phonopy 4).  Collected whole rather than left to tracing:
+#: phonopy tries its C and Rust kernels inside ``try: import`` and
+#: falls back without a word (``phonopy/_lang.py``), so a bundle that
+#: lost one would still run, on a slower path nobody chose.  The
+#: selftest's phonon check runs phonopy end to end.
 COLLECT = ["rdkit", "matplotlib", "rietx",
-           "mcp", "uvicorn"]
+           "mcp", "uvicorn", "phonopy", "phonors"]
 
 #: Entries of :data:`COLLECT` collected for their submodules and
 #: metadata only, less the subpackages named.  ``mcp.cli`` is the SDK's

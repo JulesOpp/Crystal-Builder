@@ -60,7 +60,12 @@ class Param:
     default: Any = None
     #: For ``choice``: either plain values, or ``(value, label)``
     #: pairs when what the user reads is not what the caller wants.
-    choices: tuple = ()
+    #: Or a callable returning them, read whenever they are asked for:
+    #: the engines register while the modules are still importing
+    #: (a DFTB+ calculator reaches :mod:`xtal.modules.process`), so a
+    #: list of them taken at import was empty in a fresh ``xtal run``
+    #: and refused every engine.
+    choices: Any = ()
     minimum: float | None = None
     maximum: float | None = None
     step: float | None = None
@@ -85,7 +90,9 @@ class Param:
     def values_and_labels(self) -> list[tuple[Any, str]]:
         """``choices`` as ``(value, label)``, however it was written."""
         out = []
-        for choice in self.choices:
+        choices = self.choices() if callable(self.choices) \
+            else self.choices
+        for choice in choices:
             if isinstance(choice, tuple | list) and len(choice) == 2:
                 out.append((choice[0], str(choice[1])))
             else:

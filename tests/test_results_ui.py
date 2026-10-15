@@ -252,6 +252,20 @@ def test_a_rows_meaning_is_its_tooltip(dock):
     assert "admit" in cell(widget, 0, 0, Qt.ToolTipRole)
 
 
+def test_a_tables_warning_is_drawn_in_warning_tone_not_hidden(dock):
+    """G of a structure that is not at a minimum must not be readable
+    without the caveat, and a row's note is only a tooltip."""
+    from dataclasses import replace
+
+    from PySide6.QtWidgets import QLabel
+
+    dock.show_report(Report(title="T", blocks=(replace(
+        a_table().blocks[0], warning="not a minimum's G"),)), "T")
+    (label,) = [w for w in dock._blocks[0].findChildren(QLabel)
+                if w.text() == "not a minimum's G"]
+    assert label.property("tone") == "warning"
+
+
 def test_a_histogram_becomes_a_plot(dock):
     dock.show_report(a_histogram(), "Zeo++: PSD")
     plot = dock._blocks[0].findChild(HistogramPlot)

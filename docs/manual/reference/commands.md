@@ -2130,6 +2130,26 @@ Relax the structure within its space group
 ```{index} Optimise geometry
 ```
 
+(cmd-module.forcefield.thermo)=
+### Force Field ▸ Frequencies and thermochemistry...
+
+`module.forcefield.thermo`
+
+Vibrational modes, and H, S and G from them, under the Force Field panel's engine
+
+```{index} Frequencies and thermochemistry...
+```
+
+(cmd-module.forcefield.infrared)=
+### Force Field ▸ IR spectrum...
+
+`module.forcefield.infrared`
+
+Vibrational modes and their IR intensities from a charge model, under the Force Field panel's engine
+
+```{index} IR spectrum...
+```
+
 (cmd-show_dftb)=
 ### DFTB+ ▸ DFTB+ panel
 
@@ -2248,6 +2268,16 @@ Map the energy landscape over one or two coordinates
 Compress and expand the cell with the shape free and fit an equation of state: B0, B0' and V0
 
 ```{index} Bulk modulus...
+```
+
+(cmd-module.scan.qha)=
+### Energy scan ▸ Quasi-harmonic free energy...
+
+`module.scan.qha`
+
+The bulk modulus's volume scan with the vibrations at every volume: F(V, T), and V, G, B and the thermal expansion at every temperature
+
+```{index} Quasi-harmonic free energy...
 ```
 
 (cmd-module.orca.input)=

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -56,6 +57,7 @@ from xtal.modules.report import (
     Dos,
     Histogram,
     Modes,
+    Spectrum,
     Surface,
     Table,
     Zone,
@@ -66,7 +68,7 @@ from xtalapp.dialogs import landscape as landscape_window
 from xtalapp.dialogs import pattern as pattern_window
 from xtalapp.heatmap import HeatmapPlot
 from xtalapp.histogram import HistogramPlot
-from xtalapp.widgets.tone import HINT, set_tone
+from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The fewest rows a table is ever squeezed to.  Below this it stops
 #: being a table and becomes a slot, and the panel is better off
@@ -397,6 +399,11 @@ def _table_widget(table: Table) -> QWidget:
     row.addStretch(1)
     layout.addLayout(row)
 
+    if table.warning:
+        warning = QLabel(table.warning)
+        warning.setWordWrap(True)
+        set_tone(warning, WARNING)
+        layout.addWidget(warning)
     if table.note:
         note = QLabel(table.note)
         note.setWordWrap(True)
@@ -873,6 +880,89 @@ def _export_modes(modes: Modes, parent) -> None:
         QMessageBox.warning(parent, "Export the modes", str(exc))
 
 
+def _spectrum_widget(spectrum: Spectrum, dock) -> QWidget:
+    """The band, the width it is broadened to, and the way to the
+    mode behind a peak.
+
+    The sticks are the answer and the band only a picture of them, so
+    the width box redraws the band from the sticks without a second
+    run.  A click on the band chooses the nearest stick's row in the
+    same report's mode table, ready for *Animate mode*.
+    """
+    from PySide6.QtWidgets import QDoubleSpinBox
+
+    box = QWidget()
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setSpacing(3)
+    if spectrum.title:
+        layout.addWidget(QLabel(spectrum.title))
+    plot = CurvePlot()
+    plot.set_curve(spectrum.curve())
+    layout.addWidget(plot)
+
+    width = QDoubleSpinBox()
+    width.setRange(0.5, 200.0)
+    width.setSingleStep(1.0)
+    width.setValue(spectrum.fwhm)
+    width.setSuffix(" cm-1")
+    width.setToolTip("Full width at half height of each band")
+    width.valueChanged.connect(
+        lambda value: plot.set_curve(spectrum.curve(value)))
+    export = QPushButton("Export spectrum...")
+    export.clicked.connect(
+        lambda: _export_spectrum(spectrum, width.value(), box))
+    row = QHBoxLayout()
+    row.addWidget(QLabel("Width"))
+    row.addWidget(width)
+    row.addStretch(1)
+    row.addWidget(export)
+    layout.addLayout(row)
+
+    def chosen(_series, index):
+        x = float(plot.curve.x[index])
+        select_mode(spectrum, dock, x)
+
+    plot.pointClicked.connect(chosen)
+    box.plot, box.fwhm = plot, width
+    if spectrum.note:
+        note = QLabel(spectrum.note)
+        note.setWordWrap(True)
+        set_tone(note, HINT)
+        layout.addWidget(note)
+    return box
+
+
+def select_mode(spectrum: Spectrum, dock, wavenumber: float) -> int:
+    """Choose, in the dock's mode table, the mode of the stick nearest
+    ``wavenumber``; its row, or -1 with no stick or no table."""
+    if not len(spectrum.frequencies) or not spectrum.modes:
+        return -1
+    nearest = int(np.argmin(np.abs(
+        np.asarray(spectrum.frequencies, float) - wavenumber)))
+    row = int(spectrum.modes[nearest])
+    for widget in getattr(dock, "_blocks", ()):
+        view = getattr(widget, "view", None)
+        if view is not None and hasattr(widget, "animate"):
+            view.selectRow(row)
+            return row
+    return -1
+
+
+def _export_spectrum(spectrum: Spectrum, fwhm: float, parent) -> None:
+    path, _chosen = QFileDialog.getSaveFileName(
+        parent, "Export the spectrum", "ir.dat",
+        "Sticks (*.dat);;Broadened (*.xy);;All files (*)")
+    if not path:
+        return
+    text = spectrum.as_xy(fwhm) if path.endswith(".xy") \
+        else spectrum.as_dat()
+    try:
+        Path(path).write_text(text, encoding="utf-8")
+    except OSError as exc:
+        QMessageBox.warning(parent, "Export the spectrum", str(exc))
+
+
 #: How each kind of block is drawn, as ``(block, dock) -> widget``.
 #: A table rather than a chain of ``isinstance`` checks, so a module
 #: that brings a new kind of block adds one line here -- and
@@ -885,6 +975,7 @@ RENDERERS = {
         block, getattr(dock, "_beside", None)),
     Dos: lambda block, dock: _dos_widget(block),
     Modes: _modes_widget,
+    Spectrum: _spectrum_widget,
     Zone: lambda block, dock: _zone_widget(block),
     Surface: _surface_widget,
 }

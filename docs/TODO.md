@@ -60,8 +60,9 @@ porous-materials user:
   writer is the pattern.
 - **Open metal sites** (S-M): a Colour by entry and a selection from
   the coordination the graph already gives.
-- **MD and phonons on the ASE engines** (L): NVT/NPT with MACE, ORB
-  and MatterSim; finite-difference modes as DFTB+ has.
+- **MD on the ASE engines** (L): NVT/NPT with MACE, ORB and
+  MatterSim.  (Their modes and phonons are Force Field ▸ Frequencies
+  and thermochemistry, through phonopy.)
 - **A movie of a trajectory** (S-M): the player exists; frames to
   MP4/GIF.
 - **Batch mode for the CLI** (S-M): `convert`, `inspect` and `run`
@@ -416,6 +417,15 @@ front of another is not yet gapped where it crosses it -- ChemDraw
 breaks the one behind.  Both are `xtalapp/viewport/sketch.py`, and
 the SVG export draws whatever it cuts.
 
+### Two dialogs scroll sideways under UFF, and a plot rounds its ticks
+
+The scan dialog and *Frequencies and thermochemistry...*, which
+borrows its engine forms, grow a horizontal scroll bar with UFF
+chosen: the engine's generated form is about 635 px wide.  Seen on
+main before the thermochemistry branch.  And `CurvePlot` writes its
+axis ticks to three significant figures, so the quasi-harmonic V(T)
+of quartz -- 111.0 to 111.6 A^3 -- reads 111, 111, 111.
+
 ### What the sketcher does not do yet
 
 The sketcher (`xtalapp/widgets/sketcher/`, 2026-10-04) replaced
@@ -577,6 +587,36 @@ replacement and not an addition, and there is no way to hold both.
 `xtal/ff/uff/params.py` keeps Rappe's and skips it, because changing a
 row the 1992 paper prints is a different decision from adding ninety-one
 new ones, and `tests/test_uff_params.py` asserts the published value.
+
+### IR intensities from the engine's own charges
+
+The IR spectrum (2026-10-12) takes its Born charges from a charge
+model -- fixed, EQeq or Gasteiger -- because no engine declares
+`"dipole"` in its `provides`.  xTB and DFTB+ both have the charges an
+electronic-structure engine gives, and DFTB+ can write Born charges
+outright (`born.out` appears beside a SecondDerivatives run), but
+neither path has been checked against a measured spectrum, so the
+`engine` choice is not offered.  A check on carbon dioxide's
+asymmetric stretch is the place to start.
+
+### What the thermochemistry review left (2026-10-12)
+
+Four small things the branch's final review found and did not fix:
+- **A zero mode is anything from -50 to 5 cm^-1**, and the summary
+  calls them all rigid motions.  A real -40 cm^-1 saddle mode is
+  counted there without a word; the expected count (3, 5 or 6) is
+  known, and an excess could be flagged.
+- **DFTB+'s modes decide molecule or crystal by `is_isolated`** alone,
+  with no *System* box as the Force Field run has.
+- **The quasi-harmonic cost line uses UFF's seconds an atom-step**
+  for the Hessians too, so it is low by an order of magnitude under
+  an ML potential -- the scan's own line has the same habit.  Timing
+  one single point, as the thermochemistry dialog does, is the cure
+  for both.
+- **`xtal/ff/vibrations.py` and `infrared.py` import
+  `xtal.modules.report`** (lazily) to build the Modes and Spectrum
+  blocks: the core reaching up into the module layer.  The block
+  builders belong in `xtal/modules/thermo.py`.
 
 ## Modules
 
@@ -772,18 +812,6 @@ ever seeded by more than one step.  It changes what "forward" and
 "reverse" traverse, which is why it is written down rather than done
 in passing.
 
-### E(V) is not F(V)
-
-A scan is at zero kelvin and the report says so, but for the flexible
-frameworks it was built for that is the whole question: MIL-53(Al)'s
-large- and narrow-pore difference runs 18.67 / 9.74 / -0.67 kJ/mol at
-100 / 300 / 500 K, so entropy decides which phase is stable and the
-landscape cannot see it.  The cheapest honest route is **quasi-harmonic
-F(V,T)**: phonons at each scanned volume, which is what Cockayne did
-for MIL-53(Cr) (*J. Phys. Chem. C* **2017**, *121*, 4312).  Affordable
-with MACE, where the Hessians are seconds rather than hours.  It needs
-a phonon calculation this application does not have.
-
 ### The scan has never been run on a real framework end to end
 
 Every test is on quartz, zinc acetate or a fixture, because the point
@@ -800,6 +828,17 @@ MACE alone took 467 s; UFF4MOF first (80 and 73 steps) then MACE took
 196 s, and landed 0.02 and 0.08 kcal/mol lower.  Whether that holds on
 a 7x7 grid of a 1152-atom framework, where the neighbour it starts from
 is already close, is the thing the overnight run should also answer.
+
+The same overnight run is the first real test of *Quasi-harmonic free
+energy...* (2026-10-12): MIL-53 under MACE, nine or more volumes
+across both wells, against the lp/cp crossing Demuynck *et al.* report
+(18.67, 9.74 and -0.67 kJ/mol at 100, 300 and 500 K: the sign
+changes just below 500 K).  Every test so far is
+quartz, rutile or a synthetic landscape.  Two things only a real run
+will show: whether a well too shallow to have five volumes is common
+(it is then a parabola), and whether the wells are better split on F
+at each temperature than on E(V) once -- an entropy-stabilised well
+that E(V) does not have is not split today.
 
 ## Powder refinement
 

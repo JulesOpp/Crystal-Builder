@@ -43,7 +43,7 @@ Provides: forces, periodic
 
 A machine-learned potential in the atomic cluster expansion family.  The MACE-MP foundation models answer for a framework with no parameters to assign and no atom typing to get right, at a cost between a force field's and tight binding's.
 
-Provides: forces, periodic, stress
+Provides: forces, hessian, periodic, stress
 
 ```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
 ```

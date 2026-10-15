@@ -39,7 +39,11 @@ from xtal.ff import coordinates as co
 from xtal.ff import eos, optimize
 from xtal.ff import scan as driver
 from xtal.ff.optimize import METHODS
-from xtal.ff.registry import ENGINES
+from xtal.ff.registry import (
+    ENGINES,
+    engine_choices,
+    engine_choices_or_none,
+)
 from xtal.modules.job import JobResult
 from xtal.modules.registry import MODULES, Action, Module
 from xtal.modules.report import (
@@ -157,7 +161,7 @@ def axes_from(job, structure):
 
 PARAMS = (
     Param("engine", "Engine", "choice", default="uff",
-          choices=tuple((e.name, e.label) for e in ENGINES),
+          choices=engine_choices,
           help="Which energy engine relaxes each point.  For a "
                "flexible framework a machine-learned potential is "
                "the better choice: UFF4MOF was never fitted to "
@@ -202,8 +206,7 @@ PARAMS = (
     Param("tolerance", "Force tolerance", "float", default=0.05,
           minimum=1e-6, decimals=4, suffix=" kcal/mol/A"),
     Param("pre_engine", "Pre-relax with", "choice", default="",
-          choices=(("", "Nothing"),
-                   *((e.name, e.label) for e in ENGINES)),
+          choices=engine_choices_or_none,
           help="A cheaper engine run at every point before the one "
                "the landscape is of -- UFF4MOF ahead of MACE, say.  "
                "A volume step moves every atom with the cell, and "
@@ -243,6 +246,38 @@ BULK_PARAMS = (
                "the cell's; much further and it is the equation of "
                "state's."),
 )
+
+
+def _from_thermo(called, **changes):
+    from xtal.modules import thermo as thermo_run
+
+    (found,) = [p for p in thermo_run.PARAMS if p.name == called]
+    return replace(found, **changes)
+
+
+_QHA_DEFAULTS = {"tolerance": 0.01, "max_steps": 2000}
+
+QHA_PARAMS = (
+    *(replace(p, default=_QHA_DEFAULTS[p.name])
+      if p.name in _QHA_DEFAULTS else p for p in BULK_PARAMS),
+    _from_thermo("method", name="hessian"),
+    _from_thermo("supercell"),
+    _from_thermo("mesh"),
+    _from_thermo("delta"),
+    _from_thermo("t_min"),
+    _from_thermo("t_max"),
+    _from_thermo("t_step"),
+    Param("pressure", "Pressure", "float", default=0.0, minimum=0.0,
+          maximum=100.0, decimals=3, suffix=" GPa",
+          help="G = F + pV is minimised over the volumes at this "
+               "pressure.  One bar is 1e-4 GPa, which moves no "
+               "framework measurably."),
+)
+
+
+def _qha(job):
+    from xtal.modules.qha import run_qha
+    return run_qha(job)
 
 
 # ======================================================================
@@ -310,6 +345,19 @@ def run_bulk_modulus(job) -> JobResult:
     -- and the scan then starts from the relaxed geometry rather than
     walking there one point at a time.
     """
+    prepared = volume_window(job)
+    if isinstance(prepared, JobResult):
+        return prepared
+    structure, params = prepared
+    return run_scan(replace(job, structure=structure, params=params))
+
+
+def volume_window(job):
+    """``(structure, params)`` for a volume scan round the relaxed
+    cell -- a copy, its bonding held, the axis set to the volume and
+    From and To moved with the relaxation or opened by the span -- or
+    the :class:`JobResult` of a run stopped while relaxing.  The bulk
+    modulus and the quasi-harmonic run both start here."""
     structure = job.structure.copy()
     driver.hold_bonding(structure)
     params = dict(job.params)
@@ -331,9 +379,11 @@ def run_bulk_modulus(job) -> JobResult:
             return JobResult(message="Stopped while relaxing the cell; "
                                      "nothing was scanned.",
                              cancelled=True)
-        for site, row in zip(structure.sites, result.frac,
-                             strict=True):
-            site.frac = row
+        # Through set_frac: hold_bonding expanded the cell, and a
+        # plain assignment would leave that expansion where the
+        # relaxation started.
+        for index, row in enumerate(result.frac):
+            structure.set_frac(index, row)
         if result.matrix is not None:
             structure.set_lattice(Lattice(result.matrix))
         job.say(f"relaxed: {result.summary()}")
@@ -346,7 +396,7 @@ def run_bulk_modulus(job) -> JobResult:
         span = float(job.param("span", 6.0)) / 100.0
         params["axis1_start"] = volume * (1.0 - span)
         params["axis1_stop"] = volume * (1.0 + span)
-    return run_scan(replace(job, structure=structure, params=params))
+    return structure, params
 
 
 def _prerelax(job):
@@ -772,6 +822,13 @@ SCAN = Module(
                kind="scan", dialog="scan",
                params=BULK_PARAMS,
                run=run_bulk_modulus),
+        Action(name="qha", label="Quasi-harmonic free energy...",
+               tip="The bulk modulus's volume scan with the vibrations "
+                   "at every volume: F(V, T), and V, G, B and the "
+                   "thermal expansion at every temperature",
+               kind="scan", dialog="scan",
+               params=QHA_PARAMS,
+               run=_qha),
     ),
 )
 

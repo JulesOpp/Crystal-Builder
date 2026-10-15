@@ -880,20 +880,92 @@ class Session:
         :func:`~xtal.agent.capabilities.capabilities` list the actions
         and their parameters.
         """
+        return self._run_module(action, action, params)[0]
+
+    def thermochemistry(self, engine: str = "uff",
+                        temperature: float = 298.15,
+                        system: str = "auto", quasi_rrho: bool = False,
+                        method: str = "auto", relax_first: bool = True,
+                        ir: bool = False, **options) -> VerbResult:
+        """H, S and G from the vibrations -- ``forcefield.thermo``, the
+        run Force Field ▸ Thermochemistry... makes.
+
+        A copy is relaxed (``relax_first``) and its Hessian taken; the
+        session's structure is not changed and nothing is pushed.
+        ``**options`` are the run's own (``tolerance``, ``supercell``,
+        ``freeze`` ...; ``help_for("forcefield.thermo")``) and the
+        engine's (``help_for("mace")``), told apart by name.  ``data``
+        has the numbers at ``temperature`` in kcal/mol (``g``, ``h``,
+        ``ts``, ``zpe``, ``e_elec``) and cal/(mol K) (``s``, ``cv``),
+        per cell or per molecule, beside the report's tables.
+        ``IMAGINARY_MODES`` says when the structure was not at a
+        minimum, and ``SIZE_LIMIT`` refuses what would not fit.
+        """
+        from xtal.ff import ENGINES
+        from xtal.modules import MODULES
+
+        args = {"engine": engine, "temperature": temperature,
+                "system": system, "quasi_rrho": quasi_rrho,
+                "method": method, "relax_first": relax_first, "ir": ir,
+                **options}
+        try:
+            chosen = ENGINES.get(engine)
+        except (KeyError, ValueError) as exc:
+            return self._answer_refused(
+                "thermochemistry", args,
+                Diagnostic("ENGINE_UNAVAILABLE", str(exc)))
+        _module, action = MODULES.find("forcefield.thermo")
+        own = {p.name for p in action.params}
+        theirs = {o.name for o in chosen.options}
+        unknown = sorted(set(options) - own - theirs)
+        if unknown:
+            raise TypeError(f"thermochemistry() got an unexpected "
+                            f"keyword argument {unknown[0]!r}: neither "
+                            f"the run's nor {engine}'s")
+        settings = chosen.coerce(_as_strings(
+            {k: v for k, v in options.items() if k in theirs}))
+        available = chosen.availability(**settings)
+        if not available:
+            return self._answer_refused(
+                "thermochemistry", args,
+                Diagnostic("ENGINE_UNAVAILABLE", available.reason))
+        params = {k: v for k, v in args.items() if k in own}
+        answer, result = self._run_module(
+            "thermochemistry", "forcefield.thermo", params,
+            extra={"engine_options": settings}, args=args)
+        found = None if result is None else result.answer
+        if found is not None:
+            answer.data.update({
+                "temperature": float(found.temperature),
+                "system": found.kind,
+                **{name: float(getattr(found, name)) for name in (
+                    "e_elec", "zpe", "h", "ts", "g", "s", "cv")},
+                "z": int(found.z),
+                "imaginary_modes": int(found.vibrations.n_imaginary)})
+        return answer
+
+    def _run_module(self, verb, action, params, extra=None,
+                    args=None):
+        """:meth:`run`'s body, under the verb that asked: ``extra`` is
+        added after coercing, for what no form row holds (an engine's
+        options), and ``args`` is what the log records.  The answer
+        and the run's :class:`JobResult`, ``None`` if it never ran."""
         from xtal import plugins
         from xtal.modules import MODULES, Job
         from xtal.modules import record as module_record
 
+        args = params if args is None else args
         plugins.load()
         module, entry_action = MODULES.find(action)
         refused = _unavailable(module, entry_action)
         if refused is not None:
-            return self._answer_refused(action, params, refused)
+            return self._answer_refused(verb, args, refused), None
         if not entry_action.needs_structure:
             raise ValueError(f"{action} builds a structure rather than "
                              f"measuring one: Session.build({action!r}, "
                              f"workspace, ...)")
         coerced = entry_action.coerce(_as_strings(params))
+        coerced.update(extra or {})
         # Said before the run and kept whatever it does: a grid of
         # hours that fails at its first point was still that size.
         size = _scan_size(action, coerced)
@@ -907,11 +979,12 @@ class Session:
         except Exception as exc:        # noqa: BLE001 -- said, not lost
             module_record.close_run(folder, error=str(exc))
             return self._answer_refused(
-                action, params, Diagnostic("MODULE_FAILED", str(exc)),
-                notes=sized)
+                verb, args, Diagnostic("MODULE_FAILED", str(exc)),
+                notes=sized), None
         module_record.close_run(folder, result)
         notes = sized + _result_warnings(result)
-        if not result.ok:
+        if not result.ok and not any(n.code == "SIZE_LIMIT"
+                                     for n in notes):
             notes.insert(0, Diagnostic("MODULE_FAILED",
                                        result.message or "failed"))
         data = _report_data(result)
@@ -923,12 +996,12 @@ class Session:
                 "RESULT_NOT_APPLIED",
                 "the run returned a structure; it is in the run folder",
                 where=data.get("run", "")))
-        answer = VerbResult(action, bool(result.ok), result.summary(),
+        answer = VerbResult(verb, bool(result.ok), result.summary(),
                             atoms_before=self.n_atoms,
                             atoms_after=self.n_atoms, data=data,
                             diagnostics=notes)
-        self._record(action, params, answer)
-        return answer
+        self._record(verb, args, answer)
+        return answer, result
 
     # ------------------------------------------------------------------
     #  HISTORY AND FILES

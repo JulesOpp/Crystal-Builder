@@ -17,10 +17,10 @@ copies the structure to avoid.  So a verb crosses to the GUI thread
 through :class:`Bridge` whole, reading as well as pushing: a site
 index is checked against the structure it will be applied to, and
 nothing caches derived data on the document's structure from another
-thread.  The calculations (``energy``, ``optimize``, ``run``) are the
-exception, as they are for the Force Field panel: they copy the
-structure on the GUI thread, compute over the copy on the calling
-thread, and cross back only to apply.
+thread.  The calculations (``energy``, ``optimize``, ``run``,
+``thermochemistry``) are the exception, as they are for the Force
+Field panel: they copy the structure on the GUI thread, compute over
+the copy on the calling thread, and cross back only to apply.
 
 **The gates.**  A verb is refused with ``WINDOW_BUSY`` while the tab
 plays a trajectory (its atoms are a frame, and ``Document.run`` would
@@ -57,7 +57,7 @@ from xtal.agent.tools import HOST_VERBS, NO_SESSION, Host
 READ_ONLY = ("inspect", "select")
 
 #: Verbs that compute over a copy, off the GUI thread.
-CALCULATIONS = ("energy", "optimize", "run")
+CALCULATIONS = ("energy", "optimize", "run", "thermochemistry")
 
 #: Why a call from the server's thread is refused once it is stopping.
 CLOSING = "the window is closing"
@@ -452,6 +452,12 @@ class WindowSession(Session):
     def run(self, action: str, **params) -> VerbResult:
         return self._calculate(action, params,
                                lambda over: over.run(action, **params))
+
+    def thermochemistry(self, engine: str = "uff", **options) \
+            -> VerbResult:
+        return self._calculate(
+            "thermochemistry", {"engine": engine, **options},
+            lambda over: over.thermochemistry(engine, **options))
 
     def _calculate(self, verb, args, compute) -> VerbResult:
         started = self._start(verb, args)

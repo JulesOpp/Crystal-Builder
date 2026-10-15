@@ -39,7 +39,7 @@ import numpy as np
 
 from xtal.core import elements as el
 from xtal.core import p1
-from xtal.ff.api import Calculator, Result
+from xtal.ff.api import Calculator, CalculatorError, Result
 
 
 def dummy_sites(structure) -> list[int]:
@@ -108,6 +108,20 @@ class WithoutMarkers(Calculator):
             forces[self._kept] = result.forces
         return Result(result.energy, forces, dict(result.terms),
                       result.stress)
+
+    def hessian(self, positions, matrix, atoms=None, progress=None):
+        """The engine's, over the kept atoms ``atoms`` names: a marker
+        has no row, and ``atoms`` never names one."""
+        positions = np.asarray(positions, dtype=float).reshape(-1, 3)
+        inner = {int(k): i for i, k in enumerate(self._kept)}
+        wanted = self._kept if atoms is None else atoms
+        try:
+            mapped = [inner[int(a)] for a in wanted]
+        except KeyError:
+            raise CalculatorError(
+                "a dummy atom has no Hessian row") from None
+        return self._inner.hessian(positions[self._kept], matrix,
+                                   atoms=mapped, progress=progress)
 
     # -- everything else is the engine's -------------------------------
     #

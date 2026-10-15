@@ -13,6 +13,7 @@ what is there now.  What was built:
 | § 4 | Nothing renamed, so nothing in the six files changed | — |
 | § 5 | 2026-10: Structure regrouped with a Bonds and a Building blocks submenu; Select... → Advanced Selection...; Blender in File only; a periodic table beside the element box | `menus.py:build_menus`, `build_toolbar` |
 | § 6 | 2026-10-04, the v1.0 review: sentence case throughout; builders lead Modules; the builders' names say what they build; Mirror the structure beside Reduce to P1; By element beside Same element; the mouse modes are Ctrl+1 to Ctrl+7 | `menus.py:build_menus`, `xtal/modules/*.py` |
+| § 7 | 2026-10-12: Force Field gains *Frequencies and thermochemistry...* and *IR spectrum...*; the panel a *Thermochemistry...* button; Energy scan gains *Quasi-harmonic free energy...* | `xtal/modules/forcefield.py`, `ff_panel.py`, `xtal/modules/scan.py` |
 
 Nothing was renamed, which is why § 4 cost nothing: every registry key
 is the key it was, and the seven new tests in
@@ -279,3 +280,16 @@ Registry keys are unchanged; only labels and order moved.
 * **Mouse modes**: Ctrl+1 to Ctrl+7 in toolbar order; the bare digits
   were already the views along a, b, c.
 
+## 7. Thermochemistry (2026-10-12)
+
+* **Modules ▸ Force Field** gains *Frequencies and thermochemistry...*
+  and *IR spectrum...* after the panel's three entries.  They are
+  ordinary registry runs (`forcefield.thermo`, `forcefield.infrared`)
+  with a run folder, a worker and Stop, and one dialog
+  (`ThermoDialog`) that opens on the panel's engine.
+* **The Force Field panel** gains a *Thermochemistry...* button on a
+  row of its own under Single point, Optimise and Pause -- four in
+  one row would hold the dock wider than its column allows -- and
+  greyed while an optimisation runs.
+* **Modules ▸ Energy scan** gains *Quasi-harmonic free energy...*
+  after *Bulk modulus...*, in the same scan dialog.
