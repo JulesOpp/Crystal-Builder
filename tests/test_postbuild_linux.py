@@ -77,22 +77,64 @@ MISALIGNED = SEGMENTS.replace(
     "LOAD           0x41f5f0", "LOAD           0x41e9c8")
 
 
+def versions(*glibc: str) -> str:
+    """``readelf -V --wide`` as binutils prints it, for a library
+    asking libc for ``glibc`` and libstdc++ for a ``GLIBCXX`` -- which
+    is not glibc -- with ``GLIBC_PRIVATE`` among them, which is not a
+    version, and the ``GLIBC_`` names in the symbol table too."""
+    symbols = "   ".join(f"{i + 2} (GLIBC_{v})"
+                         for i, v in enumerate(glibc))
+    needs = [f"  0x{16 * (i + 3):04x}:   Name: GLIBC_{v}  Flags: none  "
+             f"Version: {i + 2}" for i, v in enumerate(glibc)]
+    return "\n".join([
+        "",
+        "Version symbols section '.gnu.version' contains 6 entries:",
+        " Addr: 0x0000000000000a2c  Offset: 0x000a2c  Link: 6 (.dynsym)",
+        f"  000:   0 (*local*)   {symbols}   9 (GLIBCXX_3.4.30)",
+        "",
+        "Version definition section '.gnu.version_d' contains 2 entries:",
+        " Addr: 0x0000000000000a98  Offset: 0x000a98  Link: 7 (.dynstr)",
+        "  000000: Rev: 1  Flags: BASE  Index: 1  Cnt: 1  Name: libx.so",
+        "  0x001c: Rev: 1  Flags: none  Index: 2  Cnt: 1  Name: Qt_6",
+        "",
+        "Version needs section '.gnu.version_r' contains 2 entries:",
+        " Addr: 0x0000000000000ad0  Offset: 0x000ad0  Link: 7 (.dynstr)",
+        "  000000: Version: 1  File: libstdc++.so.6  Cnt: 1",
+        "  0x0010:   Name: GLIBCXX_3.4.30  Flags: none  Version: 9",
+        f"  0x0020: Version: 1  File: libc.so.6  Cnt: {len(glibc) + 1}",
+        *needs,
+        "  0x0090:   Name: GLIBC_PRIVATE  Flags: none  Version: 8",
+        "",
+    ])
+
+
+#: What an ELF in :func:`collected` asks glibc for unless the test
+#: says otherwise: well under the floor, as a manylinux wheel's are.
+OLD_GLIBC = ("2.2.5", "2.14", "2.17")
+
+
 class Host:
     """``readelf`` and ``strip`` as a Linux build host answers them,
     for files named in ``needs``; anything else is not ELF.  A file
     named in ``misaligned`` comes out of ``strip`` with a segment the
-    loader would refuse."""
+    loader would refuse; one named in ``glibc`` asks for those
+    versions, and every other ELF for :data:`OLD_GLIBC`."""
 
     def __init__(self, needs: dict[str, tuple[str, ...]],
                  refuses: tuple[str, ...] = (),
-                 misaligned: tuple[str, ...] = ()):
+                 misaligned: tuple[str, ...] = (),
+                 glibc: dict[str, tuple[str, ...]] | None = None):
         self.needs = needs
         self.refuses = set(refuses)
         self.misaligned = set(misaligned)
+        self.glibc = glibc or {}
         self.stripped: list[str] = []
 
     def __call__(self, argv, **kwargs):
         path = Path(argv[-1])
+        if argv[:3] == ["readelf", "-V", "--wide"]:
+            return subprocess.CompletedProcess(argv, 0, versions(
+                *self.glibc.get(path.name, OLD_GLIBC)), "")
         if argv[:2] == ["readelf", "-lW"]:
             broken = (path.name in self.misaligned
                       and path.name in self.stripped)
@@ -450,3 +492,80 @@ def test_the_report_says_the_size_before_and_after(collected, capsys):
     assert lines[-1] == (f"{WINDOW}: {after / 1e6:.0f} MB "
                          f"({100 * (before - after) / before:.0f}% "
                          f"smaller)")
+
+
+def test_the_glibc_floor_is_the_newest_version_any_elf_asks_for(
+        collected):
+    """The oldest system the download starts on is set by its most
+    demanding file, whichever that is -- a library or one of the two
+    programs -- and ``GLIBCXX`` and ``GLIBC_PRIVATE`` are neither
+    glibc nor a version."""
+    host = Host(NEEDS, glibc={
+        "libQt6Gui.so.6": ("2.2.5", "2.34"),
+        "xtal": ("2.17", "2.28"),
+        "libqxcb.so": ("2.4",),
+    })
+
+    version, asker = postbuild_linux.glibc_floor(collected, run=host)
+
+    assert version == (2, 34)
+    assert asker.name == "libQt6Gui.so.6"
+
+
+def test_the_floor_reads_only_what_the_file_needs(tmp_path):
+    """The symbol table repeats each needed version, and a version
+    *definition* is the library's own, not something it asks of
+    glibc; the needs section is the one answer."""
+    library = _file(tmp_path / "libQt6Core.so.6")
+
+    def run(argv, **kwargs):
+        assert argv == ["readelf", "-V", "--wide", str(library)]
+        return subprocess.CompletedProcess(
+            argv, 0, versions("2.2.5", "2.33").replace(
+                "Name: Qt_6", "Name: GLIBC_2.99"), "")
+
+    assert postbuild_linux.glibc_needed(library, run=run) == {
+        (2, 2, 5), (2, 33)}
+
+
+def test_an_elf_readelf_cannot_read_stops_the_floor_check(tmp_path):
+    """Taken as asking for nothing, a file that needs a newer glibc
+    would pass the check it exists to fail."""
+    library = _file(tmp_path / "libQt6Core.so.6")
+
+    def run(argv, **kwargs):
+        return subprocess.CompletedProcess(
+            argv, 1, "", "readelf: Error: no .dynamic section\n")
+
+    with pytest.raises(RuntimeError, match="libQt6Core.so.6"):
+        postbuild_linux.glibc_needed(library, run=run)
+
+
+@needs_symlinks
+def test_a_bundle_needing_a_newer_glibc_than_the_floor_fails(
+        collected, capsys):
+    """Every document promises glibc 2.35 (Ubuntu 22.04); a wheel or a
+    build-host library that asks for 2.36 makes a download that
+    refuses to start there with ``GLIBC_2.36 not found``, and says so
+    only on the user's machine.  The build says it instead."""
+    host = Host(NEEDS, glibc={"libQt6Gui.so.6": ("2.17", "2.36")})
+
+    assert postbuild_linux.main([str(collected)], run=host) == 1
+
+    captured = capsys.readouterr()
+    assert "glibc floor: 2.36 (" in captured.out
+    assert ("libQt6Gui.so.6 needs glibc 2.36, newer than the 2.35 "
+            "every download promises (Ubuntu 22.04): it would not start "
+            "there.") in captured.err
+
+
+@needs_symlinks
+def test_a_bundle_at_the_floor_passes_and_says_its_floor(collected,
+                                                         capsys):
+    host = Host(NEEDS, glibc={"crystal-builder": ("2.2.5", "2.35")})
+
+    assert postbuild_linux.main([str(collected)], run=host) == 0
+
+    captured = capsys.readouterr()
+    assert "glibc floor: 2.35 (crystal-builder)" in captured.out
+    assert captured.err == ""

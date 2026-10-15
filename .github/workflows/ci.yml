@@ -346,6 +346,8 @@ jobs:
       # The same reason as macOS's: most of the download is Qt the
       # application never reaches and debug symbols nobody reads.  See
       # the module docstring for what goes and why the rest stays.
+      # It then fails the job if any ELF in the bundle needs a glibc
+      # newer than the 2.35 the row above is chosen for.
       - name: Strip (Linux)
         if: runner.os == 'Linux'
         run: python packaging/postbuild_linux.py "dist/crystal-builder"

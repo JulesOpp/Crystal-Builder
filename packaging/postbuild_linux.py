@@ -26,6 +26,16 @@ where macOS reads ``otool -L``.  Qt loads its plugins with ``dlopen``,
 which no ``NEEDED`` entry records, so a plugin is never pruned for
 being unreached; only the two named in :data:`UNUSED_PLUGINS` go.
 
+**Then the glibc floor is read off the bundle's own binaries**, an idea
+from PR #59's ``glibc_floor``: every ELF names the ``GLIBC_x.y``
+symbol versions it needs (``readelf -V``), the newest of them is the
+oldest glibc the download starts on, and a build that needs newer than
+:data:`GLIBC_FLOOR` -- the 2.35 every document promises -- fails here
+with a sentence, not on a user's Ubuntu 22.04 with ``GLIBC_2.36 not
+found``.  The build host is what usually sets it, but a wheel or a
+library collected from the host can raise it, and was only assumed
+not to.
+
 Nothing is signed: an AppImage has no signature to invalidate.
 """
 
@@ -78,7 +88,16 @@ ORPHAN_CANDIDATES = (
 
 ELF_MAGIC = b"\x7fELF"
 
+#: The oldest glibc the download promises: Ubuntu 22.04's, which is why
+#: the bundle is built on ``ubuntu-22.04``.  README, the manual, the
+#: release notes and LINUX.md all say 2.35; a bundle that needs newer
+#: fails :func:`main`.
+GLIBC_FLOOR = (2, 35)
+
 _NEEDED = re.compile(r"\(NEEDED\)\s+Shared library: \[(.+?)\]")
+
+
+_GLIBC_NEEDED = re.compile(r"\bName: GLIBC_(\d+(?:\.\d+)+)\s")
 
 
 def soname(module: str) -> str:
@@ -362,6 +381,53 @@ def strip_all(root: Path, run=subprocess.run) -> tuple[int, int]:
     return count, saved
 
 
+def glibc_needed(path: Path, run=subprocess.run) -> set[tuple[int, ...]]:
+    """The glibc versions ``path`` needs, as ``(2, 17)``.
+
+    Read from the version *needs* section alone: the symbol table
+    repeats each one, and a version definition is the file's own and
+    asks nothing of glibc.  ``GLIBC_PRIVATE`` is not a version, and
+    ``GLIBCXX`` is libstdc++.
+    """
+    result = run(["readelf", "-V", "--wide", str(path)],
+                 capture_output=True, text=True)
+    if result.returncode != 0:
+        # Taken as needing nothing, a file that needs a newer glibc
+        # would pass the one check that exists to catch it.
+        raise RuntimeError(
+            f"readelf could not read {path}: "
+            f"{result.stderr.strip().splitlines()[-1:]}")
+    found: set[tuple[int, ...]] = set()
+    section = ""
+    for line in result.stdout.splitlines():
+        if line.startswith("Version "):
+            section = line
+            continue
+        if section.startswith("Version needs"):
+            for version in _GLIBC_NEEDED.findall(line + " "):
+                found.add(tuple(int(part) for part in version.split(".")))
+    return found
+
+
+def glibc_floor(root: Path, run=subprocess.run):
+    """``(version, path)``: the newest glibc any ELF under ``root``
+    needs, and the first file that needs it; ``None`` if none names
+    one.  Every ELF, the two programs as well as the libraries: the
+    bootloader is compiled on the build host too."""
+    newest = None
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or not path.is_file() or not is_elf(path):
+            continue
+        for version in glibc_needed(path, run=run):
+            if newest is None or version > newest[0]:
+                newest = (version, path)
+    return newest
+
+
+def _dotted(version: tuple[int, ...]) -> str:
+    return ".".join(str(part) for part in version)
+
+
 def main(argv=None, run=subprocess.run) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if len(argv) != 1:
@@ -382,9 +448,21 @@ def main(argv=None, run=subprocess.run) -> int:
     count, saved = strip_all(folder, run=run)
     print(f"stripped {count} libraries, saving {saved / 1e6:.0f} MB")
 
+    floor = glibc_floor(folder, run=run)
+    if floor is not None:
+        print(f"glibc floor: {_dotted(floor[0])} "
+              f"({floor[1].relative_to(folder)})")
+
     after = total(folder)
     print(f"{folder.name}: {after / 1e6:.0f} MB "
           f"({100 * (before - after) / before:.0f}% smaller)")
+
+    if floor is not None and floor[0] > GLIBC_FLOOR:
+        print(f"{floor[1].name} needs glibc {_dotted(floor[0])}, newer "
+              f"than the {_dotted(GLIBC_FLOOR)} every download promises "
+              f"(Ubuntu 22.04): it would not start there.",
+              file=sys.stderr)
+        return 1
     return 0
 
 

@@ -47,7 +47,7 @@ the user makes executable and double-clicks.
 | Architecture | x86_64 only | What most Linux desktops run; ARM needs glibc 2.39+ for PySide6's aarch64 wheel and an ARM runner |
 | Artefact | AppImage | One file, no install, runs on most distros: the closest match to the DMG and `setup.exe` |
 | Build route | PyInstaller folder, then our own AppDir layout, then `appimagetool` | One packaging system across all three platforms; `bundle.py`, the selftest and the `xtal` launcher are reused unchanged |
-| Build host | GitHub's `ubuntu-22.04` runner | Sets the glibc floor at 2.35: Ubuntu 22.04+, Debian 12+, Fedora 36+, Mint 21+ |
+| Build host | GitHub's `ubuntu-22.04` runner | Sets the glibc floor at 2.35: Ubuntu 22.04+, Debian 12+, Fedora 36+, Mint 21+; `postbuild_linux.py` checks it off the bundle's binaries |
 
 Rejected: `linuxdeploy` with its Qt plugin (it expects a C++ Qt
 install and fights PySide6's wheel layout, and two tools choosing
@@ -103,7 +103,11 @@ and, being set, kept the window from choosing.
   every `.so`, and the same pruning of unused Qt modules as
   `postbuild.py` does on macOS (QtQuick, QtQml, QtPdf,
   QtVirtualKeyboard), decided from `readelf -d` NEEDED entries
-  instead of `otool -L`. Prints the size before and after.
+  instead of `otool -L`. Prints the size before and after. Then the
+  glibc floor is checked, not assumed (PR #59's `glibc_floor` idea):
+  the newest `GLIBC_x.y` any ELF in the bundle needs, read with
+  `readelf -V`, is printed, and a bundle needing newer than 2.35 fails
+  the build.
 - `packaging/appimage.py`: lays out `CrystalBuilder.AppDir/`:
   - `usr/lib/crystal-builder/`: the `COLLECT` folder;
   - `AppRun`: runs `usr/lib/crystal-builder/crystal-builder` with

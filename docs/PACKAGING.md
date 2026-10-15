@@ -737,7 +737,8 @@ Three steps, each its own file:
    `patchelf`, which `strip` then misaligns).  Every stripped file is
    read back with `readelf -lW`, and one whose LOAD segments the
    loader would refuse as not page-aligned is put back unstripped.
-   It prints the size before and after.
+   It prints the size before and after, and the glibc floor read off
+   the bundle's own binaries, failing above 2.35 (see below).
 3. **`packaging/appimage.py`**: lays out the AppDir in a temporary
    folder and runs `appimagetool` over it.
 
@@ -831,6 +832,13 @@ collected on, and a system with an older glibc refuses to load it.
 22.04+, Debian 12+, Fedora 36+.  The wheels set a lower floor
 (PySide6 6.9 is `manylinux_2_28`), so the runner is what decides it;
 building on `ubuntu-latest` would raise it with every image update.
+**The floor is checked, not assumed** (the idea is PR #59's
+`glibc_floor`): after stripping, `postbuild_linux.py` reads every
+ELF's `GLIBC_x.y` needs with `readelf -V`, prints the newest as the
+bundle's floor and the file that asks for it, and fails the job with
+a sentence if it is newer than `GLIBC_FLOOR = (2, 35)`.  A wheel or a
+host library that raised it would otherwise be found by a user on
+22.04, as `GLIBC_2.36 not found`.
 
 **The tool and the runtime are both pinned**: appimagetool 1.9.1 and
 type2-runtime 20251108, downloaded from their GitHub releases and
