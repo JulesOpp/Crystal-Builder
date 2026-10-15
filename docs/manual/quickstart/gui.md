@@ -40,8 +40,8 @@ has one.
   prepared.
 - **Quit** leaves without opening a window.
 
-A file double-clicked from the Finder or Explorer that is *already
-inside* a workspace skips the question, because there is only one
+A file double-clicked in your file manager that is *already inside*
+a workspace skips the question, because there is only one
 sensible answer.
 
 ## The window
@@ -163,8 +163,8 @@ MFU4l/
 
 Nothing in it is hidden and nothing needs this application to read
 it: the trajectory opens in OVITO, VMD and ASE, the log is a text
-file, and deleting a folder in the Finder is a supported way to clean
-up.  Clicking a node in the tree opens it as what it is -- a
+file, and deleting a folder in your file manager is a supported way
+to clean up.  Clicking a node in the tree opens it as what it is -- a
 structure in a tab, a trajectory in the transport bar, a log in the
 *Log* panel.
 

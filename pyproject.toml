@@ -208,6 +208,11 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # the text that matches the installed API rather than whatever a web
 # page says this week; a test holds the names in it to the code.
 "xtal.agent.skill" = ["SKILL.md", "references/*.md"]
+# The window's icon.  macOS and Windows take theirs from the bundle and
+# the .exe; on Linux nothing does unless the application sets it, and
+# packaging/icons, where the original is, travels in neither a wheel
+# nor a bundle.
+"xtalapp" = ["data/app.svg"]
 
 [tool.setuptools_scm]        # version from git tags; no version file to bump
 

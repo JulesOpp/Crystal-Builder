@@ -108,6 +108,15 @@ def test_a_program_off_the_path_is_found_where_homebrew_puts_it(
                                     binary)
 
 
+def test_the_usual_folders_are_named_for_every_desktop():
+    """Said on Linux as well as macOS, where the system's own folders
+    are as usual a place for a program as Homebrew's."""
+    from xtal.modules import process
+
+    assert process.USUAL_WHERE == (
+        "the usual Homebrew, conda and system folders")
+
+
 def test_the_usual_folders_are_one_place_in_what_was_tried(
         tmp_path, monkeypatch):
     """Eight folders listed one by one would bury the sentence the

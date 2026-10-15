@@ -36,7 +36,13 @@ import importlib.util
 import shutil
 import tempfile
 
-from PySide6.QtCore import QProcess, Qt, QTimer, Signal
+from PySide6.QtCore import (
+    QProcess,
+    QProcessEnvironment,
+    Qt,
+    QTimer,
+    Signal,
+)
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -750,6 +756,11 @@ class EnginesPage(QWidget):
         if probe.empty_cwd:
             empty = tempfile.mkdtemp(prefix="xtal-probe-")
             process.setWorkingDirectory(empty)
+        if probe.env:
+            environment = QProcessEnvironment.systemEnvironment()
+            for name, value in probe.env:
+                environment.insert(name, value)
+            process.setProcessEnvironment(environment)
         timer = QTimer(self)
         timer.setSingleShot(True)
         state = {"timed_out": False}
@@ -890,10 +901,8 @@ class AgentPage(QWidget):
 
     @staticmethod
     def stdio_line() -> str:
-        launcher = str(discovery.launcher())
-        if " " in launcher:
-            launcher = f'"{launcher}"'
-        return f"{launcher} mcp"
+        return " ".join(f'"{part}"' if " " in part else part
+                        for part in [*discovery.launcher_command(), "mcp"])
 
     def attach(self, server) -> None:
         """Follow ``server``: its state in the status line, its port

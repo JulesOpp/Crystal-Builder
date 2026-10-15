@@ -236,3 +236,42 @@ def test_a_frozen_build_imports_one_package_and_names_its_version():
     out = io.StringIO()
     assert selftest.import_one("no_such_package_here", out) == 1
     assert "ModuleNotFoundError" in out.getvalue()
+
+
+def test_a_frozen_linux_build_starts_its_probe_as_a_fresh_program():
+    """The window has put the user's library path back by the time
+    Test is pressed, and the child inherits that and the bootloader's
+    own ``_PYI_*`` variables: without the reset, PyInstaller 6.9+ may
+    take it for a worker of the running window, and whether a Linux
+    onedir worker puts ``_internal/`` back on its path is not
+    documented.  Reset, it is a program of its own and finds its
+    libraries as the window did."""
+    asked = probe.probe_for_package("numpy", frozen=True,
+                                    executable="/tmp/.mount/app",
+                                    platform="linux")
+
+    assert dict(asked.env) == {"PYINSTALLER_RESET_ENVIRONMENT": "1"}
+
+
+def test_the_probe_environment_is_unchanged_on_macos_windows_and_a_checkout():  # noqa: E501
+    """Only the Linux build had its library path handed back; the
+    others start their probe exactly as they did."""
+    for platform in ("darwin", "win32"):
+        asked = probe.probe_for_package("numpy", frozen=True,
+                                        platform=platform)
+        assert asked.env == (), platform
+    assert probe.probe_for_package("numpy", platform="linux").env == ()
+
+
+def test_a_probe_hands_its_environment_to_the_program(tmp_path,
+                                                      monkeypatch):
+    """What the probe adds reaches the child, and the rest of the
+    environment comes with it."""
+    monkeypatch.setenv("XTAL_PROBE_KEPT", "kept")
+    asked = probe.Probe(
+        (sys.executable, "-c",
+         "import os; print(os.environ['XTAL_PROBE_ADDED'], "
+         "os.environ['XTAL_PROBE_KEPT'])"),
+        env=(("XTAL_PROBE_ADDED", "added"),))
+
+    assert probe.run(asked) == (True, "added kept")

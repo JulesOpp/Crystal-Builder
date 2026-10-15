@@ -330,7 +330,7 @@ def target_command(package: str = "<package>") -> str:
 
 
 def reveal() -> bool:
-    """Show the folder in Finder or Explorer, making it first."""
+    """Show the folder in the file manager, making it first."""
     from PySide6.QtCore import QUrl
     from PySide6.QtGui import QDesktopServices
     return bool(QDesktopServices.openUrl(

@@ -719,6 +719,24 @@ Two ways out, neither taken because both change a product decision:
 `test_nihitp_builds_with_the_cell_the_crystal_has` pins 22.731 and
 1.606, so either change has to move a test and say why.
 
+### acs builds a different consistent orientation on Linux
+
+`orient.tie_set` enumerates 24 of the 48 placements that fit an acs
+slot equally (a 720-permutation brute force finds 48 at one RMSD, two
+cosets of 24), and rounding picks which.  Linux CI reaches the rule's
+true optimum, cost 2.1906 with longest joint **1.931**; an arm64 Mac
+stops at 2.602 / **1.884**.  SNODE perturbed by 1e-15 A reproduces
+Linux in 13 of 40 seeds.  Two questions, yours:
+
+* Should the tie set hold all 48?  Every platform would then build
+  1.931, macOS included.
+* Is "consistent never lengthens the longest joint" a property to
+  keep?  If so the rule's cost needs the joint length in it; if not,
+  the test should assert the cost instead.
+
+`test_consistent_orientations_put_opposite_nodes_on_every_edge` is
+xfail on Linux until then; remove the mark when decided.
+
 ## Scans
 
 The relaxed scan shipped on 2026-09-15

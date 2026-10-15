@@ -39,7 +39,11 @@ queue is released once something is listening.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 #: What the desktop asking us to quit arrives as.  Two of them because
@@ -48,6 +52,41 @@ from PySide6.QtWidgets import QApplication
 #: delivered as a ``Close`` on the application object, whose accepted
 #: flag is read as the answer.  Both mean the same thing here.
 QUIT_EVENTS = (QEvent.Type.Quit, QEvent.Type.Close)
+
+#: The name the desktop knows this application by on Linux: the
+#: ``.desktop`` entry's basename and its icon's name.  On X11, and on
+#: XWayland where a Wayland desktop runs the window (VTK's Qt bridge
+#: is X11 only), the window is matched to its entry by its WM_CLASS,
+#: Qt's application name, against the entry's ``StartupWMClass``.  It
+#: is still handed Qt as the desktop file name, because a native
+#: Wayland session -- if VTK ever supports one, or a user who forces
+#: it -- matches by the app_id instead, and without it GNOME there
+#: shows the window as an unknown application, with a generic icon,
+#: beside the launcher that started it.
+DESKTOP_ID = "io.github.julesopp.CrystalBuilder"
+
+
+def icon_path() -> Path:
+    """The application's icon, shipped as package data of ``xtalapp``.
+
+    A copy of ``packaging/icons/app.svg``, which the macOS and Windows
+    icons are built from and which neither a wheel nor a bundle
+    carries.  Those two platforms read a window's icon off the bundle
+    and the ``.exe``; a Linux executable has nowhere to keep one, so
+    the window is given it here.
+    """
+    return Path(__file__).resolve().parent / "data" / "app.svg"
+
+
+def _apply_window_icon(app, platform: str = sys.platform) -> None:
+    """Give the windows :func:`icon_path`'s icon, on Linux only.
+
+    macOS and Windows take theirs from the bundle and the ``.exe``,
+    and on macOS the application's window icon is the Dock's: setting
+    it here would replace the bundle's at run time.
+    """
+    if platform.startswith("linux"):
+        app.setWindowIcon(QIcon(str(icon_path())))
 
 
 def keep_siblings_non_native() -> None:
@@ -82,6 +121,8 @@ class Application(QApplication):
     def __init__(self, argv=None):
         keep_siblings_non_native()
         super().__init__(list(argv or []))
+        self.setDesktopFileName(DESKTOP_ID)
+        _apply_window_icon(self)
         self._pending: list[str] = []
         self._delivering = False
         self._quit_guard = None

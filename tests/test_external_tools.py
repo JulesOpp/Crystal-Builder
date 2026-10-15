@@ -14,6 +14,7 @@ between a five-minute fix and concluding the feature is broken.
 
 import os
 import stat
+import sys
 
 import pytest
 
@@ -160,6 +161,25 @@ def test_the_copy_that_ships_with_a_checkout_is_named_as_such(
 
     assert ok
     assert "ships with this source checkout" in sentence
+
+
+@pytest.mark.skipif(sys.platform == "win32",
+                    reason="the usual folders are POSIX ones")
+def test_a_program_in_the_usual_folders_is_said_to_be_there(
+        tmp_path, settings, monkeypatch):
+    """The sentence a Linux user reads too, where the folder it was
+    found in is as often the system's as Homebrew's or conda's."""
+    monkeypatch.setattr(zeopp, "bundled", lambda: None)
+    monkeypatch.delenv(zeopp.PROGRAM.env_var, raising=False)
+    monkeypatch.setenv("PATH", str(tmp_path / "nothing-here"))
+    usual = tmp_path / "usual"
+    fake_program(usual)
+    monkeypatch.setattr(process, "USUAL_DIRS", (str(usual),))
+
+    ok, sentence = external.status(settings, tool("tools/zeopp"))
+
+    assert ok
+    assert "where Homebrew, conda or the system puts it" in sentence
 
 
 # -- the two kinds of folder -------------------------------------------

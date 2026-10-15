@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="chemical/x-cif">
+    <comment>Crystallographic Information File</comment>
+    <glob pattern="*.cif"/>
+    <icon name="chemical-x-cif"/>
+  </mime-type>
+  <mime-type type="application/x-xtalproj">
+    <comment>Crystal Builder project</comment>
+    <glob pattern="*.xtalproj"/>
+    <icon name="application-x-xtalproj"/>
+  </mime-type>
+</mime-info>
