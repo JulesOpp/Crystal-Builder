@@ -362,14 +362,20 @@ def test_the_handshake_carries_the_instructions():
     assert _talk(conversation) == context.instructions()
 
 
-def test_guide_lists_the_topics_gives_a_page_and_refuses_an_unknown_one():
+def test_guide_gives_the_instructions_a_page_or_refuses_an_unknown_one():
+    """A client that ignores the server's instructions still reaches
+    the protocol by calling ``guide`` with no topic; a page that is not
+    the skill's tells it something else; a refusal without the topics
+    leaves it guessing."""
     async def conversation(client):
         return [await client.call_tool("guide", arguments)
                 for arguments in ({}, {"topic": "mof"},
                                   {"topic": "nope"})]
 
     listing, page, unknown = _talk(conversation)
-    assert "prepare:" in listing.content[0].text
+    assert listing.content[0].text == context.instructions()
+    for topic in context.topics():
+        assert f"`{topic}`:" in listing.content[0].text
     assert page.content[0].text == context.guide("mof")
     answer = _answer(unknown)
     assert answer["ok"] is False

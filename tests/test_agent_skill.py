@@ -273,14 +273,18 @@ def test_every_guide_topic_is_a_reference_page_and_every_page_a_topic():
     assert set(context.topics()) == {Path(r).stem for r in REFERENCES}
 
 
-def test_a_guide_is_its_page_and_an_unknown_one_names_them_all():
+def test_a_guide_is_its_page_and_no_topic_gives_the_instructions():
     """A guide that is not the page Claude Code reads tells a chat
-    client something else; a refusal that does not list the guides
-    leaves the model guessing names it will be refused again."""
+    client something else.  A client that drops the server's
+    instructions reaches the protocol only through ``guide`` with no
+    topic, so that is the instructions, guide list and all.  A refusal
+    that does not list the guides leaves the model guessing names it
+    will be refused again."""
     assert context.guide("mof") == PAGES["references/mof.md"]
     listing = context.guide()
+    assert listing == context.instructions()
     for topic, when in context.topics().items():
-        assert f"{topic}: {when}" in listing
+        assert f"`{topic}`: {when}" in listing
     with pytest.raises(LookupError, match="prepare"):
         context.guide("nope")
 

@@ -79,7 +79,7 @@ means it is gone: tell the person rather than waiting.
 ## Guides
 
 Call `guide` with a topic before the work it covers; with no topic it
-lists these. A guide writes calls as Python:
+gives these instructions. A guide writes calls as Python:
 `s.optimize(engine="uff", max_steps=500)` there is `optimize` called
 with `{"engine": "uff", "max_steps": 500}` here.
 

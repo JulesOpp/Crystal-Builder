@@ -334,7 +334,9 @@ playbook.
   what to report, when to read which guide), at most 6 kB.
 - **`guide(topic)`**, a tool: the skill's reference pages, the same
   ones Claude Code reads, fetched by the model when it needs one. The
-  topics and when to read each are `mcp.md`'s own list.
+  topics and when to read each are `mcp.md`'s own list. With no topic
+  it gives the instructions again, for a client that never shows the
+  model the server's.
 - **Resources**: each guide (`crystal-builder://guide/<topic>`) and
   the current document's `inspect`
   (`crystal-builder://document/current`), for a client where the

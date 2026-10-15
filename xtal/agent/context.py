@@ -14,9 +14,10 @@ say the same thing.
 - :func:`instructions` is ``skill/mcp.md``, which every client puts in
   front of the model; it is held to :data:`INSTRUCTIONS_LIMIT`.
 - :func:`guide` is a reference page of the skill, the same pages
-  Claude Code reads, fetched by the model when it needs one.  Which
-  pages there are, and when to read each, is ``mcp.md``'s own list,
-  so the instructions and the tool cannot disagree.
+  Claude Code reads, fetched by the model when it needs one, or with
+  no topic the instructions again.  Which pages there are, and when
+  to read each, is ``mcp.md``'s own list, so the instructions and the
+  tool cannot disagree.
 - :func:`prompts` are ``skill/prompts/*.md``: a workflow a person
   picks, its first line the description and the rest a
   :class:`string.Template`.
@@ -60,12 +61,12 @@ def topics() -> dict[str, str]:
 
 
 def guide(topic: str | None = None) -> str:
-    """A guide's text; with no topic, the guides and when to read
-    each."""
-    known = topics()
+    """A guide's text; with no topic, the instructions, which end with
+    the guides and when to read each -- for a client that never shows
+    the model the server's instructions."""
     if topic is None:
-        return "\n".join(f"{name}: {when}"
-                         for name, when in known.items())
+        return instructions()
+    known = topics()
     if topic not in known:
         raise LookupError(f"no guide called {topic!r}; the guides are "
                           f"{', '.join(known)}")
