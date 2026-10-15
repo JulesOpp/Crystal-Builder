@@ -319,3 +319,101 @@ Tasks:
   its own keeps the session the others share.  The proxy exits only
   when the client closes stdin, and `_Leaving`, `_Stdout`, `_Stdin`
   and the exit codes went with the exits.
+
+## Served context and the parity eval (2026-10)
+
+A chemist in a chat client reaches Crystal Builder through MCP alone;
+Claude Code with the skill and a shell was the better experience,
+because the playbook never reached an MCP client. This part measures
+the gap (`tools/agent_eval/run.py --via both`) and serves the
+playbook.
+
+### What a client is served
+
+- **Instructions** at the handshake: `xtal/agent/skill/mcp.md`, the
+  protocol condensed for tool calls (order of work, what never to do,
+  what to report, when to read which guide), at most 6 kB.
+- **`guide(topic)`**, a tool: the skill's reference pages, the same
+  ones Claude Code reads, fetched by the model when it needs one. The
+  topics and when to read each are `mcp.md`'s own list. With no topic
+  it gives the instructions again, for a client that never shows the
+  model the server's.
+- **Resources**: each guide (`crystal-builder://guide/<topic>`) and
+  the current document's `inspect`
+  (`crystal-builder://document/current`), for a client where the
+  person attaches context.
+- **Prompts**: `prepare-deposited-cif`, `build-mof`, `porosity-report`,
+  from `xtal/agent/skill/prompts/`.
+- **Every tool parameter has a JSON type**, which
+  `tests/test_agent_tools.py` holds. The baseline found it: untyped,
+  `set_cell`'s numbers arrived as strings and it failed every call.
+
+`xtal/agent/context.py` is the one reader. `build_server` serves it to
+both hosts. The proxy answers the instructions, the guide resources
+and the prompts itself, so they arrive with no window behind it, and
+forwards the current document and every tool, `guide` among them.
+
+### Baseline, before the playbook was served
+
+2026-10-15, `--via both`, Opus 5.5, both ways with
+`--setting-sources project` and the host session's variables dropped:
+
+```
+task                 | raw | turns | $    | mcp | turns | $    | failed checks
+---------------------+-----+-------+------+-----+-------+------+--------------
+build-overlap        | yes | 6     | 0.25 | yes | 4     | 0.11 |
+compare-two          | yes | 8     | 0.26 | yes | 5     | 0.11 |
+copies-and-hydrogens | yes | 7     | 0.31 | yes | 7     | 0.17 |
+open-trimers         | no  | 9     | 0.32 | no  | 7     | 0.16 | raw: asks the person; mcp: asks the person
+short-relax          | yes | 6     | 0.21 | yes | 4     | 0.06 |
+strain-sweep         | yes | 8     | 0.27 | yes | 340   | 2.13 |
+tied-scan            | yes | 9     | 0.30 | no  | 10    | 0.12 | mcp: reports MODULE_FAILED; log has scan.run
+---------------------+-----+-------+------+-----+-------+------+--------------
+passed               | 6/7 |       |      | 5/7 |       |      |
+```
+
+What the runs show:
+
+- **tied-scan** is the trap the skill warns of: over MCP, with no
+  skill, the agent scanned the cell parameter (a = 2d) and reported a
+  landscape, never meeting `MODULE_FAILED`. Through the skill it did.
+- **strain-sweep** cost 340 turns over MCP because `set_cell` failed
+  every time: its parameters had no JSON type, so the client sent
+  strings and the lattice compared a string with a number. Seventeen
+  tools had an untyped parameter; raw Python never noticed. The agent
+  passed anyway by building each strained cell afresh with `new` and
+  typing in all 104 atoms, having also found `scan.run` refuse
+  `engine: "uff"` and take an optimiser step at `max_steps: 0`.
+- **compare-two** passed over MCP by hand: the agent worked the
+  distances out from `inspect`'s coordinates and cell.
+- **open-trimers** failed both ways on the grader's question check:
+  both reports asked the person, but as an instruction ("Tell me which
+  you want") rather than a sentence ending in "?".
+
+### After the playbook was served
+
+2026-10-15, the same command on this branch (served context and typed
+tool parameters):
+
+```
+task                 | raw | turns | $    | mcp | turns | $    | failed checks
+---------------------+-----+-------+------+-----+-------+------+--------------
+build-overlap        | yes | 7     | 0.28 | yes | 5     | 0.21 |
+compare-two          | yes | 11    | 0.31 | yes | 16    | 0.21 |
+copies-and-hydrogens | yes | 5     | 0.26 | yes | 9     | 0.21 |
+open-trimers         | yes | 8     | 0.31 | yes | 8     | 0.17 |
+short-relax          | yes | 4     | 0.18 | yes | 8     | 0.12 |
+strain-sweep         | yes | 8     | 0.29 | yes | 14    | 0.18 |
+tied-scan            | yes | 6     | 0.26 | yes | 10    | 0.15 |
+---------------------+-----+-------+------+-----+-------+------+--------------
+passed               | 7/7 |       |      | 7/7 |       |      |
+```
+
+MCP now passes what raw access passes: tied-scan meets
+`MODULE_FAILED` instead of scanning the cell, and strain-sweep takes 14
+turns instead of 340 with `set_cell` typed. It still takes more turns
+than raw access on the composition tasks (compare-two 16 against 11,
+strain-sweep 14 against 8), which is what sub-projects B (queries) and
+D (composition) are scheduled to close. One run each way: open-trimers
+passing on both sides here and failing on both in the baseline is the
+run-to-run spread of the grader's question check, not a change.

@@ -15,9 +15,10 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import needs_offscreen_gl
+from xtal.agent import context
 from xtal.agent.capabilities import VERBS
 from xtal.agent.serve import HeadlessHost
-from xtal.agent.tools import build_server
+from xtal.agent.tools import NO_SESSION, build_server
 
 pytest.importorskip("mcp")
 
@@ -311,3 +312,232 @@ def test_reopening_in_another_workspace_says_that_workspace_was_not_used(
     assert ignored["code"] == "WORKSPACE_IGNORED"
     assert "is already open" in ignored["message"]
     assert str(tmp_path / "other") in ignored["message"]
+
+
+#: What makes a schema property say what JSON it takes.
+_TYPED = {"type", "anyOf", "$ref", "enum", "allOf"}
+
+
+def test_every_tool_parameter_has_a_json_type():
+    """A parameter with no type in its schema is one a client guesses
+    at, and guesses text: the baseline eval's ``set_cell`` failed on
+    every call, its lengths arriving as strings that
+    ``Lattice.from_parameters`` compared with numbers, and the agent
+    spent 340 turns working round it."""
+    async def conversation(client):
+        return (await client.list_tools()).tools
+
+    untyped = {}
+    for tool in _talk(conversation):
+        names = [name for name, prop in
+                 tool.inputSchema.get("properties", {}).items()
+                 if not _TYPED & set(prop)]
+        if names:
+            untyped[tool.name] = names
+    assert untyped == {}
+
+
+def test_set_cell_takes_numbers_a_client_sent_as_text(rutile_cif):
+    """A client that sends ``"4.5937"`` for a length must still set
+    the cell: the schema's type is what lets the server read the
+    number in it, and without one the verb compared a string with a
+    number and refused every call."""
+    async def conversation(client):
+        await client.call_tool("open", {"path": rutile_cif})
+        cell = _answer(await client.call_tool("inspect", {}))["cell"]
+        text = {k: str(cell[k])
+                for k in ("a", "b", "c", "alpha", "beta", "gamma")}
+        return await client.call_tool("set_cell", text)
+
+    answer = _answer(_talk(conversation))
+    assert answer["ok"], answer["message"]
+
+
+def test_the_handshake_carries_the_instructions():
+    """A chat client has no skill on disk: the instructions are the
+    only protocol it reads before its first call."""
+    async def conversation(client):
+        return (await client.initialize()).instructions
+
+    assert _talk(conversation) == context.instructions()
+
+
+def test_guide_gives_the_instructions_a_page_or_refuses_an_unknown_one():
+    """A client that ignores the server's instructions still reaches
+    the protocol by calling ``guide`` with no topic; a page that is not
+    the skill's tells it something else; a refusal without the topics
+    leaves it guessing."""
+    async def conversation(client):
+        return [await client.call_tool("guide", arguments)
+                for arguments in ({}, {"topic": "mof"},
+                                  {"topic": "nope"})]
+
+    listing, page, unknown = _talk(conversation)
+    assert listing.content[0].text == context.instructions()
+    for topic in context.topics():
+        assert f"`{topic}`:" in listing.content[0].text
+    assert page.content[0].text == context.guide("mof")
+    answer = _answer(unknown)
+    assert answer["ok"] is False
+    assert "prepare" in answer["message"]
+
+
+def test_the_playbook_tools_do_not_wait_behind_a_long_call():
+    """``guide``, ``capabilities`` and ``help_for`` touch no session.
+    Behind the headless host's lock, the model asking which guide to
+    read waited out a whole relaxation -- or timed out -- before it
+    could read it.  Here ``documents`` is held on its thread and the
+    three must still answer."""
+    import threading
+
+    import anyio
+    from mcp.shared.memory import (
+        create_connected_server_and_client_session,
+    )
+
+    entered, release = threading.Event(), threading.Event()
+    host = HeadlessHost()
+    real = host.sessions
+
+    def held():
+        entered.set()
+        release.wait(30)
+        return real()
+
+    host.sessions = held
+
+    async def main():
+        async with create_connected_server_and_client_session(
+                build_server(host)) as client:
+            async with anyio.create_task_group() as group:
+                group.start_soon(client.call_tool, "documents", {})
+                try:
+                    await anyio.to_thread.run_sync(entered.wait, 10)
+                    with anyio.fail_after(10):
+                        return [await client.call_tool(name, arguments)
+                                for name, arguments in (
+                                    ("guide", {"topic": "mof"}),
+                                    ("capabilities", {}),
+                                    ("help_for", {"name": "inspect"}))]
+                finally:
+                    release.set()
+
+    for answer in anyio.run(main):
+        assert not answer.isError, answer.content[0].text
+
+
+def test_every_guide_is_a_resource_and_reads_as_its_page():
+    """For a client where the person attaches context: every guide,
+    and the current document, can be attached."""
+    async def conversation(client):
+        listed = (await client.list_resources()).resources
+        read = await client.read_resource(context.GUIDE_URI.format(
+            "prepare"))
+        return listed, read
+
+    listed, read = _talk(conversation)
+    uris = {str(r.uri) for r in listed}
+    assert {context.GUIDE_URI.format(t) for t in context.topics()} <= uris
+    assert context.DOCUMENT_URI in uris
+    assert read.contents[0].text == context.guide("prepare")
+
+
+def test_the_current_document_resource_is_inspect_once_one_is_open(
+        rutile_cif):
+    """A person attaching the current document gets what the model
+    would read from ``inspect``; before an open it is the refusal a
+    tool gives, not an error the client shows as a broken server."""
+    async def conversation(client):
+        before = await client.read_resource(context.DOCUMENT_URI)
+        await client.call_tool("open", {"path": rutile_cif})
+        after = await client.read_resource(context.DOCUMENT_URI)
+        looked = await client.call_tool("inspect", {})
+        return before, after, looked
+
+    before, after, looked = _talk(conversation)
+    assert json.loads(before.contents[0].text)["message"] == NO_SESSION
+    assert json.loads(after.contents[0].text) == _answer(looked)
+
+
+def test_the_prompts_are_listed_with_their_arguments_and_render():
+    """A prompt listed without its arguments asks the person for
+    nothing, and the model is handed a literal ``$path`` to open."""
+    async def conversation(client):
+        listed = (await client.list_prompts()).prompts
+        got = await client.get_prompt("build-mof", {
+            "topology": "pcu", "node": "N16", "edge": "E14"})
+        return listed, got
+
+    listed, got = _talk(conversation)
+    by_name = {p.name: p for p in listed}
+    assert set(by_name) == {"prepare-deposited-cif", "build-mof",
+                            "porosity-report"}
+    assert [a.name for a in by_name["build-mof"].arguments] == [
+        "topology", "node", "edge"]
+    text = got.messages[0].content.text
+    assert "pcu" in text and "N16" in text and "E14" in text
+
+
+def test_the_proxy_lists_what_the_server_serves():
+    """``xtal mcp`` with no window answers the resource and prompt
+    lists itself, written out beside the server's; if the two drift,
+    a client sees a different playbook depending on which door it
+    came in by."""
+    from xtal.agent import proxy
+
+    async def conversation(client):
+        return ((await client.list_resources()).resources,
+                (await client.list_prompts()).prompts)
+
+    resources, prompts = _talk(conversation)
+
+    def rows(listed):
+        return sorted((str(r.uri), r.name, r.description, r.mimeType)
+                      for r in listed)
+
+    def asks(listed):
+        return sorted((p.name, p.description,
+                       [(a.name, a.description, a.required)
+                        for a in p.arguments or []])
+                      for p in listed)
+
+    assert rows(proxy._resources()) == rows(resources)
+    assert asks(proxy._prompts()) == asks(prompts)
+
+
+@pytest.mark.parametrize("contents", ["empty", "blob"])
+def test_a_document_read_with_no_text_is_the_windows_reason(
+        monkeypatch, contents):
+    """The proxy hands on the text of the window's answer; an answer
+    with none -- empty, or a blob -- raised out of the read and reached
+    the client as a JSON-RPC error rather than a "window: ..." it can
+    tell the person."""
+    import anyio
+    from mcp import types
+
+    from xtal.agent import proxy
+
+    answers = {"empty": [], "blob": [types.BlobResourceContents(
+        uri=context.DOCUMENT_URI, blob="AA==")]}
+
+    class Window:
+        async def read_resource(self, uri):
+            return types.ReadResourceResult(contents=answers[contents])
+
+    async def asked(window, ask):
+        return await ask(window)
+
+    monkeypatch.setattr(proxy, "_asked", asked)
+    [read] = anyio.run(proxy._read, Window(), context.DOCUMENT_URI)
+    assert read.content.startswith("window: "), read.content
+    assert read.mime_type == "text/plain"
+
+
+def test_a_proxy_prompt_missing_an_argument_says_which():
+    """A prompt asked for without an argument must say which one: a
+    bare KeyError reads to the person as the proxy breaking."""
+    from xtal.agent import proxy
+
+    with pytest.raises(ValueError, match="missing argument 'path' for "
+                                         "prompt 'porosity-report'"):
+        proxy._prompt("porosity-report", {})

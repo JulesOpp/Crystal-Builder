@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from xtal import cli, plugins
-from xtal.agent import skill
+from xtal.agent import context, skill
 from xtal.agent.capabilities import VERBS
 from xtal.agent.diagnostics import CODES
 from xtal.agent.session import Session
@@ -50,14 +50,17 @@ def _parameters(function) -> tuple[set, bool]:
 
 
 def test_the_skill_ships_in_the_package_data():
+    """A page left out of the package data is in the repository and
+    missing from every install: the guide or prompt that reads it
+    fails on a person's machine and never in the suite's checkout."""
     names = {n.as_posix() for n in skill.shipped_files()}
-    assert "SKILL.md" in names
+    assert {"SKILL.md", "mcp.md", "prompts/build-mof.md"} <= names
     assert {f"references/{r}" for r in REFERENCES} <= names
     config = tomllib.loads(Path("pyproject.toml").read_text())
     tool = config["tool"]["setuptools"]
     assert "xtal.agent.skill" in tool["packages"]
     assert tool["package-data"]["xtal.agent.skill"] == [
-        "SKILL.md", "references/*.md"]
+        "SKILL.md", "mcp.md", "references/*.md", "prompts/*.md"]
 
 
 def test_the_skill_has_the_frontmatter_an_assistant_reads():
@@ -161,10 +164,8 @@ def _tool_names_the_skill_mentions() -> set:
     return named
 
 
-def test_every_tool_the_skill_names_is_registered():
-    """A tool the skill names and the server does not list is one the
-    assistant calls and is told does not exist -- and reads that as
-    the window's fault."""
+def _registered_tools() -> set:
+    """The tools the headless server lists, as a client sees them."""
     pytest.importorskip("mcp")
     import anyio
     from mcp.shared.memory import (
@@ -179,10 +180,53 @@ def test_every_tool_the_skill_names_is_registered():
                 build_server(HeadlessHost())) as client:
             return {t.name for t in (await client.list_tools()).tools}
 
+    return anyio.run(listed)
+
+
+def test_every_tool_the_skill_names_is_registered():
+    """A tool the skill names and the server does not list is one the
+    assistant calls and is told does not exist -- and reads that as
+    the window's fault."""
     named = _tool_names_the_skill_mentions()
     assert {"documents", "switch", "open"} <= named, sorted(named)
-    registered = anyio.run(listed)
+    registered = _registered_tools()
     assert named <= registered, sorted(named - registered)
+
+
+#: What the served playbook backticks that is not a tool, a guide or a
+#: ``mof.build`` parameter -- each a name the model meets in an answer,
+#: not one it calls or asks for.
+NOT_CALLED = {
+    "ok",           # the field every answer carries
+    "cap",          # a step ``prepare`` takes only when named
+    "first_atom",   # the column of a site row that bond verbs take
+}
+
+
+def _unaccounted(text: str, registered: set) -> set:
+    """Each backticked lowercase name in ``text`` that is none of a
+    registered tool, a guide topic, a ``mof.build`` parameter or
+    :data:`NOT_CALLED`.  ``s.verb(...)``, ``module.action`` and codes
+    are not lowercase words, so they are not read here."""
+    build = {p.name for p in _actions()["mof.build"].params}
+    known = registered | set(context.topics()) | build | NOT_CALLED
+    return set(re.findall(r"`([a-z_][a-z0-9_]*)`", text)) - known
+
+
+def test_every_name_the_served_playbook_backticks_is_one_it_can_use():
+    """A chat client has only ``mcp.md`` and the prompts: a backticked
+    name there that the server does not register, the guide does not
+    know or the build does not take is one the model calls, asks for
+    or passes, and is refused -- with nothing on disk to correct it.
+    The tool sentences alone did not catch a verb renamed in prose."""
+    served = "\n".join(text for name, text in PAGES.items()
+                       if name == "mcp.md" or name.startswith("prompts/"))
+    registered = _registered_tools()
+    assert not _unaccounted(served, registered), \
+        sorted(_unaccounted(served, registered))
+    # It bites: a misspelt verb, and a guide topic that is not one.
+    assert _unaccounted("`optimise` then `porosities`; `ok`",
+                        registered) == {"optimise", "porosities"}
 
 
 def test_skill_install_writes_to_the_directory_it_was_given(tmp_path):
@@ -214,3 +258,48 @@ def test_skill_install_from_the_command_line(tmp_path, capsys):
     assert "crystal-builder" in capsys.readouterr().out
     assert cli.main(["skill", "path"]) == 0
     assert Path(capsys.readouterr().out.strip()) == ROOT
+
+
+def test_the_mcp_instructions_fit_the_budget_every_client_pays():
+    """Every client puts the instructions in front of the model in
+    every conversation, before the person has said anything."""
+    size = len(context.instructions().encode("utf-8"))
+    assert 0 < size <= context.INSTRUCTIONS_LIMIT
+
+
+def test_every_guide_topic_is_a_reference_page_and_every_page_a_topic():
+    """A topic with no page is a guide the model is promised and
+    refused; a page with no topic is one it never hears of."""
+    assert set(context.topics()) == {Path(r).stem for r in REFERENCES}
+
+
+def test_a_guide_is_its_page_and_no_topic_gives_the_instructions():
+    """A guide that is not the page Claude Code reads tells a chat
+    client something else.  A client that drops the server's
+    instructions reaches the protocol only through ``guide`` with no
+    topic, so that is the instructions, guide list and all.  A refusal
+    that does not list the guides leaves the model guessing names it
+    will be refused again."""
+    assert context.guide("mof") == PAGES["references/mof.md"]
+    listing = context.guide()
+    assert listing == context.instructions()
+    for topic, when in context.topics().items():
+        assert f"`{topic}`: {when}" in listing
+    with pytest.raises(LookupError, match="prepare"):
+        context.guide("nope")
+
+
+def test_each_prompt_names_its_arguments_and_fills_them():
+    """A prompt whose arguments are not the ones its text uses either
+    asks the person for nothing it fills, or hands the model a literal
+    ``$path`` to open."""
+    prompts = {p.name: p for p in context.prompts()}
+    assert set(prompts) == {"prepare-deposited-cif", "build-mof",
+                            "porosity-report"}
+    assert prompts["build-mof"].arguments == ("topology", "node", "edge")
+    assert prompts["porosity-report"].arguments == ("path",)
+    text = prompts["prepare-deposited-cif"].render(path="MIL-88B.cif")
+    assert "MIL-88B.cif" in text and "$" not in text
+    assert all(p.description for p in prompts.values())
+    with pytest.raises(KeyError):
+        prompts["build-mof"].render(topology="pcu")

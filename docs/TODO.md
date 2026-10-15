@@ -228,6 +228,26 @@ their `--json`, and on 2026-10-01 the live link to the window
 
 - **A manual chapter**, *Working with an AI assistant*, once
   `docs/manual/` exists (interface stretch, phase 4).
+- **MCP parity, the rest** (served context and the parity eval
+  shipped: `docs/AI_ASSISTANT.md`'s "Served context and the parity
+  eval"). In this order:
+  - **E: guardrails.** A checkpoint per agent turn, an *Agent changes*
+    strip in the window with one-click revert, and cost estimates up
+    front, with no prompts. This is what makes MCP better than raw access.
+  - **C: jobs.** A long run returns a handle (status, progress, cancel,
+    result), so no answer is lost to one failed health probe.
+  - **B: seeing.** Queries over atoms, bonds and geometry with filters;
+    run folders, logs and result tables; comparing two structures.
+    `compare-two` in the eval measures it.
+  - **D: composition.** `plan` (a batch of verb calls with checkpoints),
+    `scan`/`sweep`, then a sandboxed `run_script`, off unless switched on
+    in Preferences. `strain-sweep` measures the turns it saves.
+    Over MCP the baseline agent found `scan.run` refuse
+    `engine: "uff"` (an empty list of allowed engines) and take an
+    optimiser step at `max_steps: 0`: unverified, to look at here.
+  - **Eval note.** The grader's `report_must_ask` wants a sentence
+    ending in "?": both baseline runs of open-trimers asked as an
+    instruction ("Tell me which you want") and failed it.
 
 **Known limits** of the live link, left open by its reviews:
 
@@ -273,6 +293,11 @@ their `--json`, and on 2026-10-01 the live link to the window
 - `bonding.perceive(rules=...)` reads the stored graph, despite its
   docstring saying an explicit `rules` neither reads nor writes it.
   This predates the branch.
+- `xtal mcp` answers the instructions, the guide resources and the
+  prompts from its own install (the `guide` tool is forwarded). A
+  pip-installed `xtal` proxying to a window of another version may
+  serve text one version off the window's tools. In the bundle both
+  are one build.
 
 ---
 

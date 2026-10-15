@@ -1,0 +1,9 @@
+{
+  "input": "resources/samples/MIL53.cif",
+  "numbers": [
+    {"label": "energy at 0.98 a", "value": 1977.58, "tol": 0.5},
+    {"label": "energy at 1.00 a", "value": 2002.33, "tol": 0.5},
+    {"label": "energy at 1.02 a", "value": 2053.48, "tol": 0.5}
+  ],
+  "log_must_not_contain": ["optimize"]
+}

@@ -22,6 +22,13 @@ server thread with the call on it, never answers.  So the window is
 probed (:func:`xtal.agent.discovery.alive`, a few milliseconds) as a
 call goes out and every :data:`WATCH` seconds while it is out.
 
+**The playbook is the proxy's own.**  The instructions go out at the
+handshake, before any window is reached, and the guide resources and
+prompts are static text from this same install, so they are answered
+here, window or no window.  The current document is the window's: it
+is forwarded, and with no window it says why, as a tool does -- as is
+the ``guide`` tool, forwarded like every tool.
+
 Imports ``mcp`` only when called, like the rest of the agent's MCP
 side.
 """
@@ -30,7 +37,7 @@ from __future__ import annotations
 
 import contextlib
 
-from xtal.agent import discovery
+from xtal.agent import context, discovery
 from xtal.agent.tools import SERVER_NAME
 
 #: The SDK's own: a call may be a long relaxation, so the read waits.
@@ -186,32 +193,45 @@ def _lost(exc: Exception) -> bool:
 
 async def _forward(window: _Window, name: str, arguments: dict):
     """The window's answer, or an error result saying why there is
-    none.  A session that failed is dropped, so the next call finds
-    the window afresh, and a call the window refused unseen (its 404)
-    is made once more at once."""
+    none."""
     from mcp.types import CallToolResult, TextContent
 
+    try:
+        return await _asked(
+            window, lambda session: session.call_tool(name, arguments))
+    except Exception as exc:              # noqa: BLE001 -- answered
+        return CallToolResult(isError=True, content=[
+            TextContent(type="text", text=_reason(exc))])
+
+
+def _reason(exc: Exception) -> str:
+    return f"window: {str(exc) or type(exc).__name__}"
+
+
+async def _asked(window: _Window, ask):
+    """``ask(session)`` of the window, watched; raises why there is no
+    answer.  A session that failed is dropped, so the next request
+    finds the window afresh, and one the window refused unseen (its
+    404) is made once more at once."""
     for again in (True, False):
         session = None
         try:
             session = await window.session()
-            return await _watched(window, session, name, arguments)
-        except Exception as exc:          # noqa: BLE001 -- answered
-            error = exc
+            return await _watched(window, session, ask)
+        except Exception as exc:
             if not _lost(exc):
-                break
+                raise
             window.drop(session)
             if not (again and str(exc) == TERMINATED):
-                break
-    reason = str(error) or type(error).__name__
-    return CallToolResult(isError=True, content=[
-        TextContent(type="text", text=f"window: {reason}")])
+                raise
 
 
-async def _watched(window: _Window, session, name: str, arguments: dict):
-    """``session.call_tool``, given up when the window stops answering
-    a probe -- or the session is dropped under it, which ends the
-    SDK's reading of its answers and would leave it waiting."""
+async def _watched(window: _Window, session, ask):
+    """``ask(session)``, given up when the window stops answering a
+    probe -- or the session is dropped under it, which ends the SDK's
+    reading of its answers and would leave it waiting.  A read needs
+    this as much as a call: the SDK never answers either once the
+    window's stream ends under it."""
     import anyio
 
     outcome = {}
@@ -226,8 +246,7 @@ async def _watched(window: _Window, session, name: str, arguments: dict):
             # Kept rather than raised: out of a task group it would be
             # an exception group, and the client would read that.
             try:
-                outcome["result"] = await session.call_tool(
-                    name, arguments)
+                outcome["result"] = await ask(session)
             except Exception as exc:      # noqa: BLE001 -- raised below
                 outcome["error"] = exc
             group.cancel_scope.cancel()
@@ -241,12 +260,87 @@ async def _watched(window: _Window, session, name: str, arguments: dict):
     return outcome["result"]
 
 
+def _resources():
+    """The guides and the current document, as the window lists them
+    too (:func:`xtal.agent.tools._add_context`)."""
+    from mcp import types
+
+    rows = [types.Resource(uri=context.GUIDE_URI.format(topic),
+                           name=f"guide: {topic}", description=when,
+                           mimeType="text/markdown")
+            for topic, when in context.topics().items()]
+    rows.append(types.Resource(
+        uri=context.DOCUMENT_URI, name="current document",
+        description=context.DOCUMENT_DESCRIPTION,
+        mimeType="application/json"))
+    return rows
+
+
+async def _read(window: _Window, uri: str):
+    """A guide from this install, or the current document from the
+    window, or why there is none."""
+    from mcp.server.lowlevel.helper_types import ReadResourceContents
+
+    if uri != context.DOCUMENT_URI:
+        topic = uri.removeprefix(context.GUIDE_URI.format(""))
+        return [ReadResourceContents(content=context.guide(topic),
+                                     mime_type="text/markdown")]
+    async def text(session):
+        # Taken here, inside the watched call, so an answer with no
+        # text is said as a reason like any other, not raised to the
+        # client as a protocol error.
+        read = await session.read_resource(uri)
+        found = [c.text for c in read.contents if hasattr(c, "text")]
+        if not found:
+            raise ValueError("the window's answer held no text")
+        return found[0]
+
+    try:
+        document = await _asked(window, text)
+    except Exception as exc:              # noqa: BLE001 -- answered
+        # Not the document, so not labelled as its JSON.
+        return [ReadResourceContents(content=_reason(exc),
+                                     mime_type="text/plain")]
+    return [ReadResourceContents(content=document,
+                                 mime_type="application/json")]
+
+
+def _prompts():
+    from mcp import types
+
+    return [types.Prompt(name=p.name, description=p.description,
+                         arguments=[types.PromptArgument(name=a,
+                                                         required=True)
+                                    for a in p.arguments])
+            for p in context.prompts()]
+
+
+def _prompt(name: str, arguments):
+    from mcp import types
+
+    found = {p.name: p for p in context.prompts()}
+    if name not in found:
+        raise ValueError(f"no prompt called {name!r}; the prompts are "
+                         f"{', '.join(found)}")
+    prompt = found[name]
+    try:
+        text = prompt.render(**(arguments or {}))
+    except KeyError as exc:
+        raise ValueError(f"missing argument {exc.args[0]!r} for prompt "
+                         f"{name!r}") from None
+    return types.GetPromptResult(
+        description=prompt.description,
+        messages=[types.PromptMessage(
+            role="user", content=types.TextContent(type="text",
+                                                   text=text))])
+
+
 async def _serve(folder) -> None:
     import anyio
     from mcp.server.lowlevel import Server
     from mcp.server.stdio import stdio_server
 
-    server = Server(SERVER_NAME)
+    server = Server(SERVER_NAME, instructions=context.instructions())
     async with anyio.create_task_group() as group:
         window = _Window(folder, group)
 
@@ -265,6 +359,28 @@ async def _serve(folder) -> None:
         @server.call_tool(validate_input=False)
         async def call_tool(name, arguments):
             return await _forward(window, name, arguments or {})
+
+        @server.list_resources()
+        async def list_resources():
+            return _resources()
+
+        # The window's server answers an empty list; "method not
+        # found" from the proxy reads to a client as a broken server.
+        @server.list_resource_templates()
+        async def list_resource_templates():
+            return []
+
+        @server.read_resource()
+        async def read_resource(uri):
+            return await _read(window, str(uri))
+
+        @server.list_prompts()
+        async def list_prompts():
+            return _prompts()
+
+        @server.get_prompt()
+        async def get_prompt(name, arguments):
+            return _prompt(name, arguments)
 
         async with stdio_server() as (read, write):
             await server.run(
