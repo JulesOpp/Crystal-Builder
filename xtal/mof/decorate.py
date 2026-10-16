@@ -152,7 +152,9 @@ class Decoration:
     def topology(self):
         """The decorated net as a :class:`~xtal.mof.catalog.Topology`,
         held as text, as an RCSR layer is."""
-        return _topology(self.entry())
+        topology = _topology(self.entry())
+        topology._cache["decorated"] = self
+        return topology
 
 
 @dataclass(frozen=True)
@@ -522,8 +524,17 @@ WINDOW_MAX = 8
 SITE_REACH = 30.0
 
 #: How far from a window's donor radius a filler may be and still
-#: build, A: a pyridyl's ring flexes, the dative bond does not.
-WINDOW_TOLERANCE = 0.3
+#: build, A: the cSDA paper's "close match" (SI section 3), and what
+#: sod-st-f6 needed -- hexa(4-pyridyl)benzene built 0.4 A over the
+#: estimate with every Cr-N within 0.1 A of 2.10.
+WINDOW_TOLERANCE = 0.5
+
+#: And the trial's own error, as a share of the window's radius: its
+#: cells came within 0.6 % (BTC) and 2.9 % (TATB) of the In-sod-ZMOFs'
+#: and a window grows with its cell, so TPyP (7.77 A), which
+#: In-sod-ZMOF-320 has in every 4-ring, sat 1.0 A over what the trial
+#: asked on TATB.
+WINDOW_SLACK = 0.05
 
 
 @dataclass(frozen=True)
@@ -608,7 +619,7 @@ def windows(decorated: Decoration,
                             tuple(float(v) for v in centre)))
 
     ops = space_group_operations(decorated.group)
-    lattice = _lattice(decorated)
+    placed = on_net(decorated)
     kinds = []
     for size in sorted({w.size for w in found}):
         same = [w for w in found if w.size == size]
@@ -617,7 +628,7 @@ def windows(decorated: Decoration,
         orbit = _orbit_of(centres, reps, ops)
         for n, r in enumerate(reps):
             window = same[r]
-            radius, pucker, inward = _shape(decorated, window, lattice)
+            radius, pucker, inward = _shape(decorated, window, placed)
             members = tuple(w for w, o in zip(same, orbit, strict=True)
                             if o == n)
             kinds.append(WindowKind(window, len(members), radius,
@@ -646,17 +657,24 @@ def _orbit_of(points, reps, ops) -> list[int]:
     return owner
 
 
-def _sites(decorated, window, lattice):
+def _sites(decorated, window, placed):
     """Each trimer's centre and the unit direction its open site
     takes towards the window -- the centre's direction, laid into the
-    plane across the trimer's edge -- and how far it had to turn."""
-    centre = np.asarray(window.centre) @ lattice
+    trimer's own plane, which stands across the line between the two
+    supertetrahedra it joins -- and how far it had to turn."""
+    lattice = placed.lattice
+    parent = decorated.parent_net
+    corners = [(placed.trimers[edge] + np.asarray(shift)) @ lattice
+               for edge, shift in window.trimers]
+    centre = np.mean(corners, axis=0)
     out = []
-    for (edge, shift), (vertex, at) in zip(window.trimers, window.ring,
-                                           strict=True):
-        here = (decorated.trimers[edge] + np.asarray(shift)) @ lattice
-        tail = (decorated.parent_frac[vertex] + np.asarray(at)) @ lattice
-        axis = here - tail
+    for (edge, shift), here in zip(window.trimers, corners, strict=True):
+        link = parent.edges[edge]
+        shift = np.asarray(shift)
+        tail = (placed.centres[link.i] + shift) @ lattice
+        head = (placed.centres[link.j] + np.asarray(link.image)
+                + shift) @ lattice
+        axis = head - tail
         axis /= np.linalg.norm(axis)
         towards = centre - here
         flat = towards - (towards @ axis) * axis
@@ -666,8 +684,8 @@ def _sites(decorated, window, lattice):
     return out
 
 
-def _shape(decorated, window, lattice) -> tuple[float, float, int]:
-    sites = _sites(decorated, window, lattice)
+def _shape(decorated, window, placed) -> tuple[float, float, int]:
+    sites = _sites(decorated, window, placed)
     points = np.array([here for here, _, _ in sites])
     middle = points.mean(axis=0)
     radius = float(np.mean(np.linalg.norm(points - middle, axis=1)))
@@ -678,8 +696,53 @@ def _shape(decorated, window, lattice) -> tuple[float, float, int]:
 
 
 # ----------------------------------------------------------------------
-#  What a window asks of its filler
+#  Where the trimers are, in A
 # ----------------------------------------------------------------------
+
+@dataclass(frozen=True, eq=False)
+class Placed:
+    """Where a decorated net's trimers and supertetrahedra are.
+
+    ``lattice`` in A; ``trimers`` (one per parent edge) and
+    ``centres`` (one per parent vertex: the supertetrahedron's middle)
+    fractional and unwrapped as the decoration has them.
+    """
+
+    lattice: np.ndarray
+    trimers: np.ndarray
+    centres: np.ndarray
+    #: Where it came from: ``"net"``, ``"estimate"`` or ``"trial"``.
+    source: str = "net"
+
+    def tot(self, decorated) -> np.ndarray:
+        """The T-O-T angle at every trimer, degrees: supertetrahedron
+        centre, trimer, supertetrahedron centre -- Si-O-Si, as the
+        cSDA paper measures it (Nat. Synth. 3, 33, SI section 15).
+        180 by construction on the decorated net; regular
+        supertetrahedra cannot keep it on sod, whose silica analogue
+        stops near 160."""
+        out = []
+        for k, link in enumerate(decorated.parent_net.edges):
+            here = self.trimers[k] @ self.lattice
+            tail = self.centres[link.i] @ self.lattice - here
+            head = (self.centres[link.j] + np.asarray(link.image)) \
+                @ self.lattice - here
+            cos = tail @ head / np.linalg.norm(tail) / np.linalg.norm(head)
+            out.append(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))))
+        return np.array(out)
+
+
+def on_net(decorated: Decoration) -> Placed:
+    """The decorated net as written, in its own units."""
+    return Placed(_lattice(decorated), decorated.trimers,
+                  decorated.parent_frac, "net")
+
+
+def estimate(decorated: Decoration, node, face) -> Placed:
+    """The net, scaled to these blocks by :func:`scale`."""
+    return Placed(_lattice(decorated) * scale(decorated, node, face),
+                  decorated.trimers, decorated.parent_frac, "estimate")
+
 
 def scale(decorated: Decoration, node, face) -> float:
     """A of framework per unit of the decorated net, for this trimer
@@ -688,8 +751,9 @@ def scale(decorated: Decoration, node, face) -> float:
     A trimer and a face are joined node to node, so their centres
     are the trimer's reach (oxide to carboxylate point) plus the
     face's (centre to point) apart; the net's trimer-to-face edges,
-    averaged, are that length.  The scaler moves the nodes after, so
-    this is the instant answer, which a build confirms.
+    averaged, are that length.  It is 5-9 % out either way (sod
+    builds larger, lta smaller), which is why a filler is judged on a
+    :func:`trial` instead.
     """
     lattice = _lattice(decorated)
     lengths = []
@@ -701,41 +765,77 @@ def scale(decorated: Decoration, node, face) -> float:
     return (node.reach + face_reach(face)) / float(np.mean(lengths))
 
 
-def trial_scale(decorated: Decoration, node_block, face_block,
-                log=None) -> float:
-    """A of framework per unit of the decorated net, as PORMAKE
-    builds it: one pass of its builder with the trimer and the face
-    and nothing in the windows, the cell's growth read off.
+def trial(net, blocks, log=None) -> Placed:
+    """Where PORMAKE puts the trimers: one pass of its builder over
+    ``net`` (a :class:`Decoration` or a :class:`Filled`) with
+    ``blocks`` (node slot -> catalogue block), its scaled net read
+    back onto the decoration's trimers by position.
 
-    What :func:`scale` estimates and cannot know: the scaler trades
-    the blocks' angles against the net's, and on lta (trimer-to-face
-    edges 20 % apart) that comes out 9 % smaller than the estimate,
-    on sod 5 % larger.  A window filler is judged against this.
-    Seconds, not the build's minute: nothing is identified.
+    What :func:`estimate` cannot know: the scaler trades the blocks'
+    angles against the net's, bends T-O-T, and makes the
+    supertetrahedra regular where the net drew them otherwise.
+    Seconds: nothing is identified.  sod-st on an In trimer builds at
+    33.9 A with BTC and 55.7 A with TATB, against In-sod-ZMOF-102's
+    33.75 and -320's 57.31.
     """
     from xtal.mof.build import _Logging, import_pormake
 
-    key = (decorated.name, str(node_block.path), str(face_block.path))
+    key = (net.name, tuple(sorted((k, str(b.path))
+                                  for k, b in blocks.items())))
     if key in _TRIALS:
         return _TRIALS[key]
     pormake = import_pormake()
-    topology = decorated.topology()
-    nodes = {}
-    for slot in topology.slots():
-        if not slot.is_edge:
-            block = node_block if slot.coordination == 6 else face_block
-            nodes[slot.key] = pormake.BuildingBlock(str(block.path))
+    topology = net.topology()
+    before = topology.expanded()
+    nodes = {int(k): pormake.BuildingBlock(str(b.path))
+             for k, b in blocks.items()}
     with _Logging(log):
         framework = pormake.Builder().build_by_type(
-            topology=topology.expanded(), node_bbs=nodes)
-    built = abs(np.linalg.det(np.asarray(framework.atoms.cell)))
-    net = abs(np.linalg.det(_lattice(decorated)))
-    _TRIALS[key] = float((built / net) ** (1.0 / 3.0))
+            topology=before, node_bbs=nodes)
+    _TRIALS[key] = placed_from(net, before, framework.info["topology"])
     return _TRIALS[key]
 
 
-#: Trial scales already run, by net and blocks.
+def placed_from(net, before, after) -> Placed:
+    """The trimers where PORMAKE's scaler left them: ``before`` is the
+    net as read, ``after`` the scaled copy a build hands back, slot for
+    slot, and each trimer is found among the slots by where the file
+    put it.  The scaler moves a node a few hundredths of the cell, so
+    the match is made on ``before``."""
+    start = before.atoms.get_scaled_positions()
+    moved = after.atoms.get_scaled_positions() - start
+    moved -= np.round(moved)
+    decorated = getattr(net, "decoration", net)
+    trimers = decorated.trimers.copy()
+    home = np.mod(trimers, 1.0)
+    for slot in before.node_indices:
+        delta = home - np.mod(start[slot], 1.0)
+        delta -= np.round(delta)
+        match = np.flatnonzero((np.abs(delta) < 1e-3).all(axis=1))
+        if len(match):
+            trimers[match[0]] = decorated.trimers[match[0]] + moved[slot]
+    return Placed(np.asarray(after.atoms.cell), trimers,
+                  _centres(decorated, trimers), "trial")
+
+
+#: Trials already run, by net and blocks.
 _TRIALS: dict = {}
+
+
+def _centres(decorated: Decoration, trimers) -> np.ndarray:
+    """Each supertetrahedron's middle: the mean of its four trimers,
+    each brought beside it."""
+    _, incident = _midpoints(decorated.parent_net, decorated.parent_frac)
+    return np.array([np.mean([trimers[k] + np.asarray(s)
+                              for k, s in edges], axis=0)
+                     for edges in incident])
+
+
+def plain_blocks(topology, trimer, face) -> dict:
+    """Node slot -> block for a decorated net: the trimer on every
+    6-c slot, the face on every 3-c one."""
+    return {slot.key: (trimer if slot.coordination == 6 else face)
+            for slot in topology.slots() if not slot.is_edge}
 
 
 def face_reach(block) -> float:
@@ -746,31 +846,32 @@ def face_reach(block) -> float:
     return float(np.mean(np.linalg.norm(points - middle, axis=1)))
 
 
-def donors(decorated, kind: WindowKind, node, face,
-           every: int = 1, at_scale: float | None = None) -> np.ndarray:
+def donors(decorated, kind: WindowKind, node, placed: Placed,
+           every: int = 1) -> np.ndarray:
     """Where a filler's donor nitrogens go round one window, A: each
     taken trimer's open-site line, the trimer's radius and the dative
     bond out from its centre.  ``every`` takes every so-many-th site,
     as a ditopic dps takes two of a pacs channel's three."""
     from xtal.mof.attach import DATIVE_MN
 
-    factor = at_scale or scale(decorated, node, face)
-    lattice = _lattice(decorated) * factor
     out = node.radius + DATIVE_MN[node.metal]
     return np.array([here + out * site
                      for here, site, _ in _sites(decorated, kind.window,
-                                                 lattice)][::every])
+                                                 placed)][::every])
 
 
-def requirement(decorated, kind: WindowKind, node, face,
-                every: int = 1, at_scale: float | None = None):
+def requirement(decorated, kind: WindowKind, node, placed: Placed,
+                every: int = 1):
     """What fills one kind of window: a pyridyl with one donor on
     each taken site, as a :class:`xtal.mof.linkers.Requirement`.
 
     Its donor radius is the nitrogens' distance from their centroid,
     the number :func:`xtal.mof.linkers.profile` measures a block by;
     a ditopic filler is a span instead, point to point, the points
-    0.75 A in from each nitrogen towards its metal.
+    0.75 A in from each nitrogen towards its metal.  This is the cSDA
+    paper's L_T and L_E (SI section 3) on any window of any net, and
+    on sod it is their closed forms to within the tolerance, which is
+    theirs too.
     """
     from xtal.mof.block import CONNECTION_DISTANCE
     from xtal.mof.linkers import Requirement, within
@@ -779,10 +880,14 @@ def requirement(decorated, kind: WindowKind, node, face,
         raise DecorationError(
             f"a {kind.label()} has {kind.size} sites, which taking "
             f"every {every} does not divide")
-    at = donors(decorated, kind, node, face, every, at_scale)
+    at = donors(decorated, kind, node, placed, every)
     topicity = len(at)
     why = (f"{kind.label()} of {decorated.name} on {node.name}"
            + (f", every {every}" if every > 1 else ""))
+    if topicity < 2:
+        raise DecorationError(
+            f"taking every {every} of a {kind.label()}'s sites leaves "
+            f"{topicity}, and a filler bridges at least two")
     if topicity == 2:
         inward = at.mean(axis=0) - at
         inward /= np.linalg.norm(inward, axis=1)[:, None]
@@ -791,27 +896,24 @@ def requirement(decorated, kind: WindowKind, node, face,
     else:
         middle = at.mean(axis=0)
         value = float(np.mean(np.linalg.norm(at - middle, axis=1)))
-    if topicity < 2:
-        raise DecorationError(
-            f"taking every {every} of a {kind.label()}'s sites leaves "
-            f"{topicity}, and a filler bridges at least two")
-    return Requirement(topicity, value,
-                       *within(value, WINDOW_TOLERANCE),
+    radius = _shape(decorated, kind.window, placed)[0]
+    slack = WINDOW_TOLERANCE + WINDOW_SLACK * radius
+    return Requirement(topicity, value, *within(value, slack),
                        donor="pyridyl", why=why)
 
 
-def sentence(decorated, kind: WindowKind, node, face,
-             every: int = 1, at_scale: float | None = None) -> str:
+def sentence(decorated, kind: WindowKind, node, placed: Placed,
+             every: int = 1) -> str:
     """The line a person reads: the window, then what fills it.
 
-    "4-ring, 4 sites, radius 7.9 A: a 4-connected pyridyl linker with
-    a donor radius of 5.80 A (5.50-6.10)"."""
-    wanted = requirement(decorated, kind, node, face, every, at_scale)
-    across = kind.radius * (at_scale or scale(decorated, node, face))
-    shape = (f"{kind.label()}, {kind.size} sites ({kind.inward} "
-             f"facing in), radius {across:.1f} A")
-    if kind.pucker > 0.05:
-        shape += f", puckered {kind.pucker:.2f}"
+    "4-ring, 4 sites (4 facing in), radius 7.9 A: a 4-connected
+    pyridyl linker with a donor radius of 5.80 A (5.30-6.30)"."""
+    wanted = requirement(decorated, kind, node, placed, every)
+    across, pucker, inward = _shape(decorated, kind.window, placed)
+    shape = (f"{kind.label()}, {kind.size} sites ({inward} facing "
+             f"in), radius {across:.1f} A")
+    if pucker > 0.05:
+        shape += f", puckered {pucker:.2f}"
     return f"{shape}: {wanted.sentence()}"
 
 
@@ -877,6 +979,7 @@ class Filled:
     def topology(self):
         topology = _topology(self.entry())
         topology._cache["filled"] = self
+        topology._cache["decorated"] = self
         return topology
 
     def filler_slots(self) -> dict[int, Fill]:
@@ -1111,17 +1214,18 @@ def _refuse_misfits(made: Filled, nodes, catalog) -> None:
         face_block = catalog.building_block(face)
     except (CatalogError, TrimerError) as exc:
         raise MofError(f"{made.name}: {exc}") from None
-    trial = None
+    placed = None
     for slot, one in made.filler_slots().items():
         name = nodes.get(slot)
         if not name:
             continue
-        if trial is None:
-            trial = trial_scale(made.decoration,
-                                catalog.building_block(trimer),
-                                face_block)
-        wanted = requirement(made.decoration, one.kind, node,
-                             face_block, one.every, trial)
+        if placed is None:
+            decorated = made.decoration
+            placed = trial(decorated, plain_blocks(
+                decorated.topology(), catalog.building_block(trimer),
+                face_block))
+        wanted = requirement(made.decoration, one.kind, node, placed,
+                             one.every)
         offered = _candidate(name, catalog, linkers)
         if offered is None:
             continue
@@ -1144,3 +1248,57 @@ def _candidate(name, catalog, linkers):
         pass
     found = [c for c in linkers.stored() if c.name == name]
     return found[0] if found else None
+
+
+#: How far a built metal-nitrogen bond may be from the dative length
+#: before the build says so, A.  Rigid blocks leave pacs 0.1-0.2 A
+#: short; TPyP in TATB's 4-rings, which the window admits and
+#: In-sod-ZMOF-320 is made of, built In-N at 1.41-1.86 against 2.25,
+#: and it is relaxing that closes them.
+DATIVE_SLACK = 0.3
+
+
+@dataclass(frozen=True)
+class Said:
+    """What a build on a decorated net reports about itself."""
+
+    lines: tuple[str, ...]
+    warning: str = ""
+
+
+def report(topology, framework, structure) -> Said | None:
+    """T-O-T as built and the filler's metal-nitrogen bonds, for a
+    build on a decorated net: read off the scaled net the build itself
+    left, so it costs nothing.  ``None`` for any other net, and for a
+    repeated cell, whose slots are not the file's."""
+    from xtal.mof.attach import DATIVE_MN
+    from xtal.mof.partition import measured_dative
+
+    net = topology._cache.get("decorated")
+    scaled = framework.info.get("topology")
+    if net is None or scaled is None:
+        return None
+    before = topology.expanded()
+    if before.n_slots != scaled.n_slots:
+        return None
+    decorated = getattr(net, "decoration", net)
+    tot = placed_from(net, before, scaled).tot(decorated)
+    lines = [f"T-O-T as built {tot.min():.1f}-{tot.max():.1f} degrees "
+             f"(180 on the net as drawn)"]
+    warning = ""
+    bonds = measured_dative(structure)
+    metals = {s for s in structure.elements if s in DATIVE_MN}
+    if bonds and len(metals) == 1:
+        metal = metals.pop()
+        target = DATIVE_MN[metal]
+        lines.append(f"{len(bonds)} {metal}-N bonds as built, "
+                     f"{min(bonds):.2f}-{max(bonds):.2f} A against "
+                     f"{target:.2f}")
+        worst = max(bonds, key=lambda b: abs(b - target))
+        if abs(worst - target) > DATIVE_SLACK:
+            warning = (f"the fillers sit {abs(worst - target):.2f} A "
+                       f"off the dative length ({metal}-N {worst:.2f} "
+                       f"against {target:.2f}): the blocks were placed "
+                       f"rigid, so relax before reading the cell or the "
+                       f"bonds")
+    return Said(tuple(lines), warning)

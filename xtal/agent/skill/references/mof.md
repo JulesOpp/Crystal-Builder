@@ -98,10 +98,11 @@ from xtal.mof import decorate, linkers
 from xtal.mof.partition import node_geometry
 sod = decorate.decoration("sod")
 trimer, face = catalog.building_block("N536"), catalog.building_block("N19")
-scale = decorate.trial_scale(sod, trimer, face)   # one PORMAKE pass
+placed = decorate.trial(sod, decorate.plain_blocks(       # one PORMAKE
+    sod.topology(), trimer, face))                        # pass, seconds
+print(placed.tot(sod))                                    # T-O-T, degrees
 for kind in decorate.windows(sod):
-    need = decorate.requirement(sod, kind, node_geometry(trimer), face,
-                                at_scale=scale)
+    need = decorate.requirement(sod, kind, node_geometry(trimer), placed)
     print(kind.label(), need.sentence(), linkers.suggest(need, catalog))
 ```
 

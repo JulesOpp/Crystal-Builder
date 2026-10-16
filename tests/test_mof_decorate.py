@@ -160,11 +160,6 @@ def _blocks():
             catalog.building_block("N19"))
 
 
-#: What one PORMAKE pass builds sod-st at with N536 and N19, A a unit
-#: (``trial_scale``): fixed here so the window tests need no build.
-SOD_TRIAL = 9.06
-
-
 def test_sod_has_four_and_six_ring_windows_with_their_site_polygons():
     """Six 4-rings and eight 6-rings a cell -- a truncated
     octahedron's faces -- each flat, with every trimer round it able
@@ -177,8 +172,7 @@ def test_sod_has_four_and_six_ring_windows_with_their_site_polygons():
     assert kinds[1].radius > kinds[0].radius
 
 
-@pytest.mark.skipif(database_root() is None,
-                    reason="the vendored PORMAKE database is missing")
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
 def test_a_window_asks_for_a_pyridyl_with_a_donor_on_every_site():
     """sod's 6-ring on a Cr trimer asks for a hexatopic pyridyl, and
     hexa(4-pyridyl)benzene from the series is what answers -- the one
@@ -187,15 +181,57 @@ def test_a_window_asks_for_a_pyridyl_with_a_donor_on_every_site():
 
     catalog, node, face = _blocks()
     decorated = decorate.decoration("sod")
+    placed = decorate.trial(decorated, decorate.plain_blocks(
+        decorated.topology(), catalog.building_block("N536"), face))
     six = decorate.windows(decorated)[1]
-    wanted = decorate.requirement(decorated, six, node, face,
-                                  at_scale=SOD_TRIAL)
+    wanted = decorate.requirement(decorated, six, node, placed)
     assert (wanted.topicity, wanted.donor) == (6, "pyridyl")
     found = [s.candidate.name for s in linkers.suggest(wanted, catalog)]
     assert "H-benzene-0-py" in found
-    said = decorate.sentence(decorated, six, node, face,
-                             at_scale=SOD_TRIAL)
+    said = decorate.sentence(decorated, six, node, placed)
     assert said.startswith("6-ring, 6 sites (6 facing in)")
+
+
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_sod_windows_on_btc_ask_what_the_csda_paper_derives():
+    """The cSDA paper's closed forms for sod on regular
+    supertetrahedra (Nat. Synth. 3, 33, SI section 3), with In's own
+    oxide-to-nitrogen reach for their 4 A: L_T = L_ST / sqrt 2 - C2
+    and L_E = L_ST - C2, L_ST = sqrt 3 (L_A + 2.5).  Held to their own
+    0.5 A on BTC, the In-sod-ZMOF-102 linker."""
+    from xtal.mof.partition import node_geometry
+
+    catalog = Catalog.default()
+    trimer, face = catalog.building_block("N92"), catalog.building_block(
+        "N10")
+    node = node_geometry(trimer)
+    decorated = decorate.decoration("sod")
+    placed = decorate.trial(decorated, decorate.plain_blocks(
+        decorated.topology(), trimer, face))
+    reach = node.radius + node.dative
+    edge = np.sqrt(3) * (decorate.face_reach(face) + 0.75 + 2.5)
+    four, six = decorate.windows(decorated)
+    assert abs(decorate.requirement(decorated, four, node, placed).value
+               - (edge / np.sqrt(2) - reach)) < 0.5
+    assert abs(decorate.requirement(decorated, six, node, placed).value
+               - (edge - reach)) < 0.5
+
+
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_sod_st_builds_at_the_cell_of_the_in_sod_zmof():
+    """In-sod-ZMOF-102 is In3O trimers and BTC on sod, a = 33.748 A
+    (CCDC 2261737); the trial pass, unrelaxed, comes within 1 %.  Its
+    supertetrahedra come out regular, which bends T-O-T to 165 degrees,
+    where sod's silica analogue stops."""
+    catalog = Catalog.default()
+    decorated = decorate.decoration("sod")
+    placed = decorate.trial(decorated, decorate.plain_blocks(
+        decorated.topology(), catalog.building_block("N92"),
+        catalog.building_block("N10")))
+    a = np.linalg.norm(placed.lattice, axis=1)
+    assert np.allclose(a, 33.748, rtol=0.01)
+    assert np.all(abs(placed.tot(decorated) - 165) < 3)
+    assert np.all(decorate.on_net(decorated).tot(decorated) > 179.9)
 
 
 def test_filling_both_sod_windows_makes_every_trimer_nine_connected():
@@ -275,3 +311,63 @@ def test_a_filled_sod_states_its_metal_nitrogen_bonds_at_the_dative_length(
     assert len(bonds) == 6 * 8
     assert max(abs(b - DATIVE_MN["Cr"]) for b in bonds) < 0.15
     assert not outcome.overlaps
+
+
+def _with_tatb(tmp_path):
+    """The catalogue, with TATB written from the series: the tritopic
+    face of In-sod-ZMOF-320."""
+    from xtal.build import chem
+    from xtal.mof import linkers
+
+    if not chem.installed():
+        pytest.skip("embedding TATB needs the 'build' extra (RDKit)")
+    tatb = next(c for c in linkers.stored()
+                if c.name == "T-triazine-P-ar")
+    linkers.write_block(tatb, tmp_path / "blocks")
+    base = Catalog.default()
+    return Catalog(base.topology_dirs, base.bb_dirs + (tmp_path / "blocks",))
+
+
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_the_porphyrin_of_in_sod_zmof_320_is_what_its_four_ring_asks_for(
+        tmp_path):
+    """In-sod-ZMOF-320 is In3O, TATB and TPyP in every 4-ring
+    (CCDC 2261744): the window on an In trimer and TATB suggests the
+    porphyrin, and nothing a third of its size."""
+    from xtal.mof import linkers
+    from xtal.mof.partition import node_geometry
+
+    catalog = _with_tatb(tmp_path)
+    trimer = catalog.building_block("N92")
+    decorated = decorate.decoration("sod")
+    placed = decorate.trial(decorated, decorate.plain_blocks(
+        decorated.topology(), trimer,
+        catalog.building_block("T-triazine-P-ar")))
+    four = decorate.windows(decorated)[0]
+    wanted = decorate.requirement(decorated, four, node_geometry(trimer),
+                                  placed)
+    found = {s.candidate.name for s in linkers.suggest(wanted, catalog)}
+    assert "Q-porphyrin-0-py" in found
+    assert "Q-ethylene-0-py" not in found
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_tpyp_in_the_four_rings_opens_tot_and_says_to_relax(tmp_path):
+    """Measured, not assumed: TPyP widens sod's 4-ring, so T-O-T opens
+    from 165 to 172 degrees and the cell comes within 1 % of
+    In-sod-ZMOF-320's 57.31 A.  Its rigid placement leaves In-N 0.8 A
+    short, and the build says to relax rather than calling it done."""
+    from xtal.mof.build import BuildRequest, build
+
+    catalog = _with_tatb(tmp_path)
+    outcome = build(BuildRequest.parse(
+        "sod-st-f4", "0=N92,1=T-triazine-P-ar,2=Q-porphyrin-0-py", ""),
+        tmp_path, catalog)
+    assert outcome.net_agrees
+    a = np.linalg.norm(outcome.structure.lattice.matrix, axis=1)
+    assert np.allclose(a, 57.312, rtol=0.015)
+    said = outcome.decoration
+    assert "T-O-T as built 17" in said.lines[0]
+    assert "relax" in said.warning
+    assert said.warning in outcome.structure.meta["warnings"]

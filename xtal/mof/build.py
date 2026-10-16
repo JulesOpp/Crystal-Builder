@@ -441,6 +441,9 @@ class BuildOutcome:
     #: The partitioner's predicted fit (:class:`xtal.mof.partition.Fit`)
     #: when the build partitioned an acs framework, else ``None``.
     partition: object = None
+    #: What a build on a decorated net said about its T-O-T and its
+    #: dative bonds (:func:`xtal.mof.decorate.report`), else ``None``.
+    decoration: object = None
     #: The asked net's own reading, for a net made from another
     #: (``sod-st``): most have no RCSR name, so what the build is held
     #: to is this, by invariants.  ``None`` for a net of a file.
@@ -626,6 +629,17 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     state_bonds(structure, framework)
     outcome.closest = closest_contact(structure)
     outcome.overlaps = overlaps(structure, framework)
+    if decorate.parse(request.topology):
+        # After the bonds are stated: the dative ones are read off them.
+        outcome.decoration = decorate.report(topology, framework,
+                                             structure)
+    if outcome.decoration is not None:
+        for line in outcome.decoration.lines:
+            _say(log, line)
+        if outcome.decoration.warning:
+            _say(log, outcome.decoration.warning)
+            structure.meta.setdefault("warnings", []).append(
+                outcome.decoration.warning)
     _say(log, f"bonded {outcome.joints} joint(s) between blocks")
     if outcome.overlaps:
         _say(log, outcome.warning())

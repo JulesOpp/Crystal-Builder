@@ -180,12 +180,17 @@ _TRIGONAL = {
 
 #: Four-connected cores: what fills a supertetrahedral net's 4-ring
 #: window (:mod:`xtal.mof.decorate`).  The ethylene is
-#: tetra(4-pyridyl)ethylene's, the benzene 1,2,4,5's, and the methane
+#: tetra(4-pyridyl)ethylene's, the benzene 1,2,4,5's, the methane
 #: the one tetrahedral core, for a puckered window.
 _TETRAGONAL = {
     "ethylene": "C({R})({R})=C({R}){R}",
     "benzene": "c1c({R})c({R})cc({R})c1{R}",
     "methane": "C({R})({R})({R}){R}",
+    # meso-substituted porphyrin: TPyP with pyridyl arms, the
+    # tightening agent of In-sod-ZMOF-320.  Ring closures past 9 so an
+    # arm's own (1 to 3) cannot close the macrocycle's.
+    "porphyrin": ("c%10cc%11nc%10c({R})c%10ccc([nH]%10)c({R})"
+                  "c%10ccc(n%10)c({R})c%10ccc([nH]%10)c%11{R}"),
 }
 
 #: Six-connected: a 6-ring window's filler.

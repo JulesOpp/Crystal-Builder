@@ -784,6 +784,70 @@
   "smiles": "C(C#Cc2ccc(cc2)c3cc[n+](*)cc3)(C#Cc2ccc(cc2)c3cc[n+](*)cc3)(C#Cc2ccc(cc2)c3cc[n+](*)cc3)C#Cc2ccc(cc2)c3cc[n+](*)cc3"
  },
  {
+  "name": "Q-porphyrin-0-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 7.772,
+  "formula": "C40H26N8",
+  "smiles": "c%10cc%11nc%10c(c3cc[n+](*)cc3)c%10ccc([nH]%10)c(c3cc[n+](*)cc3)c%10ccc(n%10)c(c3cc[n+](*)cc3)c%10ccc([nH]%10)c%11c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-porphyrin-P-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 7.835,
+  "formula": "C44H26N4",
+  "smiles": "c%10cc%11nc%10c(c2ccc(cc2)*)c%10ccc([nH]%10)c(c2ccc(cc2)*)c%10ccc(n%10)c(c2ccc(cc2)*)c%10ccc([nH]%10)c%11c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-porphyrin-P-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 11.983,
+  "formula": "C64H42N8",
+  "smiles": "c%10cc%11nc%10c(c2ccc(cc2)c3cc[n+](*)cc3)c%10ccc([nH]%10)c(c2ccc(cc2)c3cc[n+](*)cc3)c%10ccc(n%10)c(c2ccc(cc2)c3cc[n+](*)cc3)c%10ccc([nH]%10)c%11c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-porphyrin-E-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 8.236,
+  "formula": "C48H26N8",
+  "smiles": "c%10cc%11nc%10c(C#Cc3cc[n+](*)cc3)c%10ccc([nH]%10)c(C#Cc3cc[n+](*)cc3)c%10ccc(n%10)c(C#Cc3cc[n+](*)cc3)c%10ccc([nH]%10)c%11C#Cc3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-porphyrin-PP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 12.093,
+  "formula": "C68H42N4",
+  "smiles": "c%10cc%11nc%10c(c2ccc(cc2)c2ccc(cc2)*)c%10ccc([nH]%10)c(c2ccc(cc2)c2ccc(cc2)*)c%10ccc(n%10)c(c2ccc(cc2)c2ccc(cc2)*)c%10ccc([nH]%10)c%11c2ccc(cc2)c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-porphyrin-PP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 16.145,
+  "formula": "C88H58N8",
+  "smiles": "c%10cc%11nc%10c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c%10ccc([nH]%10)c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c%10ccc(n%10)c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c%10ccc([nH]%10)c%11c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-porphyrin-EP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 10.423,
+  "formula": "C52H26N4",
+  "smiles": "c%10cc%11nc%10c(C#Cc2ccc(cc2)*)c%10ccc([nH]%10)c(C#Cc2ccc(cc2)*)c%10ccc(n%10)c(C#Cc2ccc(cc2)*)c%10ccc([nH]%10)c%11C#Cc2ccc(cc2)*"
+ },
+ {
+  "name": "Q-porphyrin-EP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 14.234,
+  "formula": "C72H42N8",
+  "smiles": "c%10cc%11nc%10c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c%10ccc([nH]%10)c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c%10ccc(n%10)c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c%10ccc([nH]%10)c%11C#Cc2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
   "name": "H-benzene-0-py",
   "topicity": 6,
   "donor": "pyridyl",
