@@ -283,29 +283,23 @@ def _bucket(fit: Fit) -> float:
     return math.floor(fit.strain / PHI_TIE) if fit.ok else math.inf
 
 
-@dataclass(frozen=True)
-class SpanRequirement:
-    """What a linker must span: ``span`` within ``tolerance``, A."""
-
-    span: float
-    low: float
-    high: float
-
-    def sentence(self) -> str:
-        return (f"a linker spanning {self.span:.2f} A between its "
-                f"connection points ({self.low:.2f}-{self.high:.2f})")
+#: How near a target pocket height a linker must come, as a span, A.
+#: About the spread a rigid-block build leaves in the cell itself.
+POCKET_TOLERANCE = 0.3
 
 
 def linker_requirement(node: Node, p: Partitioner, *,
-                       pocket: float | None = None) -> SpanRequirement:
-    """The reverse: the linker a chosen partitioner asks for.
+                       pocket: float | None = None):
+    """The reverse: the linker a chosen partitioner asks for, as a
+    :class:`xtal.mof.linkers.Requirement` on its span.
 
-    With no ``pocket`` the span puts the linker at :data:`PHI_IDEAL`;
-    with one, the span that makes the partitioner layers ``pocket``
-    apart (c/2).  ``low`` and ``high`` are the spans that put it at
-    either end of :data:`PHI_WINDOW` -- or, for a pocket, the same
-    span, since a pocket height is a target and not a range.
+    With no ``pocket`` the span puts the linker at :data:`PHI_IDEAL`,
+    and the range is the spans that put it at either end of
+    :data:`PHI_WINDOW`; with one, the span that makes the partitioner
+    layers ``pocket`` apart (c/2), to :data:`POCKET_TOLERANCE`.
     """
+    from xtal.mof.linkers import Requirement, within
+
     off_axis = cell_a(node, p.radius) / math.sqrt(3.0)
 
     def span_at(phi):
@@ -313,10 +307,37 @@ def linker_requirement(node: Node, p: Partitioner, *,
 
     if pocket is not None:
         exact = math.hypot(off_axis, pocket) - 2.0 * node.reach
-        return SpanRequirement(exact, exact, exact)
+        return Requirement(2, exact, *within(exact, POCKET_TOLERANCE),
+                           donor="aryl",
+                           why=f"{p.name} with layers {pocket:.1f} A "
+                               f"apart")
     low, high = PHI_WINDOW
-    return SpanRequirement(span_at(PHI_IDEAL), span_at(low),
-                           span_at(high))
+    return Requirement(2, span_at(PHI_IDEAL), span_at(low),
+                       span_at(high), donor="aryl",
+                       why=f"{p.name} on {node.name}")
+
+
+def partitioner_requirement(node: Node, span: float):
+    """The other reverse: the partitioner a chosen linker asks for, as
+    a requirement on a tritopic pyridyl's donor radius.
+
+    The linker fixes the trimer-to-trimer length; the elevation then
+    fixes how far off the axis the trimers sit, and what is left of
+    that after the dative bond and the trimer is the donor radius.
+    """
+    from xtal.mof.linkers import Requirement
+
+    length = 2.0 * node.reach + span
+
+    def radius_at(phi):
+        return (length * math.cos(math.radians(phi)) - node.dative
+                - node.radius)
+
+    low, high = PHI_WINDOW
+    return Requirement(3, radius_at(PHI_IDEAL), radius_at(high),
+                       radius_at(low), donor="pyridyl",
+                       why=f"a linker spanning {span:.2f} A on "
+                           f"{node.name}")
 
 
 def rank_linkers(node: Node, p: Partitioner, linkers) -> list[Fit]:

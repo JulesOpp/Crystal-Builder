@@ -142,6 +142,8 @@ PACKAGE_DATA = {
     # read from `xtal/analysis/data` above by
     # `xtal.mof.catalog.rcsr_layers`.
     "xtal/mof/library": ["blocks/*.xyz", "topologies/*.cgd"],
+    # The linker series as measured: what Suggest linkers reads.
+    "xtal/mof": ["data/*.json"],
     # The AI assistant skill, which Help > Set up an AI assistant
     # copies out of the bundle: without it the entry has nothing to
     # install.

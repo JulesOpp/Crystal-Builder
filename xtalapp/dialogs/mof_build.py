@@ -534,7 +534,25 @@ class MofBuildDialog(QDialog):
             node, linker)
 
     def _use_linker(self, name: str) -> None:
-        """A suggested linker was clicked: put it on the edge row."""
+        """A suggested linker was clicked: put it on the edge row.
+
+        A generated one is not a block yet, so it is built and written
+        where a drawn block would be, and every row reread -- the same
+        path as :meth:`_on_block_drawn`.
+        """
+        from xtal.mof import linkers
+
+        try:
+            self.catalog.building_block(name)
+        except Exception:                           # noqa: BLE001
+            made = next((c for c in linkers.stored() if c.name == name),
+                        None)
+            if made is None:
+                return
+            linkers.write_block(made, self._draw_into())
+            self.catalog = self._catalog()
+            for row in self._rows:
+                row.refresh(self.catalog)
         for row in self._rows:
             if row.slot.is_edge:
                 row.set_block(name)

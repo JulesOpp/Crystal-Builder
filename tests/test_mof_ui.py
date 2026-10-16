@@ -1108,7 +1108,7 @@ def test_a_suggested_linker_goes_on_the_edge_row(dialog):
     box = _acs(dialog)
     box.set_value("tpt")
     box._suggest()
-    assert "asks for a linker spanning" in box.suggestions.text()
+    assert "asks for a 2-connected aryl linker" in box.suggestions.text()
     box.use_linker.emit("E16")
     edge = next(r for r in dialog._rows if r.slot.is_edge)
     assert edge.block() == "E16"

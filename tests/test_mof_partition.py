@@ -64,14 +64,14 @@ def test_a_target_pocket_height_asks_for_the_linker_that_gives_it(
     form, makes the partitioner layers the pocket apart."""
     tpt = partition.partitioner("tpt")
     wanted = partition.linker_requirement(chromium, tpt, pocket=9.0)
-    fit = partition.predict(chromium, "made-up", wanted.span, tpt)
+    fit = partition.predict(chromium, "made-up", wanted.value, tpt)
     assert fit.c / 2 == pytest.approx(9.0, abs=1e-9)
 
 
 def test_the_linker_window_brackets_the_ideal_span(chromium):
     need = partition.linker_requirement(chromium,
                                         partition.partitioner("tpt"))
-    assert need.low < need.span < need.high
+    assert need.low < need.value < need.high
 
 
 def test_ranking_linkers_finds_bdc_and_leaves_metal_blocks_out(

@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from xtal.mof import partition
+from xtal.mof import linkers, partition
 from xtal.mof.trimer import TrimerError
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
@@ -202,24 +202,36 @@ class PartitionBox(QWidget):
                  and self.value() else HINT)
 
     def _suggest(self) -> None:
-        value = self.value()
-        name = (self._chosen_fit().partitioner
-                if value and self._chosen_fit() else "tpt")
-        chosen = partition.partitioner(name)
-        need = partition.linker_requirement(self._node, chosen)
-        linkers = [b for b in self._catalog.building_blocks()
-                   if len(b.connections) == 2]
-        fits = [f for f in partition.rank_linkers(self._node, chosen,
-                                                  linkers)
-                if f.ok][:SUGGESTIONS]
-        if not fits:
-            self.suggestions.setText(f"No linker in the catalogue "
-                                     f"fits {name}: it asks for "
-                                     f"{need.sentence()}.")
-            return
-        items = ", ".join(
-            f"<a href='{f.linker}'>{f.linker}</a> "
-            f"({f.phi:.0f} deg)" for f in fits)
-        self.suggestions.setText(
-            f"{name} asks for {need.sentence()}.  Closest: {items} -- "
-            f"click one to use it.")
+        """What the chosen partitioner asks of a linker, and what the
+        linker chosen asks of a partitioner -- the two reverses -- with
+        the nearest molecules for each, catalogue and generated."""
+        fit = self._chosen_fit() if self.value() else None
+        name = fit.partitioner if fit else "tpt"
+        need = partition.linker_requirement(self._node,
+                                            partition.partitioner(name))
+        found = linkers.suggest(need, self._catalog, n=SUGGESTIONS)
+        lines = []
+        if found:
+            items = ", ".join(
+                f"<a href='{s.candidate.name}'>{s.candidate.name}</a>"
+                f"{'*' if s.candidate.source == 'series' else ''} "
+                f"({s.miss:+.2f})" for s in found)
+            generated = any(s.candidate.source == "series"
+                            for s in found)
+            lines.append(f"{name} asks for {need.sentence()}.  "
+                         f"Closest: {items} -- click one to use it"
+                         f"{'; * is generated' if generated else ''}.")
+        else:
+            lines.append(f"Nothing fits {name}: it asks for "
+                         f"{need.sentence()}.")
+        if self._linker:
+            span = partition.linker_span(
+                self._catalog.building_block(self._linker))
+            back = partition.partitioner_requirement(self._node, span)
+            others = linkers.suggest(back, None, n=3)
+            said = ", ".join(f"{s.candidate.name} "
+                             f"({s.candidate.value:.2f} A)"
+                             for s in others)
+            lines.append(f"{self._linker} asks for {back.sentence()}"
+                         f"{': ' + said if said else ''}.")
+        self.suggestions.setText("<br>".join(lines))
