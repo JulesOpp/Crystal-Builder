@@ -278,6 +278,32 @@ def as_layer(entry: CgdEntry) -> CgdEntry:
                    cell=(a, b, LAYER_C, 90.0, 90.0, gamma))
 
 
+def as_net(entry: CgdEntry) -> CgdEntry:
+    """A 3-periodic entry written so PORMAKE expands it as this module
+    does: the group's setting named (``Fd-3m:2``), since PORMAKE takes
+    the symbol as it is written and retries nothing.  A 2-periodic one
+    is :func:`as_layer`'s."""
+    if entry.dimension != 3:
+        return as_layer(entry)
+    if ":" in entry.group or not _two_origins(entry.group):
+        # One setting to be in, so nothing to resolve: 306 of the 330
+        # nets the catalogue adds, and an expansion each spared.
+        return entry
+    _net, _frac, symbol = resolved(entry)
+    return entry if symbol == entry.group else replace(entry,
+                                                       group=symbol)
+
+
+@lru_cache(maxsize=256)
+def _two_origins(symbol: str) -> bool:
+    """Whether the group is tabulated with two origin choices."""
+    try:
+        gemmi.SpaceGroup(f"{symbol}:2")
+    except (RuntimeError, ValueError):
+        return False
+    return True
+
+
 def _signature(operation) -> tuple:
     rot, trans = operation
     return (tuple(np.round(rot).astype(int).ravel()),

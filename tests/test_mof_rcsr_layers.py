@@ -86,14 +86,16 @@ def test_a_layer_ends_on_its_end_line(layers):
 
 def test_the_default_catalogue_reads_the_layers_between_pormake_and_yours():
     """A folder after the layers still wins, as every later folder
-    does; the layers still win over anything before them.  Our own
-    nets (``pacs``) come between: over the RCSR's, under yours."""
-    from xtal.mof.catalog import library_nets
+    does; the layers still win over anything before them.  The RCSR's
+    3-periodic nets follow them, and our own nets (``pacs``) come
+    after both: over the RCSR's, under yours."""
+    from xtal.mof.catalog import RCSR_NETS, library_nets
 
     catalog = Catalog.default(topology_dir="/nonexistent")
     dirs = catalog.topology_dirs
     assert RCSR_LAYERS in dirs
-    assert dirs.index(RCSR_LAYERS) == len(dirs) - 3
+    assert dirs.index(RCSR_LAYERS) == len(dirs) - 4
+    assert dirs.index(RCSR_NETS) == len(dirs) - 3
     assert dirs[-2] == library_nets()
 
 

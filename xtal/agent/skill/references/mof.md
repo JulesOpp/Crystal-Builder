@@ -18,7 +18,7 @@ print(s.inspect())
 
 | Parameter | Meaning |
 |---|---|
-| `topology` | the RCSR name: `pcu`, `dia`, `tbo`, `soc`, `hcb` … 2599 nets ship |
+| `topology` | the RCSR name: `pcu`, `dia`, `tbo`, `soc`, `hcb`, `sph` … 2930 nets ship |
 | `nodes` | `N16` for a net with one kind of node, `0=N19,1=N59` for several |
 | `edges` | `E14`, or `0-0=E32,0-1=E14`; empty joins nodes directly |
 | `repeat` | tile the net first: `2x2x2`, or `2` |

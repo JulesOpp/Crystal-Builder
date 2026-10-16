@@ -761,6 +761,19 @@ def _entry_of_text(text: str, where: str = "the net") -> CgdEntry:
 PORMAKE_REJECTS = frozenset({"fzh", "mtb-a", "mtc-a", "sde"})
 
 
+#: The RCSR 3-periodic nets PORMAKE cannot read as the RCSR embeds
+#: them: 13 of the 346 the catalogue lacked, measured by
+#: ``scripts/rcsr_net_rejects.py``.  Each fails PORMAKE's own
+#: validity check by distance and by nearest pair -- an embedding in
+#: which some non-edge is shorter than an edge, as ``nia-d``'s was
+#: (which is why pacs has a file of its own).  A slow test re-reads
+#: every one; three more (cys, nts, ssp) have no cell to read.
+RCSR_REJECTS = frozenset({
+    "anl", "crd", "css-a", "dng", "jkz", "kcz", "lvs", "mjh", "nso",
+    "nts-d", "sph-a", "tam", "tap",
+})
+
+
 def rcsr_layers() -> tuple[Topology, ...]:
     """Every 2-periodic RCSR net PORMAKE can build on, as topologies.
 
@@ -789,6 +802,66 @@ def rcsr_layers() -> tuple[Topology, ...]:
         topology._cache["layer"] = True
         found.append(topology)
     return tuple(found)
+
+
+def rcsr_nets() -> tuple[Topology, ...]:
+    """Every 3-periodic RCSR net the catalogue does not already have,
+    as topologies: ``sph``, ``kgd``'s 3-D relatives and the merged
+    nets PORMAKE never shipped.
+
+    Only the names PORMAKE's folder and ours lack -- a name in both
+    catalogues is one net (``Topology.identify``), and offering it
+    twice would make the picker's two rows disagree about nothing.
+    Written by :func:`xtal.analysis.rcsr.as_net` with the group's
+    setting named, told they are 3-periodic as PORMAKE's are, and
+    without the ones PORMAKE cannot read as the RCSR embeds them
+    (:data:`RCSR_REJECTS`).  Kept once made: resolving the settings of
+    every net is an expansion each.
+    """
+    return _rcsr_nets(_names_in(_pormake_folder()) | _names_in(
+        library_nets()))
+
+
+@lru_cache(maxsize=4)
+def _rcsr_nets(have: frozenset) -> tuple[Topology, ...]:
+    from xtal.analysis import rcsr
+
+    found = []
+    for entry in rcsr.nets():
+        if (entry.dimension != 3 or entry.name in have
+                or entry.name in RCSR_REJECTS or not entry.cell
+                or len(entry.cell) != 6):
+            continue
+        try:
+            written = rcsr.as_net(entry)
+        except rcsr.RcsrError:
+            continue
+        text = write_cgd_string([written]).rstrip() + "\n"
+        topology = Topology(
+            entry.name, None, written.group,
+            tuple(node.coordination for node in entry.nodes), text,
+            len(entry.edges))
+        topology._cache["layer"] = False
+        found.append(topology)
+    return tuple(found)
+
+
+def _names_in(folder) -> frozenset:
+    if folder is None or not Path(folder).is_dir():
+        return frozenset()
+    return frozenset(p.stem for p in _listing(Path(folder), "*.cgd"))
+
+
+class _Nets:
+    """Where :class:`Catalog` reads the RCSR's 3-periodic nets, as
+    :class:`_Layers` stands for its layers."""
+
+    def __str__(self) -> str:
+        return "the RCSR's 3-periodic nets"
+
+
+#: The one :class:`_Nets` a catalogue's ``topology_dirs`` holds.
+RCSR_NETS = _Nets()
 
 
 class _Layers:
@@ -896,7 +969,7 @@ class Catalog:
 
     def __post_init__(self):
         self.topology_dirs = tuple(
-            p if p is RCSR_LAYERS else Path(p)
+            p if p is RCSR_LAYERS or p is RCSR_NETS else Path(p)
             for p in self.topology_dirs if p)
         self.bb_dirs = tuple(Path(p) for p in self.bb_dirs if p)
         self._topologies: dict[str, Topology] | None = None
@@ -919,14 +992,15 @@ class Catalog:
         that is where it belongs rather than an accident of writing:
         our four are shipped, so a folder of the user's own must
         still win over them, and they are ours, so they may replace
-        one of PORMAKE's.  :data:`RCSR_LAYERS` goes between PORMAKE's
-        nets and the user's for the same reason.
+        one of PORMAKE's.  :data:`RCSR_LAYERS` and :data:`RCSR_NETS`
+        go between PORMAKE's nets and the user's for the same reason.
         """
         root = database_root()
         ours = library_root()
         topologies = [root / "topologies"] if root else []
         blocks = [root / "bbs"] if root else []
         topologies.append(RCSR_LAYERS)
+        topologies.append(RCSR_NETS)
         our_nets = library_nets()
         if our_nets:
             topologies.append(our_nets)
@@ -1036,10 +1110,12 @@ class Catalog:
     def _read(self, directories, pattern: str, reader) -> dict:
         out: dict = {}
         for directory in directories:
-            if directory is RCSR_LAYERS:
+            if directory is RCSR_LAYERS or directory is RCSR_NETS:
                 from xtal.analysis.rcsr import RcsrError
+                made = (rcsr_layers if directory is RCSR_LAYERS
+                        else rcsr_nets)
                 try:
-                    out.update((t.name, t) for t in rcsr_layers())
+                    out.update((t.name, _own_copy(t)) for t in made())
                 except RcsrError as exc:
                     self._failures.append(f"{directory}: {exc}")
                 continue
