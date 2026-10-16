@@ -207,3 +207,28 @@ def test_the_linker_a_rod_asks_for_spans_the_gap_its_reach_leaves():
     ranked = rodnet.rods_for(8.0, "sql", 14.0,
                              {"radial": r, "wide": radial_rod(4.0)})
     assert ranked[0] == ("radial", pytest.approx(0.0, abs=1e-9))
+
+
+def test_the_searchs_batched_cost_is_the_cost():
+    """The grid of starts is costed as arrays and the refinement one
+    point at a time; if the two drifted apart the search would start
+    from the wrong places and nothing would say so."""
+    r = rod("MOF-303_Al")
+    net = rodnet.rod_net("sql", r)
+    cell, colours = rodnet.colouring(net.pattern)
+    p = rodnet.supercell(net.pattern, cell, colours)
+    bent = Ends(np.array([[0.0, 0.0, 0.0], [3.5, 0.0, 0.0],
+                          [0.6, 0.6, 0.0], [2.9, 0.6, 0.0]]), ((0,), (1,)),
+                0.24, 0.0)
+    for linker in (straight(3.6), bent):
+        model = rodnet._Model(p, p.colours,
+                              (rodnet.faces(r, 1),
+                               rodnet.faces(r.turned_over(), 1)),
+                              r.repeat, linker.span, 14.0, linker.bend,
+                              linker.twist)
+        rng = np.random.default_rng(7)
+        xs = np.column_stack([rng.uniform(-180, 180, (50, 2)),
+                              rng.uniform(0, r.repeat, (50, 3)),
+                              rng.uniform(-0.1, 0.1, 50)])
+        one = [model.cost(x, 85.0) for x in xs]
+        assert model.costs(xs, 85.0) == pytest.approx(one, rel=1e-9)

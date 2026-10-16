@@ -75,9 +75,12 @@ def test_mof_303_on_sql_with_pzdc_reads_back_as_xhh():
     between them -- and a placement that asked every joint to be
     straight could not close MOF-303 at all (0.96 A off).  With the
     bend it closes at the crystal's angle with every other rod turned
-    over (P2_1/c), and the net is xhh.  The angle is given as the
-    crystal's, which the search otherwise takes a minute to find."""
-    made = built("MOF-303_Al", "sql", angle=85.3)
+    over (P2_1/c), and the net is xhh.  The angle is found, not given:
+    the crystal's is 85.3 degrees."""
+    made = built("MOF-303_Al", "sql")
+    assert made.placement.angle_from == "from the rod's faces"
+    assert min(made.placement.gamma, 180 - made.placement.gamma) == \
+        pytest.approx(85.3, abs=1.0)
     assert made.placement.worst < 0.1
     assert made.placement.turned_over
     assert made.placement.spacing == pytest.approx(10.15, rel=0.02)

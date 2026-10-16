@@ -518,6 +518,8 @@ _ANGLES = (60.0, 75.0, 90.0, 105.0, 120.0)
 CLOSED = 1e-4
 #: How many of the best starting points are refined.
 _STARTS = 5
+#: How many starts are costed in one batch of arrays.
+_CHUNK = 4096
 #: The range a free angle stays in, degrees.
 FREE_ANGLES = (45.0, 135.0)
 
@@ -683,28 +685,109 @@ class _Model:
                 np.array(there_all), np.array(back_all), found)
 
     def cost(self, x, gamma):
-        here, outward, there, back = self.pairs(x, gamma)
+        return float(self._score(*self.pairs(x, gamma)))
+
+    def costs(self, xs, gamma) -> np.ndarray:
+        """:meth:`cost` of every row of ``xs`` at once.
+
+        The search's grid is a hundred thousand starts for a cell of
+        two rods (MOF-303: 36 turns, 12 of the other colour's, 4^3 rises
+        and shears, five angles), and one call each was 40 s; as arrays
+        it is a fraction of a second.  A test holds the two equal.
+        """
+        return self._score(*self._batch(np.asarray(xs, float), gamma))
+
+    def _score(self, here, outward, there, back):
+        """The cost of faces and their partners, ``(..., faces, 3)``
+        arrays, summed over the faces."""
         joint = there - here
-        length = np.linalg.norm(joint, axis=1)
-        unit = joint / np.maximum(length, 1e-9)[:, None]
-        along = np.clip(np.sum(outward * unit, axis=1), -1.0, 1.0)
-        against = np.clip(np.sum(back * unit, axis=1), -1.0, 1.0)
+        length = np.linalg.norm(joint, axis=-1)
+        unit = joint / np.maximum(length, 1e-9)[..., None]
+        along = np.clip(np.sum(outward * unit, axis=-1), -1.0, 1.0)
+        against = np.clip(np.sum(back * unit, axis=-1), -1.0, 1.0)
         # Each face's bond is to leave the joint's line at the linker's
         # own bend: 1 - cos of the miss, which for a straight linker is
         # 1 - along, the cost a straight joint always had.
         miss = ((1 - np.cos(np.arccos(along) - self.bend))
                 + (1 - np.cos(np.arccos(-against) - self.bend)))
         if self.bend > 1e-3:
-            a = outward - along[:, None] * unit
-            b = back - against[:, None] * unit
-            na = np.maximum(np.linalg.norm(a, axis=1), 1e-9)
-            nb = np.maximum(np.linalg.norm(b, axis=1), 1e-9)
-            seen = np.arccos(np.clip(np.sum(a * b, axis=1) / na / nb,
+            a = outward - along[..., None] * unit
+            b = back - against[..., None] * unit
+            na = np.maximum(np.linalg.norm(a, axis=-1), 1e-9)
+            nb = np.maximum(np.linalg.norm(b, axis=-1), 1e-9)
+            seen = np.arccos(np.clip(np.sum(a * b, axis=-1) / na / nb,
                                      -1.0, 1.0))
             miss = miss + math.sin(self.bend) ** 2 * (
                 1 - np.cos(seen - self.twist))
-        return float(np.sum((length - self.span) ** 2)
-                     + self.span ** 2 * np.sum(miss))
+        return (np.sum((length - self.span) ** 2, axis=-1)
+                + self.span ** 2 * np.sum(miss, axis=-1))
+
+    def _batch(self, xs, gamma):
+        """:meth:`pairs` for every row of ``xs``: four ``(rows, faces,
+        3)`` arrays, the faces in the order :meth:`pairs` gives them."""
+        b = len(xs)
+        n = self.n
+        turns = xs[:, :2]
+        rises = np.concatenate([np.zeros((b, 1)), xs[:, 2:1 + n]], axis=1)
+        shears = xs[:, 1 + n:3 + n]
+        a = self.a * (1.0 + xs[:, 3 + n])
+        unit_flat = self.p.matrix(1.0, gamma)
+        rows = np.empty((b, 2, 3))
+        rows[:, :, :2] = a[:, None, None] * unit_flat
+        rows[:, :, 2] = shears
+
+        def turned(m, turn):
+            c = np.cos(np.radians(turn))[:, None]
+            s_ = np.sin(np.radians(turn))[:, None]
+            out = np.empty((b, *m.shape))
+            out[..., 0] = c * m[:, 0] - s_ * m[:, 1]
+            out[..., 1] = s_ * m[:, 0] + c * m[:, 1]
+            out[..., 2] = m[:, 2]
+            return out
+
+        placed = [turned(self.middles[k], turns[:, k]) for k in (0, 1)]
+        leaving = [turned(self.outwards[k], turns[:, k]) for k in (0, 1)]
+        everyone = np.arange(b)
+        here_all, out_all, there_all, back_all = [], [], [], []
+        for u in range(n):
+            colour = self.colours[u]
+            centre = np.einsum("j,bjk->bk", self.frac[u], rows)
+            centre[:, 2] += rises[:, u]
+            mine = placed[colour] + centre[:, None, :]
+            outward = leaving[colour]
+            level = outward[..., :2] / np.linalg.norm(
+                outward[..., :2], axis=-1)[..., None]
+            vs = [v for v, _ in self.edges[u]]
+            steps = np.array([self.frac[v] + image - self.frac[u]
+                              for v, image in self.edges[u]])
+            gaps = np.einsum("ej,bjk->bek", steps, rows)
+            gaps[:, :, 2] += rises[:, vs] - rises[:, u][:, None]
+            flat = gaps[..., :2] / np.linalg.norm(
+                gaps[..., :2], axis=-1)[..., None]
+            chosen = np.argmax(np.einsum("bfk,bek->bfe", level, flat),
+                               axis=2)                       # (b, f)
+            # Every edge's partner rod, then each face's own.
+            theirs = np.stack([placed[self.colours[v]] for v in vs],
+                              axis=1) \
+                + (centre[:, None, :] + gaps)[:, :, None, :]  # b e g 3
+            backs = np.stack([leaving[self.colours[v]] for v in vs],
+                             axis=1)
+            picked = theirs[everyone[:, None], chosen]       # b f g 3
+            picked_back = backs[everyone[:, None], chosen]
+            dz = picked[..., 2] - mine[:, :, None, 2]
+            picked = picked.copy()
+            picked[..., 2] -= self.repeat * np.round(dz / self.repeat)
+            d = np.linalg.norm(picked - mine[:, :, None, :], axis=-1)
+            g = np.argmin(d, axis=2)                         # (b, f)
+            faces_ = np.arange(mine.shape[1])[None, :]
+            here_all.append(mine)
+            out_all.append(outward)
+            there_all.append(picked[everyone[:, None], faces_, g])
+            back_all.append(picked_back[everyone[:, None], faces_, g])
+        return (np.concatenate(here_all, axis=1),
+                np.concatenate(out_all, axis=1),
+                np.concatenate(there_all, axis=1),
+                np.concatenate(back_all, axis=1))
 
     def fit(self, gammas, free):
         from itertools import product
@@ -716,12 +799,15 @@ class _Model:
         others = (np.arange(-180.0, 180.0, 3 * _TURN_STEP) if two
                   else [0.0])
         steps = np.arange(_RISE_STEPS) * self.repeat / _RISE_STEPS
+        grid = np.array([[t0, t1, *lifts, 0.0]
+                         for t0, t1 in product(turns, others)
+                         for lifts in product(steps, repeat=self.n + 1)])
         starts = []
         for gamma in gammas:
-            for t0, t1 in product(turns, others):
-                for lifts in product(steps, repeat=self.n + 1):
-                    x = np.array([t0, t1, *lifts, 0.0])
-                    starts.append((self.cost(x, gamma), gamma, x))
+            for chunk in range(0, len(grid), _CHUNK):
+                xs = grid[chunk:chunk + _CHUNK]
+                starts.extend(zip(self.costs(xs, gamma),
+                                  [gamma] * len(xs), xs, strict=True))
         starts.sort(key=lambda s: s[0])
         best = None
         for _c, gamma, x in starts[:_STARTS]:
