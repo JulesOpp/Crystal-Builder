@@ -1,0 +1,15 @@
+print("viewport:", type(viewport).__name__)
+print(" attrs:", [a for a in vars(viewport)][:40])
+print(" methods:", [a for a in dir(viewport) if not a.startswith('_')
+                    and callable(getattr(viewport, a, None))][:50])
+sc = getattr(viewport, "scene", None) or getattr(viewport, "_scene", None)
+print("scene:", type(sc).__name__ if sc else None)
+if sc:
+    print(" scene attrs:", [a for a in vars(sc)][:50])
+    print(" scene methods:", [a for a in dir(sc) if not a.startswith('_')
+                              and callable(getattr(sc, a, None))][:60])
+import xtalapp.dialogs.supercell as sd
+print("supercell dialog:", [a for a in dir(sd.SupercellDialog)
+                            if not a.startswith('_')][:20])
+print("win supercell method:", [m for m in dir(win) if 'supercell' in m.lower()])
+print("doc selection methods:", [m for m in dir(doc) if 'select' in m.lower()])

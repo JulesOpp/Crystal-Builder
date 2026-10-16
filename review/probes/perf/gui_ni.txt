@@ -1,0 +1,56 @@
+opened Ni2Cl2BTDD.cif: 40 sites, 1 tab(s)
+structure: 40 sites, P1 1152 atoms
+actors in renderer: 19  props: 22
+select_all                           call     87.1 ms  drain    52.7 ms  RSS    459 MB 
+   selected 1152 atoms
+recompute_bonds                      call    382.7 ms  drain    59.1 ms  RSS    549 MB 
+Set Bond Type: Single (whole sel)    call   3140.2 ms  drain    66.8 ms  RSS    496 MB 
+Set Bond Type: Automatic             call   1812.1 ms  drain    85.2 ms  RSS    450 MB 
+style -> polyhedra                   call    110.8 ms  drain     6.9 ms  RSS    463 MB 
+style -> wireframe                   call    100.1 ms  drain     2.5 ms  RSS    440 MB 
+style -> ball and stick              call    155.8 ms  drain     4.5 ms  RSS    465 MB 
+toggle dock (hide)                   call      0.0 ms  drain     0.0 ms  RSS    465 MB 
+toggle dock (show)                   call      3.5 ms  drain    68.2 ms  RSS    464 MB 
+select_none (partial refresh)        call      4.4 ms  drain    39.9 ms  RSS    446 MB 
+select_all (partial refresh)         call     75.3 ms  drain    51.3 ms  RSS    441 MB 
+   build_scene(structure, settings, selection=None, bond_rules=None, view_direction=None, planes=(), pores=None, charges=None, orbital=None) -> 'SceneModel'
+scene.set_model(current model)       call      2.4 ms  drain     0.0 ms  RSS    443 MB 
+recompute_bonds (Render counted)     call    459.4 ms  drain    60.8 ms  RSS    545 MB 
+   renderWindow.Render() calls: 2
+select_none (Render counted)         call      6.5 ms  drain    38.9 ms  RSS    518 MB 
+   renderWindow.Render() calls: 1
+select_all (Render counted)          call     70.9 ms  drain    49.8 ms  RSS    520 MB 
+   renderWindow.Render() calls: 1
+Reduce to P1                         call    450.1 ms  drain   210.0 ms  RSS    526 MB 
+   now 1152 sites, actors 19
+Supercell 2x2x2                      call      0.0 ms  drain     0.0 ms  RSS    526 MB AttributeError: 'tuple' object has no attribute 'messag
+   now 1152 sites, P1 1152 atoms, actors 19
+select_all on supercell              call     88.5 ms  drain     2.0 ms  RSS    537 MB 
+style -> polyhedra on supercell      call     93.2 ms  drain     1.9 ms  RSS    533 MB 
+style -> ball+stick on supercell     call    146.3 ms  drain     1.8 ms  RSS    536 MB 
+
+| operation | call ms | drain ms | total ms | RSS MB | note |
+| select_all | 87.1 | 52.7 | 139.8 | 459 |  |
+| recompute_bonds | 382.7 | 59.1 | 441.8 | 549 |  |
+| Set Bond Type: Single (whole sel) | 3140.2 | 66.8 | 3207.0 | 496 |  |
+| Set Bond Type: Automatic | 1812.1 | 85.2 | 1897.2 | 450 |  |
+| style -> polyhedra | 110.8 | 6.9 | 117.7 | 463 |  |
+| style -> wireframe | 100.1 | 2.5 | 102.6 | 440 |  |
+| style -> ball and stick | 155.8 | 4.5 | 160.3 | 465 |  |
+| toggle dock (hide) | 0.0 | 0.0 | 0.0 | 465 |  |
+| toggle dock (show) | 3.5 | 68.2 | 71.7 | 464 |  |
+| select_none (partial refresh) | 4.4 | 39.9 | 44.3 | 446 |  |
+| select_all (partial refresh) | 75.3 | 51.3 | 126.6 | 441 |  |
+| scene.set_model(current model) | 2.4 | 0.0 | 2.5 | 443 |  |
+| recompute_bonds (Render counted) | 459.4 | 60.8 | 520.2 | 545 |  |
+| select_none (Render counted) | 6.5 | 38.9 | 45.3 | 518 |  |
+| select_all (Render counted) | 70.9 | 49.8 | 120.7 | 520 |  |
+| Reduce to P1 | 450.1 | 210.0 | 660.1 | 526 |  |
+| Supercell 2x2x2 | 0.0 | 0.0 | 0.0 | 526 | AttributeError: 'tuple' object has no attribute 'messag |
+| select_all on supercell | 88.5 | 2.0 | 90.5 | 537 |  |
+| style -> polyhedra on supercell | 93.2 | 1.9 | 95.1 | 533 |  |
+| style -> ball+stick on supercell | 146.3 | 1.8 | 148.1 | 536 |  |
+final RSS 536 MB
+
+OS threads in the idle window: 12
+ran gui_thread.py
