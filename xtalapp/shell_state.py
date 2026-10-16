@@ -411,7 +411,7 @@ class ShellRefresh:
         document = self.current_document()
         has_document = document is not None
         self.actions_.set_enabled(
-            ["save", "save_as", "export", "export_image",
+            ["save", "save_as", "export", "export_image", "topcryst",
              "clear_overlays", "show_all",
              "close_tab", "close_all_tabs", "reset_view", "view_a",
              "view_b", "view_c", "view_hkl"],

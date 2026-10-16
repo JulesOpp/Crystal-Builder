@@ -518,6 +518,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
     def export_net(self) -> None:
         self.document_set.export_net()
 
+    def send_to_topcryst(self) -> None:
+        self.document_set.send_to_topcryst()
+
     def show_only_selected(self) -> None:
         document = self.current_document()
         if document is not None:

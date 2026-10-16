@@ -1502,6 +1502,20 @@ class Document(QObject):
         path = Path(path)
         return write_cgd(path, [entry_of(self._structure, path.stem)])
 
+    def write_for_topcryst(self, folder) -> Path:
+        """Write the crystal for an upload to TopCryst, in ``folder``.
+
+        One way, like :meth:`export`, and cleaned the same way
+        (:func:`xtal.io.export.write_for_topcryst`).  Named after the
+        file the tab is, as Save names its project.
+        """
+        from xtal.io.export import write_for_topcryst
+
+        name = (self._path.stem if self._path is not None
+                else str(self._structure.meta.get("title")
+                         or "structure"))
+        return write_for_topcryst(self._structure, folder, name)
+
     def delete_selected_bonds(self) -> str:
         """Suppress every selected bond, as one undo step.
 

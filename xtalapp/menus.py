@@ -359,6 +359,12 @@ def build_actions(window):
             "every placement the lattice allows is measured, and one "
             "where atoms of two copies would meet cannot be chosen.  "
             "The copies keep their bonds, and the result is in P1")
+    add("topcryst", "Determine &topology on TopCryst...",
+        window.send_to_topcryst,
+        tip="Write this crystal as a CIF in the entry's topcryst "
+            "folder -- no markers, no net edges -- show it, and open "
+            "topcryst.com to upload it there.  Nothing is sent from "
+            "here, and the site takes ten structures a day")
     add("prepare_simulation", "&Prepare for simulation...",
         window.prepare_dialog,
         tip="Make a deposited structure one a calculation can use: "
@@ -760,7 +766,7 @@ def build_menus(window):
         "mark_connection_points", "mark_one_connection_point",
         "save_building_block", "save_monomer"])
     window.actions_.fill_menu(structure_menu, [
-        None, "prepare_simulation", None])
+        None, "topcryst", "prepare_simulation", None])
     # A submenu and not six flat entries: these are what the *mouse*
     # does, and under the bond commands they made the bottom of
     # Structure read as though a mode were an edit.
