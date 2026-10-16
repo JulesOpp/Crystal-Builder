@@ -245,12 +245,44 @@ def test_filling_both_sod_windows_makes_every_trimer_nine_connected():
         ).coordinations == (7, 3, 4)
 
 
-def test_a_filler_on_every_other_site_that_symmetry_relates_is_refused():
+def test_a_filler_on_every_other_site_that_no_subgroup_keeps_is_refused():
     """sod's 4-ring sits on a fourfold axis, which turns the two sites
     a ditopic filler would take onto the two it leaves; written in
-    Im-3m it would bond to all four."""
-    with pytest.raises(decorate.DecorationError, match="symmetry"):
+    Im-3m it would bond to all four, and no subgroup in the same cell
+    separates them for every 4-ring at once."""
+    with pytest.raises(decorate.DecorationError,
+                       match="no subgroup in the same cell"):
         decorate.filled(decorate.decoration("sod"), [(4, 2)])
+
+
+def test_every_other_site_of_sods_six_rings_is_the_i43m_sod_zmof():
+    """Co- and Fe-sod-ZMOF-204 are I-43m with a third of a PYM per
+    trimer: one tritopic pyridyl in each 6-ring, every trimer giving
+    it one site.  Im-3m's -3 axis would merge the two triples, I-43m's
+    3m keeps them apart."""
+    filled = decorate.filled(decorate.decoration("sod"), [(6, 2)])
+    assert filled.name == "sod-st-f6e2"
+    assert filled.group == "I-43m" and filled.lowered
+    trimers = len(filled.decoration.trimers)
+    assert set(filled.graph().coordinations[:trimers]) == {7}
+    assert filled.topology().coordinations == (7, 3, 3)
+    assert {f.token() for f in filled.filler_slots().values()} == {
+        "f6e2"}
+
+
+def test_four_rings_and_half_the_six_rings_make_the_214_net():
+    """Co-sod-ZMOF-214 adds TPE in every 4-ring: the same I-43m, each
+    trimer giving one site to its 4-ring and one to a 6-ring."""
+    filled = decorate.filled(decorate.decoration("sod"),
+                             [(4, 1), (6, 2)])
+    assert filled.group == "I-43m"
+    trimers = len(filled.decoration.trimers)
+    assert set(filled.graph().coordinations[:trimers]) == {8}
+
+
+def test_filling_every_site_stays_in_the_decorations_group():
+    filled = decorate.filled(decorate.decoration("sod"), [(4, 1)])
+    assert filled.group == "Im-3m" and not filled.lowered
 
 
 def test_a_window_too_wide_for_pormake_to_read_is_refused():
@@ -375,14 +407,15 @@ def test_tpyp_in_the_four_rings_opens_tot_and_says_to_relax(tmp_path):
 
 def test_every_fill_of_sod_is_offered_with_why_the_refused_ones_are():
     """The MOF builder greys a fill rather than hiding it, so each is
-    tried: every site of either window builds, and every other site
-    is refused for the symmetry that would bond the filler to all."""
+    tried: every site of either window builds, a part of the 6-ring's
+    in a subgroup, and every other site of the 4-ring is refused for
+    the symmetry that would bond the filler to all."""
     offered = decorate.choices(decorate.decoration("sod"))
     assert sorted(offered) == [4, 6]
     assert sorted(offered[6]) == [1, 2, 3]
     assert offered[4][1] == "" and offered[6][1] == ""
+    assert offered[6][2] == "" and offered[6][3] == ""
     assert "symmetry" in offered[4][2]
-    assert "symmetry" in offered[6][3]
 
 
 def test_a_filled_nets_name_is_spelled_from_its_fills():
@@ -405,6 +438,10 @@ def test_a_decorated_nets_slots_say_which_is_trimer_face_and_filler():
     assert [roles[k] for k in sorted(roles)] == (
         ["trimer"] * 3 + ["face"] * 3 + ["4-ring"] * 2)
     assert decorate.roles(catalog.topology("pcu")) == {}
+    # rho's 6-rings half filled: I-43m splits its trimers three ways.
+    roles = decorate.roles(catalog.topology("rho-st-f6e2"))
+    assert [roles[k] for k in sorted(roles)] == (
+        ["trimer"] * 3 + ["face"] * 4 + ["6-ring"])
 
 
 def test_a_twin_trimers_name_gives_back_the_trimer_it_came_from():
@@ -429,3 +466,29 @@ def test_what_each_window_asks_is_worked_out_on_the_trimer_a_twin_is_of():
     _placed, rows = decorate.asked(decorated, catalog, "N92", "N10",
                                    every={6: 3})
     assert rows[1].requirement.topicity == 2
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_tpt_on_every_other_six_ring_site_builds_ordered_in_sod_zmof_102(
+        tmp_path):
+    """In-sod-ZMOF-102 is In3O + BTC + TPT (CCDC 2261737, a 33.748),
+    refined in Im-3m with the TPT disordered over both triples.
+    Ordered, it builds in I-43m to 1 %, every In-N at the dative
+    length, and the filler tightens T-O-T from the plain net's 165
+    degrees towards the 160 the cSDA paper describes."""
+    from xtal.core.symmetry import detect
+    from xtal.mof.build import BuildRequest, build
+
+    request = BuildRequest.parse("sod-st-f6e2",
+                                 "0=N92,1=N10,2=T-triazine-0-py", "")
+    outcome = build(request, tmp_path, Catalog.default())
+    assert not outcome.overlaps
+    assert detect(outcome.structure, 0.1).international == "I-43m"
+    a = outcome.structure.lattice.parameters[0]
+    assert abs(a - 33.748) / 33.748 < 0.01
+    said = " ".join(outcome.decoration.lines)
+    assert "24 In-N bonds" in said
+    assert not outcome.decoration.warning
+    tot = float(said.split("T-O-T as built ")[1].split("-")[0])
+    assert tot < 162

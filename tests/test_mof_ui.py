@@ -1299,6 +1299,22 @@ def test_a_refused_fill_is_greyed_with_its_reason(dialog):
 
 
 @needs_database
+def test_half_a_six_ring_is_offered_and_says_the_group_it_is_written_in(
+        dialog):
+    """Every other site of sod's 6-ring is the I-43m sod-ZMOFs': it is
+    no longer greyed, and the section says why the group dropped."""
+    box = _sod(dialog)
+    tick, every = box._rows[6]
+    at = every.findData(2)
+    assert every.model().item(at).isEnabled()
+    every.setCurrentIndex(at)
+    tick.setChecked(True)
+    assert dialog._topology.name == "sod-st-f6e2"
+    assert "Written in I-43m" in box.status.text()
+    assert "fills the 6-rings" in dialog.details.text()
+
+
+@needs_database
 def test_two_fills_refused_together_put_the_tick_back_and_say_why(
         dialog, monkeypatch):
     from xtal.mof.catalog import CatalogError

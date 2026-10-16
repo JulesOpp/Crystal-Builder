@@ -91,6 +91,11 @@ class DecorationError(ValueError):
     """A net that cannot be decorated, said in a sentence."""
 
 
+class _Merged(DecorationError):
+    """The file a choice of sites was written to expands to more
+    bonds than were meant: its group does not keep the choice."""
+
+
 @dataclass(frozen=True)
 class Face:
     """One face of one supertetrahedron: three of a vertex's edges."""
@@ -951,6 +956,17 @@ class Filled:
     cell: tuple[float, ...]
     graph_: Graph = field(repr=False)
     margin: float
+    #: The group the file is written in: the decoration's, or the
+    #: subgroup that keeps a filler's choice of sites (:func:`fill`).
+    group: str = ""
+    #: Which fill each filler node of the graph belongs to, in order.
+    owners: tuple[int, ...] = ()
+
+    @property
+    def lowered(self) -> bool:
+        """Written below the decoration's group, to keep the sites a
+        filler takes apart from the ones it leaves."""
+        return self.group != self.decoration.group
 
     @property
     def name(self) -> str:
@@ -966,14 +982,17 @@ class Filled:
     @property
     def n_trimer_kinds(self) -> int:
         """How many node lines are trimers: they come first."""
-        return len(_representatives(self.decoration.trimers,
-                                    _ops(self.decoration.group)))
+        return sum(1 for k in self._lines()
+                   if k < len(self.decoration.trimers))
+
+    def _lines(self) -> list[int]:
+        """The graph node each node line of the file stands for."""
+        return _representatives(self.graph_.nodes, _ops(self.group))
 
     def entry(self):
         if "_entry" not in self.__dict__:
             object.__setattr__(self, "_entry", _write(
-                self.name, self.decoration.group, self.cell,
-                self.graph_))
+                self.name, self.group, self.cell, self.graph_))
         return self.__dict__["_entry"]
 
     def topology(self):
@@ -984,9 +1003,15 @@ class Filled:
 
     def filler_slots(self) -> dict[int, Fill]:
         """Node slot -> the fill whose filler goes there.  Fillers
-        are the last node lines, one per kind in the order filled."""
-        first = len(self.entry().nodes) - len(self.fills)
-        return {first + n: one for n, one in enumerate(self.fills)}
+        are the last node lines, one per kind in the order filled --
+        or more than one, where a subgroup splits a kind's windows."""
+        first = len(self.decoration.trimers) + len(self.decoration.faces)
+        return {slot: self.fills[self.owners[k - first]]
+                for slot, k in enumerate(self._lines()) if k >= first}
+
+    def __post_init__(self):
+        if not self.group:
+            object.__setattr__(self, "group", self.decoration.group)
 
 
 def _ops(group):
@@ -1001,15 +1026,23 @@ def fill(decorated: Decoration, fills) -> Filled:
     takes -- every one of them, or every ``every``-th round the ring,
     as a ditopic dps takes two of a pacs channel's three.
 
+    **A filler that takes every other site is written in a subgroup.**
+    sod's 6-ring sits on a -3 axis in Im-3m, which turns the three
+    sites a tritopic filler takes onto the three it leaves, so the
+    file would bond it to all six -- the disorder In-sod-ZMOF-102 is
+    refined with.  In I-43m the axis is 3m and the two triples are
+    apart, which is Co-sod-ZMOF-204: one PYM a 6-ring, each trimer
+    giving it one site.  So the same-cell subgroups are tried from the
+    largest (:data:`LOWER_INDEX`), each window's choice carried round
+    its orbit there; the first that is consistent, gives no trimer more
+    than its open sites -- the most even share first -- and expands
+    back to the graph is the one written.
+
     Refused by name: a window whose trimers cannot all turn a site to
     its centre (:data:`SITE_REACH`), a trimer asked for more than its
-    three open sites, and a choice of sites the window's own symmetry
-    does not keep -- taking every other site of a square whose
-    fourfold axis turns them onto the others would bond the filler to
-    all four.
+    three open sites, and a choice of sites no subgroup keeps.
     """
     fills = tuple(fills)
-    extra = []
     for one in fills:
         kind = one.kind
         if kind.size % one.every or kind.size // one.every < 2:
@@ -1021,9 +1054,37 @@ def fill(decorated: Decoration, fills) -> Filled:
                 f"{decorated.name}: only {kind.inward} of a "
                 f"{kind.label()}'s {kind.size} trimers can turn an open "
                 f"site to its centre; the rest stand edge-on to it")
-        for window in kind.members:
-            extra.append((np.asarray(window.centre),
-                          list(window.trimers)[::one.every]))
+    # Only a choice its group merges is retried.  Too many sites of
+    # one trimer, or edges PORMAKE cannot tell from non-edges, is the
+    # windows' geometry and not the choice of sites: the most even
+    # choice in the largest group says it, and trying every other
+    # cost rho's 8-rings eight seconds.
+    merged = None
+    for group, extra, owners in _arrangements(decorated, fills):
+        try:
+            return _filled(decorated, fills, group, extra, owners)
+        except _Merged as exc:
+            merged = exc
+    if merged is not None and all(one.every == 1 for one in fills):
+        raise merged
+    name = Filled(decorated, fills, decorated.cell, None, 0.0).name
+    raise DecorationError(
+        f"{name}: the windows' symmetry relates the sites a filler "
+        f"takes to the ones it leaves, so in {decorated.group} it would "
+        f"take them all, and no subgroup in the same cell down to "
+        f"index {LOWER_INDEX} keeps them apart; fill every site")
+
+
+#: How far below the decoration's group a fill may go to keep its
+#: sites apart, as the subgroup's index.  I-43m, the sod-ZMOFs', is 2.
+LOWER_INDEX = 8
+
+#: How many choices of sites are tried in each subgroup, the most
+#: evenly shared first.
+CHOICES = 8
+
+
+def _filled(decorated, fills, group, extra, owners) -> Filled:
     graph = _graph(decorated.trimers, decorated.faces, extra)
     over = [k for k, n in enumerate(graph.coordinations[
         :len(decorated.trimers)]) if n > 6 + OPEN_SITES]
@@ -1046,10 +1107,148 @@ def fill(decorated: Decoration, fills) -> Filled:
     a, b, c, alpha, beta, gamma = decorated.cell
     filled = Filled(decorated, fills,
                     (a * factor, b * factor, c * factor,
-                     alpha, beta, gamma), graph, margin)
+                     alpha, beta, gamma), graph, margin, group,
+                    tuple(owners))
     _check_filled(filled)
     return filled
 
+
+def _arrangements(decorated, fills):
+    """``(group, extra, owners)`` to try, best first: the decoration's
+    own group, then each same-cell subgroup that keeps the cell as its
+    standard setting names it, by index.  Every site of a window is
+    one arrangement in any group; every ``m``-th is one per choice of
+    offset round each orbit of windows the group leaves."""
+    groups = [(decorated.group, _ops(decorated.group))]
+    if any(one.every > 1 for one in fills):
+        groups += _subgroups(decorated.group)
+    for group, ops in groups:
+        options = []
+        for n, one in enumerate(fills):
+            members = list(one.kind.members)
+            if one.every == 1:
+                options.append([[(n, w, tuple(w.trimers))
+                                  for w in members]])
+                continue
+            options.append(list(_choices(decorated, members, one.every,
+                                         ops, n)))
+            if not options[-1]:
+                break
+        else:
+            found = []
+            for combo in itertools.product(*options):
+                placed = [one for part in combo for one in part]
+                taken = np.zeros(len(decorated.trimers), dtype=int)
+                for _n, _w, chosen in placed:
+                    for k, _shift in chosen:
+                        taken[k] += 1
+                found.append((int(taken.max()), int(np.ptp(taken)),
+                              len(found), placed))
+            found.sort(key=lambda row: row[:3])
+            for *_key, placed in found[:CHOICES]:
+                yield (group,
+                       [(np.asarray(w.centre), list(chosen))
+                        for _n, w, chosen in placed],
+                       [n for n, _w, _c in placed])
+
+
+def _subgroups(group) -> list:
+    """``(name, ops)`` for the subgroups of ``group`` in its own cell
+    and setting, largest first: a filled net is written in one of
+    these by name, so its operations must be what the name expands
+    to, untransformed."""
+    from xtal.analysis.rcsr import space_group_operations
+    from xtal.core import subgroups
+
+    out = []
+    for sub in subgroups.subgroups_of(group):
+        if (sub.sublattice is not None or not sub.keeps_the_cell
+                or sub.index > LOWER_INDEX or sub.group is None):
+            continue
+        ops = [(np.asarray(o.rot, dtype=float),
+                np.mod(np.asarray(o.trans, dtype=float), 1.0))
+               for o in sub.ops]
+        for name in _spellings(sub.group):
+            try:
+                theirs = space_group_operations(name)
+            except (RuntimeError, ValueError):
+                continue
+            if _same_ops(ops, theirs):
+                out.append((sub.index, name, theirs))
+                break
+    out.sort(key=lambda row: row[0])
+    return [(name, ops) for _index, name, ops in out]
+
+
+def _spellings(group) -> list[str]:
+    short = group.short_name
+    return [short, f"{short}:1", f"{short}:2", f"{short}:H",
+            group.hm]
+
+
+def _same_ops(ours, theirs) -> bool:
+    def key(rot, tran):
+        return (tuple(np.round(rot).astype(int).ravel()),
+                tuple(np.round(np.mod(tran, 1.0) * 24).astype(int) % 24))
+
+    return ({key(*op) for op in ours} == {key(*op) for op in theirs})
+
+
+def _choices(decorated, members, every, ops, n):
+    """Every way to take each ``every``-th site of these windows that
+    ``ops`` keeps: one offset per orbit of windows, carried round it.
+    Each is a list of ``(n, window, chosen trimers)``."""
+    centres = np.array([w.centre for w in members])
+    reps = _representatives(centres, ops)
+    per_orbit = []
+    for r in reps:
+        ways = []
+        for offset in range(every):
+            chosen = list(members[r].trimers)[offset::every]
+            carried = _carry(decorated, members, r, chosen, ops)
+            if carried is not None:
+                ways.append([(n, members[m], tuple(sorted(c)))
+                             for m, c in carried.items()])
+        per_orbit.append(ways)
+    for combo in itertools.product(*per_orbit):
+        yield [one for part in combo for one in part]
+
+
+def _carry(decorated, members, r, chosen, ops):
+    """Window index -> the trimers it takes, ``chosen`` at window ``r``
+    carried by every operation; ``None`` if two operations disagree
+    about a window -- the choice is not one the group keeps."""
+    homes = np.mod(decorated.trimers, 1.0)
+    centres = np.array([w.centre for w in members])
+    start = np.asarray(members[r].centre)
+    out: dict[int, frozenset] = {}
+    for rot, tran in ops:
+        there = rot @ start + tran
+        delta = centres - there
+        delta -= np.round(delta)
+        hit = np.flatnonzero((np.abs(delta) < 1e-4).all(axis=1))
+        if not len(hit):
+            continue
+        m = int(hit[0])
+        lattice = np.round(there - centres[m])
+        image = set()
+        for k, shift in chosen:
+            point = rot @ (decorated.trimers[k] + np.asarray(shift)) \
+                + tran - lattice
+            gap = homes - np.mod(point, 1.0)
+            gap -= np.round(gap)
+            match = np.flatnonzero((np.abs(gap) < 1e-4).all(axis=1))
+            if not len(match):
+                return None
+            j = int(match[0])
+            image.add((j, tuple(int(v) for v in
+                                np.round(point - decorated.trimers[j]))))
+        image = frozenset(image)
+        if out.setdefault(m, image) != image:
+            return None
+    # Windows the subgroup does not reach from ``r`` are another of
+    # its orbits, chosen from their own representative.
+    return out
 
 def _check_filled(filled: Filled) -> None:
     """Expanded, the file must be the graph: a filler whose choice
@@ -1068,10 +1267,10 @@ def _check_filled(filled: Filled) -> None:
         # group then finds none it knows.
         agrees = False
     if not agrees:
-        raise DecorationError(
+        raise _Merged(
             f"{filled.name}: the windows' symmetry relates the sites "
             f"a filler takes to the ones it leaves, so in "
-            f"{filled.decoration.group} it would take them all; "
+            f"{filled.group} it would take them all; "
             f"fill every site, or the window in a lower symmetry")
 
 
@@ -1171,10 +1370,15 @@ def roles(topology) -> dict[int, str]:
     made = made_from(topology)
     if made is None:
         return {}
-    decorated = getattr(made, "decoration", made)
-    n_trimers = len(_representatives(decorated.trimers,
-                                     _ops(decorated.group)))
-    fillers = made.filler_slots() if isinstance(made, Filled) else {}
+    if isinstance(made, Filled):
+        # Counted in the group the file is written in: a subgroup
+        # splits the trimers into more kinds than the decoration has.
+        n_trimers = made.n_trimer_kinds
+        fillers = made.filler_slots()
+    else:
+        n_trimers = len(_representatives(made.trimers,
+                                         _ops(made.group)))
+        fillers = {}
     out = {}
     for slot in range(len(made.entry().nodes)):
         if slot in fillers:

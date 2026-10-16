@@ -230,11 +230,18 @@ class SupertetrahedraBox(QWidget):
             d = self._decorated
             filled = (f", {len(self._spec)} kind(s) of window filled"
                       if self._spec else "")
+            made = decorate.made_from(self._catalog.topology(
+                self.name()))
+            lowered = ""
+            if isinstance(made, decorate.Filled) and made.lowered:
+                lowered = (f"  Written in {made.group}, where the sites "
+                           f"a filler takes stay apart from those it "
+                           f"leaves; in {d.group} it would take all.")
             self.status.setText(
                 f"Built on <b>{self.name()}</b>: "
                 f"{len(d.trimers)} trimers and {len(d.faces)} faces "
-                f"a cell{filled}.  Pick a 6-connected M3O trimer and a "
-                f"tritopic face above.")
+                f"a cell{filled}.{lowered}  Pick a 6-connected M3O "
+                f"trimer and a tritopic face above.")
 
     def _on_decorate(self, checked: bool) -> None:
         self._clear_rows()
