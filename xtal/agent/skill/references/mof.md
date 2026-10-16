@@ -109,6 +109,33 @@ for kind in decorate.windows(sod):
 A filler outside its window's range is a failed build with both
 numbers, never a strained framework.
 
+## Linker sets on a merged net (sph)
+
+A net with several kinds of edge round one cluster (`sph`: a 12-c
+cluster, a hexatopic and a tritopic) needs a *set* whose reaches close
+every edge at one scale. The RCSR draws some vertices where no real
+block fits (sph's 3-c is a pyramid), so check the set and build on the
+net where it fits, named `sph@-0.1250` (the free coordinates moved):
+
+```python
+from xtal.mof import merged
+sph, zr6 = catalog.topology("sph"), catalog.building_block("N419")
+merged.edge_requirements(sph, 2, zr6,                 # node 2 is the
+    given={1: merged.block_reach(catalog.building_block("N110"))})
+merged.suggest_sets(sph, 2, zr6, catalog)             # catalogue pairs
+found = merged.check_set(sph, 2, zr6, {0: hexa, 1: tri})  # or SetError
+s = Session.build("mof.build", workspace,
+                  topology=merged.spelled("sph", found.sample.u),
+                  nodes=f"0={hexa.name},1={tri.name},2=N419")
+```
+
+A generated linker (`H-benzene-PP-ar`) is a block once
+`linkers.write_block` has written it into the workspace's `blocks/`.
+
+A refused set names the ratio it makes and the range the net allows,
+or how much longer every linker must be for the clusters not to
+touch.
+
 ## Judging a build
 
 The build's report (`s.built`, and `data["tables"]`) is the first thing

@@ -1042,20 +1042,32 @@ class Catalog:
     def _derived(self, name: str) -> Topology | None:
         """A net made from another by name: ``sod-st`` is ``sod``
         decorated with supertetrahedra (:mod:`xtal.mof.decorate`),
-        ``sod-st-f4`` the same with its 4-ring windows filled.
+        ``sod-st-f4`` the same with its 4-ring windows filled, and
+        ``sph@-0.1250`` sph with its free coordinate moved to where a
+        linker set fits (:mod:`xtal.mof.merged`).
 
         Made on asking and kept, never listed: the picker offers the
         decoration beside its parent, and a request, a saved set or an
         agent spelling it out still finds it here.  The parent is the
         catalogue's own net first, the RCSR's if there is none.
         """
-        from xtal.mof import decorate
+        from xtal.mof import decorate, merged
 
+        if name in self._made:
+            return self._made[name]
+        moved = merged.parse(name)
+        if moved is not None:
+            # ``sph@-0.1250``: a net of this catalogue (or the RCSR's
+            # list) with its free coordinates where a linker set fits.
+            try:
+                made = merged.derived(name, self.topology(moved[0]))
+            except merged.SetError as exc:
+                raise CatalogError(str(exc)) from None
+            self._made[name] = made
+            return made
         spelled = decorate.parse(name)
         if spelled is None:
             return None
-        if name in self._made:
-            return self._made[name]
         source = self._topologies.get(spelled[0], spelled[0])
         try:
             made = decorate.derived(name, source)

@@ -1139,3 +1139,81 @@ def test_the_note_names_the_compatible_nodes_and_a_click_uses_one(
     assert dialog._topology.name == "acs"
     assert dialog._rows[0].block() == "N92"
     assert dialog.partition.choice.isEnabled()
+
+
+def _sph(dialog, hexa="N573", tri="N10", cluster="N419"):
+    assert dialog._select("sph")
+    rows = {r.slot.key: r for r in dialog._rows if not r.slot.is_edge}
+    rows[2].set_block(cluster)
+    if hexa:
+        rows[0].set_block(hexa)
+    if tri:
+        rows[1].set_block(tri)
+    return dialog.linker_sets
+
+
+@needs_database
+def test_the_linker_set_box_is_live_only_for_a_cluster_on_a_merged_net(
+        dialog):
+    """Greyed on pcu, which has one kind of edge; live on sph once a
+    metal cluster is in its 12-c slot."""
+    box = dialog.linker_sets
+    assert dialog._select("pcu")
+    assert not box.check.isEnabled()
+    _sph(dialog)
+    assert box.check.isEnabled() and box.suggest.isEnabled()
+    assert "2 kinds of linker" in box.status.text()
+
+
+@pytest.mark.slow
+@needs_database
+def test_a_set_that_checks_is_built_on_the_net_where_it_fits(dialog):
+    """The topology handed to the build is the re-embedded sph while
+    the rows hold the set that checked, and sph again once one
+    changes."""
+    box = _sph(dialog)
+    assert dialog.values()["topology"] == "sph"
+    box._check()
+    assert "This set fits" in box.status.text()
+    assert dialog.values()["topology"].startswith("sph@")
+    next(r for r in dialog._rows
+         if r.slot.key == 1 and not r.slot.is_edge).set_block("N19")
+    assert dialog.values()["topology"] == "sph"
+
+
+@pytest.mark.slow
+@needs_database
+def test_a_set_that_cannot_close_both_edges_says_why(dialog):
+    box = _sph(dialog, hexa="N5", tri="N10")
+    box._check()
+    assert "does not fit" in box.status.text()
+    assert "allows" in box.status.text()
+    assert dialog.values()["topology"] == "sph"
+
+
+@pytest.mark.slow
+@needs_database
+def test_a_suggested_set_clicked_fills_both_linker_rows(dialog):
+    box = _sph(dialog, hexa="N5", tri="N110")
+    box._suggest()
+    text = box.suggestions.text()
+    assert "Sets from the catalogue" in text
+    assert "N110 asks node 1 for a 6-connected" in text
+    box._clicked("set:0=N573,1=N10")
+    held = dialog._node_blocks()
+    assert held[0] == "N573" and held[1] == "N10"
+
+
+@needs_database
+def test_a_reembedded_net_picked_last_time_is_built_there_again(
+        qtbot, window):
+    from xtalapp.dialogs.mof_build import MofBuildDialog
+
+    _module, action = MODULES.find("mof.build")
+    again = MofBuildDialog(MODULES.get("mof"), action, window,
+                           {"topology": "sph@-0.1250",
+                            "nodes": "0=N573,1=N10,2=N419"})
+    qtbot.addWidget(again)
+    assert again._topology.name == "sph"
+    assert again.values()["topology"] == "sph@-0.1250"
+    assert again.sets_fold.is_open()

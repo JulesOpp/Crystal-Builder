@@ -656,8 +656,10 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     if request.interpenetration > 1:
         structure = _interpenetrate(outcome, request.interpenetration,
                                     log)
+    from xtal.mof import merged
+
     derived = topology.path is None and bool(
-        decorate.parse(topology.name))
+        decorate.parse(topology.name) or merged.parse(topology.name))
     # A derived net is held to its invariants (`_reading`), so the
     # built one's key would decide nothing: 25 s on sod-st-f6.
     outcome.identified = check_net(structure, keyed=not derived)

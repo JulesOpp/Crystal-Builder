@@ -74,12 +74,13 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.modules.mof import PARAMS
-from xtal.mof import Catalog
+from xtal.mof import Catalog, merged
 from xtal.mof.build import BuildRequest
 from xtal.mof.catalog import matches_search
 from xtal.references import PORMAKE, RCSR, rcsr_net
 from xtalapp import manual
 from xtalapp.dialogs.answered import answered
+from xtalapp.dialogs.linker_set_box import LinkerSetBox
 from xtalapp.dialogs.mof_preview import (
     ORBIT_COLORS,
     BlockPreview,
@@ -295,6 +296,8 @@ class MofBuildDialog(QDialog):
         self.partition = PartitionBox(self)
         self.partition.use_linker.connect(self._use_linker)
         self.partition.use_node.connect(self._use_node)
+        self.linker_sets = LinkerSetBox(self)
+        self.linker_sets.use_block.connect(self._use_block)
 
         folders = QWidget(self)
         form = QFormLayout(folders)
@@ -310,6 +313,8 @@ class MofBuildDialog(QDialog):
         self.how_fold = Collapsible("How it is built", how, parent=self)
         self.partition_fold = Collapsible("Partition pores",
                                           self.partition, parent=self)
+        self.sets_fold = Collapsible("Linker sets", self.linker_sets,
+                                     parent=self)
         self.folders_fold = Collapsible(
             "Your own topologies and building blocks", folders,
             parent=self)
@@ -325,7 +330,7 @@ class MofBuildDialog(QDialog):
         sections = QVBoxLayout(body)
         for fold in (self.topology_fold, self.blocks_fold,
                      self.how_fold, self.partition_fold,
-                     self.folders_fold):
+                     self.sets_fold, self.folders_fold):
             sections.addWidget(fold)
         # The net list takes whatever height is spare while it is
         # open, and gives it back when it is folded away.
@@ -525,7 +530,8 @@ class MofBuildDialog(QDialog):
         self._update_partition()
 
     def _update_partition(self) -> None:
-        """Tell the partition section what is chosen above it."""
+        """Tell the partition and linker-set sections what is chosen
+        above them."""
         node = next((r.block() for r in self._rows
                      if not r.slot.is_edge), "")
         linker = next((r.block() for r in self._rows if r.slot.is_edge),
@@ -533,6 +539,12 @@ class MofBuildDialog(QDialog):
         self.partition.set_framework(
             self.catalog, self._topology.name if self._topology else "",
             node, linker)
+        self.linker_sets.set_framework(self.catalog, self._topology,
+                                       self._node_blocks())
+
+    def _node_blocks(self) -> dict:
+        return {r.slot.key: r.block() for r in self._rows
+                if not r.slot.is_edge}
 
     def _use_node(self, name: str) -> None:
         """A compatible node was clicked: on acs, in the node row."""
@@ -550,23 +562,40 @@ class MofBuildDialog(QDialog):
         where a drawn block would be, and every row reread -- the same
         path as :meth:`_on_block_drawn`.
         """
-        from xtal.mof import linkers
-
-        try:
-            self.catalog.building_block(name)
-        except Exception:                           # noqa: BLE001
-            made = next((c for c in linkers.stored() if c.name == name),
-                        None)
-            if made is None:
-                return
-            linkers.write_block(made, self._draw_into())
-            self.catalog = self._catalog()
-            for row in self._rows:
-                row.refresh(self.catalog)
+        if not self._ensure_block(name):
+            return
         for row in self._rows:
             if row.slot.is_edge:
                 row.set_block(name)
                 return
+
+    def _use_block(self, key: int, name: str) -> None:
+        """A linker set's block was clicked: in its node row."""
+        if not self._ensure_block(name):
+            return
+        for row in self._rows:
+            if not row.slot.is_edge and row.slot.key == key:
+                row.set_block(name)
+                return
+
+    def _ensure_block(self, name: str) -> bool:
+        """Whether ``name`` is a block, writing a generated one where a
+        drawn block would go and rereading every row if it was not."""
+        from xtal.mof import linkers
+
+        try:
+            self.catalog.building_block(name)
+            return True
+        except Exception:                           # noqa: BLE001
+            made = next((c for c in linkers.stored() if c.name == name),
+                        None)
+            if made is None:
+                return False
+            linkers.write_block(made, self._draw_into())
+            self.catalog = self._catalog()
+            for row in self._rows:
+                row.refresh(self.catalog)
+            return True
 
     def _refuse(self, why: str) -> None:
         self.details.setText(
@@ -658,18 +687,25 @@ class MofBuildDialog(QDialog):
             or fold > 1
             or self.orientation.currentData() != _ORIENTATIONS.default)
         wanted = str(given.get("topology") or "pcu")
-        if not self._select(wanted) and not self._select("pcu"):
+        # A net re-embedded for a linker set is listed as its parent.
+        moved = merged.parse(wanted)
+        listed = moved[0] if moved else wanted
+        if not self._select(listed) and not self._select("pcu"):
             self.topologies.setCurrentRow(0)
         try:
-            request = BuildRequest.parse(wanted,
+            request = BuildRequest.parse(listed,
                                          given.get("nodes", ""),
                                          given.get("edges", ""))
         except Exception:                           # noqa: BLE001
             return
-        if self._topology is None or self._topology.name != wanted:
+        if self._topology is None or self._topology.name != listed:
             return
         for row in self._rows:
             row.set_block(request.block_for(row.slot))
+        if moved:
+            self.linker_sets.adopt(wanted, self._node_blocks())
+            self.sets_fold.set_open(True)
+            self._update_partition()
         if self.partition.set_value(str(given.get("partition") or "")):
             self.partition_fold.set_open(True)
 
@@ -681,8 +717,10 @@ class MofBuildDialog(QDialog):
                 continue
             (edges if row.slot.is_edge else nodes).append(
                 f"{row.slot.token}={chosen}")
+        name = self._topology.name if self._topology else ""
         return self.action.coerce({
-            "topology": self._topology.name if self._topology else "",
+            "topology": (self.linker_sets.embedded(
+                name, self._node_blocks()) or name),
             "nodes": ",".join(nodes),
             "edges": ",".join(edges),
             "repeat": self.repeat.text().strip() or "1x1x1",
