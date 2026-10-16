@@ -1,6 +1,6 @@
 """The RCSR's 3-periodic nets that PORMAKE never shipped.
 
-sph, the merged nets and 330 others are buildable only because the
+sph, the merged nets and 341 others are buildable only because the
 catalogue offers them from the RCSR file.  If these regress, a merged
 net is not there to build on, or a net is offered twice under one
 name, or PORMAKE is handed a file in the wrong origin setting and
@@ -57,7 +57,7 @@ def test_an_rcsr_net_pormake_ships_is_not_offered_twice(offered):
 
 
 def test_every_offered_net_is_three_periodic_and_said_to_be(offered):
-    assert len(offered) == 330
+    assert len(offered) == 341
     assert not set(offered) & RCSR_REJECTS
     for topology in offered.values():
         assert topology._cache["layer"] is False

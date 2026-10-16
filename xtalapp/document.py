@@ -2517,17 +2517,19 @@ class Document(QObject):
         structure's meta as it is read, so it is made once, when the
         file is opened, and never again over a group somebody has
         since renamed or deleted."""
-        parts = self._structure.meta.pop(shelx.PARTS_KEY, None)
-        if not parts:
+        parts = self._structure.meta.pop(shelx.PARTS_KEY, None) or []
+        named = self._structure.meta.pop(atom_groups.META_KEY, None) or []
+        if not parts and not named:
             return []
         cell, lattice = self.cell, self._structure.lattice
         groups = []
-        for part, sites in parts:
+        wanted = [(f"PART {part}", None, sites) for part, sites in parts]
+        for name, colour, sites in [*wanted, *named]:
             atoms = [int(a) for site in sites
                      for a in cell.indices_of_site(int(site))]
             if atoms:
                 groups.append(atom_groups.make(
-                    cell, lattice, atoms, f"PART {part}"))
+                    cell, lattice, atoms, name, colour))
         return groups
 
     def rename_atom_group(self, row: int, name: str) -> None:

@@ -648,18 +648,23 @@ class Topology:
         return topology * repeat
 
     def _pormake(self, pormake):
-        """PORMAKE's reading of this net, from a file either way.
+        """PORMAKE's reading of this net, from a file either way, with
+        :mod:`xtal.mof.midpoints`' reading where both of its own fail.
 
         It reads the file once, in its constructor, and keeps nothing
         but what it parsed, so a net held as text is written to a
         folder that is gone before the build begins.
         """
+        from xtal.mof import midpoints
+
+        reader = midpoints.reader(
+            pormake, lambda: midpoints.edge_ends(self.entry()))
         if not self.text:
-            return pormake.Topology(str(self.path))
+            return reader(str(self.path))
         with tempfile.TemporaryDirectory(prefix="xtal-net-") as folder:
             path = Path(folder) / f"{self.name}.cgd"
             path.write_text(self.text, encoding="utf-8")
-            return pormake.Topology(str(path))
+            return reader(str(path))
 
     @property
     def is_layer(self) -> bool:
@@ -755,23 +760,25 @@ def _entry_of_text(text: str, where: str = "the net") -> CgdEntry:
 #: The RCSR layer nets PORMAKE cannot build on: each fails its own
 #: ``check_validity``, the test that took its 3-D catalogue from 2726
 #: nets to 2405.  Listing a net whose every build fails is worse than
-#: a list four shorter, so they are left out, and
-#: ``test_the_four_pormake_rejects_are_left_out_and_still_fail`` is
-#: what keeps this from going stale.  The Net builder still draws them.
-PORMAKE_REJECTS = frozenset({"fzh", "mtb-a", "mtc-a", "sde"})
+#: a list one shorter, so it is left out, and
+#: ``test_every_rcsr_layer_is_recorded_as_a_layer_and_is_one`` is what
+#: keeps this from going stale.  The Net builder still draws it.  It
+#: was four until the midpoint reading (:mod:`xtal.mof.midpoints`)
+#: read fzh, mtb-a and mtc-a.
+PORMAKE_REJECTS = frozenset({"sde"})
 
 
 #: The RCSR 3-periodic nets PORMAKE cannot read as the RCSR embeds
-#: them: 13 of the 346 the catalogue lacked, measured by
+#: them: 2 of the 346 the catalogue lacked, measured by
 #: ``scripts/rcsr_net_rejects.py``.  Each fails PORMAKE's own
 #: validity check by distance and by nearest pair -- an embedding in
 #: which some non-edge is shorter than an edge, as ``nia-d``'s was
-#: (which is why pacs has a file of its own).  A slow test re-reads
-#: every one; three more (cys, nts, ssp) have no cell to read.
-RCSR_REJECTS = frozenset({
-    "anl", "crd", "css-a", "dng", "jkz", "kcz", "lvs", "mjh", "nso",
-    "nts-d", "sph-a", "tam", "tap",
-})
+#: (which is why pacs has a file of its own) -- and the midpoint
+#: reading as well (:mod:`xtal.mof.midpoints`), which rescued the 11
+#: others that list held: anl, crd, css-a, jkz, kcz, lvs, mjh, nso,
+#: nts-d, tam and tap.  A slow test re-reads every one; three more
+#: (cys, nts, ssp) have no cell to read.
+RCSR_REJECTS = frozenset({"dng", "sph-a"})
 
 
 def rcsr_layers() -> tuple[Topology, ...]:
@@ -877,6 +884,38 @@ class _Layers:
 RCSR_LAYERS = _Layers()
 
 
+class _Merged:
+    """Where :class:`Catalog` reads the merged nets of Jiang et al.
+    (Science 2024) that neither PORMAKE nor the RCSR has
+    (:mod:`xtal.mof.merged_nets`)."""
+
+    def __str__(self) -> str:
+        return "the merged nets of Jiang et al. (2024)"
+
+
+#: The one :class:`_Merged` a catalogue's ``topology_dirs`` holds.
+MERGED_NETS = _Merged()
+
+#: The stand-ins for a source that is not a folder.
+_SOURCES = (RCSR_LAYERS, RCSR_NETS, MERGED_NETS)
+
+
+def taken_names() -> frozenset:
+    """Every net name PORMAKE, our library or the RCSR already has:
+    what a merged net of the paper's is not offered under."""
+    from xtal.analysis import rcsr
+
+    return (_names_in(_pormake_folder()) | _names_in(library_nets())
+            | frozenset(e.name for e in rcsr.nets()))
+
+
+def merged_topologies() -> tuple[Topology, ...]:
+    """The paper's merged nets no other source has, as topologies."""
+    from xtal.mof import merged_nets
+
+    return merged_nets.topologies(taken_names())
+
+
 @lru_cache(maxsize=1)
 def _pormake_folder() -> Path | None:
     root = database_root()
@@ -969,7 +1008,7 @@ class Catalog:
 
     def __post_init__(self):
         self.topology_dirs = tuple(
-            p if p is RCSR_LAYERS or p is RCSR_NETS else Path(p)
+            p if any(p is s for s in _SOURCES) else Path(p)
             for p in self.topology_dirs if p)
         self.bb_dirs = tuple(Path(p) for p in self.bb_dirs if p)
         self._topologies: dict[str, Topology] | None = None
@@ -992,8 +1031,9 @@ class Catalog:
         that is where it belongs rather than an accident of writing:
         our four are shipped, so a folder of the user's own must
         still win over them, and they are ours, so they may replace
-        one of PORMAKE's.  :data:`RCSR_LAYERS` and :data:`RCSR_NETS`
-        go between PORMAKE's nets and the user's for the same reason.
+        one of PORMAKE's.  :data:`RCSR_LAYERS`, :data:`RCSR_NETS` and
+        :data:`MERGED_NETS` go between PORMAKE's nets and the user's
+        for the same reason.
         """
         root = database_root()
         ours = library_root()
@@ -1001,6 +1041,7 @@ class Catalog:
         blocks = [root / "bbs"] if root else []
         topologies.append(RCSR_LAYERS)
         topologies.append(RCSR_NETS)
+        topologies.append(MERGED_NETS)
         our_nets = library_nets()
         if our_nets:
             topologies.append(our_nets)
@@ -1122,10 +1163,11 @@ class Catalog:
     def _read(self, directories, pattern: str, reader) -> dict:
         out: dict = {}
         for directory in directories:
-            if directory is RCSR_LAYERS or directory is RCSR_NETS:
+            if any(directory is s for s in _SOURCES):
                 from xtal.analysis.rcsr import RcsrError
                 made = (rcsr_layers if directory is RCSR_LAYERS
-                        else rcsr_nets)
+                        else rcsr_nets if directory is RCSR_NETS
+                        else merged_topologies)
                 try:
                     out.update((t.name, _own_copy(t)) for t in made())
                 except RcsrError as exc:

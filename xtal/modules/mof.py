@@ -492,6 +492,12 @@ PORMAKE = Module(
                dialog="mof-build",
                params=PARAMS,
                run=build_framework),
+        Action(name="explore", label="Merged-net explorer...",
+               tip="The merged nets of Jiang et al. (Science 2024): "
+                   "parents, coordination and edge ratio, each net "
+                   "drawn with its parents as groups",
+               shell="net_explorer", needs_structure=False,
+               writes_run_folder=False),
     ),
 )
 

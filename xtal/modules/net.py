@@ -57,12 +57,18 @@ def draw_net(job) -> JobResult:
     -- the same answer :mod:`xtal.modules.build` gives a string that
     is not a molecule.
     """
+    from xtal.mof import merged_nets
+
     name = str(job.param("net", "")).strip()
+    scale = float(job.param("scale", topology.SCALE))
+    beads = int(job.param("beads", topology.BEADS))
     try:
-        structure = topology.by_name(
-            name,
-            scale=float(job.param("scale", topology.SCALE)),
-            beads=int(job.param("beads", topology.BEADS)))
+        if merged_nets.row(name) is not None:
+            # A merged net is drawn from the paper's own file, with
+            # each parent an atom group, so either can be hidden.
+            structure = merged_nets.drawn(name, scale=scale, beads=beads)
+        else:
+            structure = topology.by_name(name, scale=scale, beads=beads)
     except topology.NetDrawingError as exc:
         return JobResult.failure(str(exc))
     vertices = sum(1 for site in structure.sites

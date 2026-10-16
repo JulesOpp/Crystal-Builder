@@ -79,14 +79,18 @@ class ModuleRunner(QObject):
         self._module_document = None
 
     def run_module_action(self, module_name: str,
-                          action_name: str) -> None:
+                          action_name: str,
+                          values: dict | None = None,
+                          initial: dict | None = None) -> None:
         """Run one entry of one module.
 
-        Ask for the parameters, open a run folder under the structure
-        the run belongs to, and start a thread.  The three Force Field
-        entries divert to the panel that has always performed them --
-        see :mod:`xtal.modules.forcefield` for why that is the one
-        exception rather than the pattern.
+        Ask for the parameters -- unless ``values`` are given, as the
+        net explorer gives the Net builder the net it picked, and
+        starting from ``initial`` if given -- open a run folder under
+        the structure the run belongs to, and start a thread.  The
+        three Force Field entries divert to the panel that has always
+        performed them -- see :mod:`xtal.modules.forcefield` for why
+        that is the one exception rather than the pattern.
         """
         try:
             module, action = MODULES.find(
@@ -135,8 +139,9 @@ class ModuleRunner(QObject):
                 "frame being played, not the structure")
             return
         key = f"{module.name}.{action.name}"
-        values = self._ask(module, action,
-                           self._module_params.get(key))
+        if values is None:
+            values = self._ask(module, action,
+                               initial or self._module_params.get(key))
         if values is None:                          # cancelled
             return
         self._module_params[key] = values

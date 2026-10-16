@@ -1217,3 +1217,51 @@ def test_a_reembedded_net_picked_last_time_is_built_there_again(
     assert again._topology.name == "sph"
     assert again.values()["topology"] == "sph@-0.1250"
     assert again.sets_fold.is_open()
+
+
+needs_merged = pytest.mark.skipif(
+    not __import__("xtal.mof.merged_nets", fromlist=["table"]).table(),
+    reason="the merged-net table is missing")
+
+
+@needs_merged
+def test_the_explorer_opens_from_the_menu_and_filters_by_cluster(window):
+    explorer = window.open_net_explorer()
+    assert window.open_net_explorer() is explorer
+    total = len(explorer.visible_names())
+    explorer.cluster.setCurrentText("12")
+    twelve = explorer.visible_names()
+    assert "sph" in twelve and len(twelve) < total
+    explorer.kind.setCurrentText("3p-0p")
+    assert "sph" not in explorer.visible_names()
+    assert explorer.count.text().endswith(f"of {total}")
+
+
+@needs_merged
+def test_choosing_a_row_says_its_parents_and_opens_the_net_with_groups(
+        window, monkeypatch):
+    asked = []
+    monkeypatch.setattr(window, "run_module_action",
+                        lambda *a, **k: asked.append((a, k)))
+    explorer = window.open_net_explorer()
+    assert explorer.choose("sph")
+    text = explorer.diagram.text()
+    assert "spn" in text and "hxg" in text and "sph" in text
+    explorer.open_button.click()
+    assert asked[-1][0] == ("net", "draw", {"net": "sph"})
+    explorer.build_button.click()
+    assert asked[-1][1] == {"initial": {"topology": "sph"}}
+
+
+@needs_merged
+def test_a_merged_net_drawn_by_the_net_builder_opens_with_its_groups(
+        window, qtbot):
+    from xtal.modules.job import Job
+    from xtalapp.document import Document
+
+    _module, action = MODULES.find("net.draw")
+    result = action.run(Job(params={"net": "sph"}))
+    assert result.structure is not None
+    document = Document(result.structure)
+    assert [g.name for g in document.atom_groups] == ["spn", "hxg"]
+    assert all(g.color is not None for g in document.atom_groups)

@@ -604,6 +604,11 @@ def build_actions(window):
     add("show_dftb", "DFTB&+ panel", window.show_dftb_panel,
         tip="Hamiltonian, parameter set, dispersion, and how the "
             "run is going")
+    add("net_explorer", "Merged-net explorer...",
+        window.open_net_explorer,
+        tip="The 352 merged nets of Jiang et al. (Science 2024) with "
+            "the two nets each one merges; open one with its parents "
+            "as atom groups, or build on it")
     add("refine_workbench", "Refine against a measured pattern...",
         window.open_refine_workbench,
         tip="Fit peaks and refine against a measured .xy pattern, in "
