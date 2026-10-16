@@ -19,6 +19,8 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from PySide6.QtCore import Qt  # noqa: E402
+
 from tests.test_app_shell import StubViewport  # noqa: E402
 from xtal.core.lattice import Lattice  # noqa: E402
 from xtal.core.structure import (  # noqa: E402
@@ -1057,3 +1059,69 @@ def test_an_answered_build_dialog_is_deleted_on_the_gui_thread(
 
     assert values["topology"] == "pcu"
     assert not shiboken6.isValid(made[0])
+
+
+def _acs(dialog, node="N589", linker="E14"):
+    assert dialog._select("acs")
+    dialog._rows[0].set_block(node)
+    next(r for r in dialog._rows if r.slot.is_edge).set_block(linker)
+    return dialog.partition
+
+
+@needs_database
+def test_the_partition_box_is_live_only_for_a_trimer_on_acs(dialog):
+    """Greyed on pcu, live on acs with an open M3O trimer, and greyed
+    again for a trimer whose own carboxylate sits on the site."""
+    box = dialog.partition
+    assert not box.choice.isEnabled()
+    assert dialog.values()["partition"] == ""
+
+    _acs(dialog)
+    assert box.choice.isEnabled()
+    assert dialog.values()["partition"] == ""
+    assert box.set_value("tpt")
+    assert dialog.values()["partition"] == "tpt"
+    assert "Predicted" in box.status.text()
+
+    dialog._rows[0].set_block("N86")
+    assert not box.choice.isEnabled()
+    assert "no open site" in box.status.text()
+    assert dialog.values()["partition"] == ""
+
+
+@needs_database
+def test_a_refused_partitioner_shows_its_reason_and_cannot_be_chosen(
+        dialog):
+    """tppb on BDC cannot close the cell: listed, greyed, with the
+    reason as its tooltip and in the status line."""
+    box = _acs(dialog)
+    at = box.choice.findData("tppb")
+    assert at >= 0
+    assert not box._enabled(at)
+    assert "too wide for E14" in box.choice.itemData(at, Qt.ToolTipRole)
+    assert not box.set_value("tppb")
+    assert "Cannot close the cell" in box.status.text()
+
+
+@needs_database
+def test_a_suggested_linker_goes_on_the_edge_row(dialog):
+    box = _acs(dialog)
+    box.set_value("tpt")
+    box._suggest()
+    assert "asks for a linker spanning" in box.suggestions.text()
+    box.use_linker.emit("E16")
+    edge = next(r for r in dialog._rows if r.slot.is_edge)
+    assert edge.block() == "E16"
+
+
+@needs_database
+def test_a_partitioner_picked_last_time_is_offered_again(qtbot, window):
+    from xtalapp.dialogs.mof_build import MofBuildDialog
+
+    _module, action = MODULES.find("mof.build")
+    again = MofBuildDialog(MODULES.get("mof"), action, window,
+                           {"topology": "acs", "nodes": "N589",
+                            "edges": "E14", "partition": "tpt"})
+    qtbot.addWidget(again)
+    assert again.values()["partition"] == "tpt"
+    assert again.partition_fold.is_open()

@@ -156,13 +156,23 @@ def node_geometry(block) -> Node:
     The axial points of a nine-connected twin are left out of the
     reach: they hang off a metal, not a carboxylate.
     """
-    from xtal.mof.trimer import Block, TrimerError, trimers
+    from xtal.mof.trimer import (
+        Block,
+        TrimerError,
+        trimers,
+        with_axial_points,
+    )
 
     plain = Block(list(block.symbols), np.asarray(block.positions),
                   list(block.bonds), list(block.connections))
     found = trimers(plain)
     if len(found) != 1:
         raise TrimerError(f"{block.name} is not an M3O trimer")
+    if len(plain.connections) != 9:
+        # Asked now rather than when the build writes the twin, so a
+        # trimer with nowhere to put a partitioner is said to have
+        # none before anything is ranked against it.
+        with_axial_points(plain)
     core = found[0]
     centre = plain.positions[core.oxide]
     metals = [plain.symbols[m] for m in core.metals]

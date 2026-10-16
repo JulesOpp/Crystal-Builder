@@ -86,6 +86,7 @@ from xtalapp.dialogs.mof_preview import (
     NetPreview,
     reset_view_row,
 )
+from xtalapp.dialogs.partition_box import PartitionBox
 from xtalapp.docks.columns import Collapsible
 from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.net_search import NetSearch, add_row
@@ -291,6 +292,9 @@ class MofBuildDialog(QDialog):
         form.addRow("Stacking offset", self.offset)
         form.addRow("Interpenetration", self.interpenetration)
 
+        self.partition = PartitionBox(self)
+        self.partition.use_linker.connect(self._use_linker)
+
         folders = QWidget(self)
         form = QFormLayout(folders)
         form.setContentsMargins(0, 0, 0, 0)
@@ -303,6 +307,8 @@ class MofBuildDialog(QDialog):
         self.blocks_fold = Collapsible("Building blocks", blocks,
                                        parent=self)
         self.how_fold = Collapsible("How it is built", how, parent=self)
+        self.partition_fold = Collapsible("Partition pores",
+                                          self.partition, parent=self)
         self.folders_fold = Collapsible(
             "Your own topologies and building blocks", folders,
             parent=self)
@@ -317,7 +323,8 @@ class MofBuildDialog(QDialog):
         body = QWidget(self)
         sections = QVBoxLayout(body)
         for fold in (self.topology_fold, self.blocks_fold,
-                     self.how_fold, self.folders_fold):
+                     self.how_fold, self.partition_fold,
+                     self.folders_fold):
             sections.addWidget(fold)
         # The net list takes whatever height is spare while it is
         # open, and gives it back when it is folded away.
@@ -505,6 +512,7 @@ class MofBuildDialog(QDialog):
             row.set_denticity(*self._denticity(), rebuild=False)
             row.set_composition(self.composition.text())
             row.drawn.connect(self._on_block_drawn)
+            row.changed.connect(self._update_partition)
             self.slots_layout.addWidget(row)
             self._rows.append(row)
         # So that one row does not stretch to fill a box sized for
@@ -513,6 +521,24 @@ class MofBuildDialog(QDialog):
         self.slots_layout.addStretch(1)
         self._describe(slots)
         self.build_button.setEnabled(True)
+        self._update_partition()
+
+    def _update_partition(self) -> None:
+        """Tell the partition section what is chosen above it."""
+        node = next((r.block() for r in self._rows
+                     if not r.slot.is_edge), "")
+        linker = next((r.block() for r in self._rows if r.slot.is_edge),
+                      "")
+        self.partition.set_framework(
+            self.catalog, self._topology.name if self._topology else "",
+            node, linker)
+
+    def _use_linker(self, name: str) -> None:
+        """A suggested linker was clicked: put it on the edge row."""
+        for row in self._rows:
+            if row.slot.is_edge:
+                row.set_block(name)
+                return
 
     def _refuse(self, why: str) -> None:
         self.details.setText(
@@ -616,6 +642,8 @@ class MofBuildDialog(QDialog):
             return
         for row in self._rows:
             row.set_block(request.block_for(row.slot))
+        if self.partition.set_value(str(given.get("partition") or "")):
+            self.partition_fold.set_open(True)
 
     def values(self) -> dict:
         nodes, edges = [], []
@@ -632,6 +660,7 @@ class MofBuildDialog(QDialog):
             "repeat": self.repeat.text().strip() or "1x1x1",
             "orientation": self.orientation.currentData(),
             "interpenetration": self.interpenetration.value(),
+            "partition": self.partition.value(),
             # Only for a layer net, so that a spacing typed while hcb
             # was selected does not follow the user to pcu and get
             # the build refused for a box they can no longer edit.
@@ -690,6 +719,8 @@ class _SlotRow(QWidget):
     #: A block was drawn and written for this row -- the name it was
     #: saved under, PORMAKE's key for it and the file's own stem.
     drawn = Signal(str)                              # noqa: N815
+    #: The block in this row changed.
+    changed = Signal()                               # noqa: N815
 
     def __init__(self, slot, catalog: Catalog, folder: str = "",
                  parent=None):
@@ -749,6 +780,7 @@ class _SlotRow(QWidget):
         name = self.block()
         self.preview.set_block(
             self._catalog.building_block(name) if name else None)
+        self.changed.emit()
 
     def block(self) -> str:
         return str(self.combo.currentData() or "")
