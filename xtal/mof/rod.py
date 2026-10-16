@@ -172,6 +172,16 @@ class Rod:
         flipped[:, 0] *= -1
         return replace(self, positions=flipped)
 
+    def turned_over(self) -> Rod:
+        """The rod upside down: a half turn about *x*, across the axis.
+        The same hand -- a proper rotation -- with every shift along the
+        rod reversed, since what was up is down."""
+        turned = self.positions * np.array([1.0, -1.0, -1.0])
+        return replace(self, positions=turned,
+                       bonds=[(i, j, letter, -k)
+                              for i, j, letter, k in self.bonds],
+                       edges=[(a, b, -k) for a, b, k in self.edges])
+
     def with_metal(self, symbol: str) -> Rod:
         """The same rod with every metal made ``symbol``, geometry as it
         was -- and a note saying so, since nothing has been relaxed."""
