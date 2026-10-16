@@ -20,6 +20,10 @@ net the literature names (measured in the rod track's E0):
 
 Then the metal swaps the families are made with, geometry unrelaxed and
 said so in the file: MOF-74 Mg, Co, Ni; Ni2Cl2BTDD Co; MIL-53 Al, Fe.
+
+And from each crystal its linker, into ``rods/linkers``, cut by
+:func:`xtal.mof.rod.linker_from_structure` where the rod was cut, so the
+two meet at the crystal's own lengths: BDC, dobdc, BTDD and pzdc.
 """
 
 from __future__ import annotations
@@ -39,23 +43,28 @@ from xtal.mof import rod  # noqa: E402
 
 SAMPLES = ROOT / "resources" / "samples"
 
-#: name, file, prepare first, shape, bond rules, swaps.
+#: name, file, prepare first, shape, bond rules, swaps, linker.
 RODS = (
     ("MIL-53_Cr", SAMPLES / "prepared" / "MIL-53.cif", False, "rng",
-     None, ("Al", "Fe")),
+     None, ("Al", "Fe"), "BDC"),
     ("MOF-74_Zn", SAMPLES / "prepared" / "MOF-74.cif", False, 5,
      bonding.BondRules(pair_ranges={("O", "Zn"): (1.5, 2.3)}),
-     ("Mg", "Co", "Ni")),
+     ("Mg", "Co", "Ni"), "dobdc"),
     ("Ni2Cl2BTDD_Ni", SAMPLES / "Ni2Cl2BTDD.cif", True, "rng", None,
-     ("Co",)),
-    ("MOF-303_Al", None, False, 8, None, ()),
+     ("Co",), "BTDD"),
+    ("MOF-303_Al", None, False, 8, None, (), "pzdc"),
 )
 
 
-def cut(path, prepared, shape, rules, name) -> rod.Rod:
+def crystal(path, prepared):
     structure = read_cif(path)
     if prepared:
         structure = prepare.run(structure).structure
+    return structure
+
+
+def cut(path, prepared, shape, rules, name) -> rod.Rod:
+    structure = crystal(path, prepared)
     cell = p1.expand(structure)
     seed = next(i for i, s in enumerate(cell.elements)
                 if s != "X" and el.element(s).is_metal)
@@ -65,7 +74,7 @@ def cut(path, prepared, shape, rules, name) -> rod.Rod:
 
 def rods(mof303) -> dict[str, rod.Rod]:
     made = {}
-    for name, path, prepared, shape, rules, swaps in RODS:
+    for name, path, prepared, shape, rules, swaps, _linker in RODS:
         source = Path(mof303) if path is None else path
         parent = cut(source, prepared, shape, rules, name)
         made[name] = parent
@@ -73,6 +82,16 @@ def rods(mof303) -> dict[str, rod.Rod]:
         for metal in swaps:
             made[f"{stem}_{metal}"] = replace(parent.with_metal(metal),
                                               name=f"{stem}_{metal}")
+    return made
+
+
+def linkers(mof303) -> dict[str, str]:
+    """Each crystal's linker, as the text of its file."""
+    made = {}
+    for _name, path, prepared, _shape, rules, _swaps, linker in RODS:
+        source = Path(mof303) if path is None else path
+        made[linker] = rod.linker_from_structure(
+            crystal(source, prepared), rules=rules).text()
     return made
 
 
@@ -94,6 +113,16 @@ def main(argv=None) -> int:
         print(f"{name}: {len(made.symbols)} atoms, "
               f"{len(made.connections)} points, {len(made.edges)} "
               f"shape edges, screw {made.screw()[0]}, hand {made.hand}")
+    for name, text in linkers(args.mof303).items():
+        target = rod.LINKERS / f"{name}.xyz"
+        old = target.read_text(encoding="utf-8") if target.exists() \
+            else None
+        if old != text:
+            changed.append(name)
+            if not args.check:
+                target.parent.mkdir(exist_ok=True)
+                target.write_text(text, encoding="utf-8")
+        print(f"{name}: linker, {text.count(chr(10)) - 2} lines")
     if args.check and changed:
         print("would change:", ", ".join(changed))
         return 1

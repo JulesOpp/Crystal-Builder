@@ -28,7 +28,10 @@ are the reach of each, plus the linker's span, apart: a straight joint
 with both X coincident, as every build here joins.  *c* is the rod's own
 repeat.  Then each colour's turn about its axis and rise along it are
 fitted so that every face looks along an edge of the pattern at a
-partner the span away (:func:`placement`).  The rhombus of sql is
+partner the span away (:func:`placement`) -- along the joint for a
+straight linker, and off it by the linker's own bend for a bent one
+(:attr:`Ends.bend`): pzdc's carboxylates splay 13.6 degrees, and asked
+to be straight, MOF-303 closed nowhere.  The rhombus of sql is
 **the breathing coordinate** (MIL-53 opens and closes on it), so its
 angle is a parameter: given, it is used; not given, it is solved from
 where the rod's faces point, and the placement says which.  It is never
@@ -294,10 +297,20 @@ class Face:
 @dataclass(frozen=True)
 class Ends:
     """A linker as its two ends: the X atoms at each, and the span
-    between the ends' middles."""
+    between the ends' middles.
+
+    ``bend`` is how far, in radians, the bond into the linker at an end
+    leaves the line between the ends -- 0 for BDC, 0.24 (13.6 degrees)
+    for pzdc, whose carboxylates splay from a five-ring -- the mean of
+    the two ends, since a joint is met from either.  ``twist`` is the angle
+    between the two ends' bonds seen along that line: 0 where both
+    bend the same way, as a flat bent linker does.
+    """
 
     positions: np.ndarray
     ends: tuple[tuple[int, ...], tuple[int, ...]]
+    bend: float = 0.0
+    twist: float = 0.0
 
     @property
     def size(self) -> int:
@@ -322,9 +335,38 @@ def ends_of(block) -> Ends:
     axis = np.linalg.svd(centred)[2][0]
     order = np.argsort(centred @ axis)
     half = len(points) // 2
-    return Ends(np.asarray(block.positions, float),
-                (tuple(points[i] for i in sorted(order[:half])),
-                 tuple(points[i] for i in sorted(order[half:]))))
+    ends = (tuple(points[i] for i in sorted(order[:half])),
+            tuple(points[i] for i in sorted(order[half:])))
+    positions = np.asarray(block.positions, float)
+    if not hasattr(block, "neighbours"):
+        return Ends(positions, ends)
+    middles = [positions[list(e)].mean(axis=0) for e in ends]
+    line = middles[1] - middles[0]
+    line /= np.linalg.norm(line)
+    into = []
+    for end, middle in zip(ends, middles, strict=True):
+        members = [a for x in end for a in block.neighbours(x)
+                   if block.symbols[a] != "X"]
+        if not members:
+            return Ends(positions, ends)
+        step = positions[members].mean(axis=0) - middle
+        into.append(step / np.linalg.norm(step))
+    bend = (_angle(into[0], line) + _angle(into[1], -line)) / 2
+    return Ends(positions, ends, bend, _twist(into[0], into[1], line))
+
+
+def _angle(a, b) -> float:
+    return float(np.arccos(np.clip(a @ b, -1.0, 1.0)))
+
+
+def _twist(a, b, line) -> float:
+    """The unsigned angle between ``a`` and ``b`` seen along ``line``,
+    0 when either is along it."""
+    a, b = a - (a @ line) * line, b - (b @ line) * line
+    na, nb = np.linalg.norm(a), np.linalg.norm(b)
+    if na < 1e-6 or nb < 1e-6:
+        return 0.0
+    return _angle(a / na, b / nb)
 
 
 def faces(rod: Rod, size: int) -> list[Face]:
@@ -377,6 +419,19 @@ def _leaving(rod: Rod, points) -> np.ndarray:
     return total / np.linalg.norm(total)
 
 
+@dataclass(frozen=True)
+class Match:
+    """Face ``face`` of node ``node``'s rod meets face ``partner`` of
+    node ``other``'s, that rod moved by ``shift``: whole cells along
+    *a* and *b* of the pattern's cell, and whole repeats along *c*."""
+
+    node: int
+    face: int
+    other: int
+    partner: int
+    shift: tuple[int, int, int]
+
+
 @dataclass
 class Placement:
     """Where every rod of a :class:`RodNet` goes, and the cell.
@@ -403,6 +458,9 @@ class Placement:
     #: Whether the second colour's rod is turned over (a half turn
     #: across its axis) as well as turned about it.
     turned_over: bool = False
+    #: Which face meets which, one :class:`Match` per face of every
+    #: node, so each joint is here twice -- once from either end.
+    matches: list = field(default_factory=list)
 
     @property
     def spacing(self) -> float:
@@ -520,7 +578,7 @@ def placement(net: RodNet, rod: Rod, linker, *,
                                supercell(p, cell, colours).colours)
         model = _Model(trial_net.pattern, trial_net.colours,
                        (rod_faces, faces(option, ends.size)),
-                       rod.repeat, ends.span, a)
+                       rod.repeat, ends.span, a, ends.bend, ends.twist)
         x, gamma, cost = model.fit(gammas, free)
         if best is None or cost < best[0] - CLOSED:
             best = (cost, x, gamma, model, trial_net, option, k > 0)
@@ -528,7 +586,8 @@ def placement(net: RodNet, rod: Rod, linker, *,
     turns, rises, shears, a = model.unpack(x)
     return Placement(net, (rod, second), ends, a, rod.repeat, gamma,
                      said, turns, rises, shears, cost, reach,
-                     model.joints(x, gamma), over)
+                     model.joints(x, gamma), over,
+                     model.matches(x, gamma))
 
 
 class _Model:
@@ -538,9 +597,11 @@ class _Model:
     first, and the two shears; a free angle rides at the end of it.
     """
 
-    def __init__(self, p, colours, sets, repeat, span, a):
+    def __init__(self, p, colours, sets, repeat, span, a, bend=0.0,
+                 twist=0.0):
         self.p, self.colours, self.repeat = p, colours, repeat
         self.span, self.a = span, a
+        self.bend, self.twist = bend, twist
         self.middles = [np.array([f.middle for f in s]) for s in sets]
         self.outwards = [np.array([f.outward for f in s]) for s in sets]
         self.n = len(p.nodes)
@@ -570,12 +631,24 @@ class _Model:
     def pairs(self, x, gamma):
         """Each face and the partner face it meets, positions and
         outward directions, as four arrays."""
+        return self._pairs(x, gamma)[:4]
+
+    def matches(self, x, gamma) -> list[Match]:
+        """Which face meets which: the identities behind
+        :meth:`pairs`, in the same order."""
+        return self._pairs(x, gamma, identify=True)[4]
+
+    def _pairs(self, x, gamma, identify=False):
+        # Called a hundred thousand times by the search, so a match is
+        # only named when asked for.  Taking a rod's faces together,
+        # edge by edge, was measured slower: there are four to eight.
         turns, rises, shears, a = self.unpack(x)
         flat = self.p.matrix(a, gamma)
         rows = np.array([[*flat[0], shears[0]], [*flat[1], shears[1]]])
         placed = [self._turn(self.middles[k], turns[k]) for k in (0, 1)]
         leaving = [self._turn(self.outwards[k], turns[k]) for k in (0, 1)]
         here_all, out_all, there_all, back_all = [], [], [], []
+        found = []
         for u in range(self.n):
             centre = self.frac[u] @ rows
             centre = centre + [0.0, 0.0, rises[u]]
@@ -590,29 +663,48 @@ class _Model:
                                                      axis=1)[:, None]
             chosen = np.argmax(level @ flat_gaps.T, axis=1)
             for f, e in enumerate(chosen):
-                v = self.edges[u][e][0]
+                v, image = self.edges[u][e]
                 other = centre + gaps[e]
                 theirs = placed[self.colours[v]] + other
                 dz = theirs[:, 2] - mine[f, 2]
-                theirs[:, 2] -= self.repeat * np.round(dz / self.repeat)
+                up = np.round(dz / self.repeat)
+                theirs[:, 2] -= self.repeat * up
                 d = np.linalg.norm(theirs - mine[f], axis=1)
                 g = int(np.argmin(d))
+                if identify:
+                    found.append(Match(u, f, v, g, (int(round(image[0])),
+                                                    int(round(image[1])),
+                                                    -int(up[g]))))
                 here_all.append(mine[f])
                 out_all.append(outward[f])
                 there_all.append(theirs[g])
                 back_all.append(leaving[self.colours[v]][g])
         return (np.array(here_all), np.array(out_all),
-                np.array(there_all), np.array(back_all))
+                np.array(there_all), np.array(back_all), found)
 
     def cost(self, x, gamma):
         here, outward, there, back = self.pairs(x, gamma)
         joint = there - here
         length = np.linalg.norm(joint, axis=1)
         unit = joint / np.maximum(length, 1e-9)[:, None]
-        along = np.sum(outward * unit, axis=1)
-        against = np.sum(back * unit, axis=1)
+        along = np.clip(np.sum(outward * unit, axis=1), -1.0, 1.0)
+        against = np.clip(np.sum(back * unit, axis=1), -1.0, 1.0)
+        # Each face's bond is to leave the joint's line at the linker's
+        # own bend: 1 - cos of the miss, which for a straight linker is
+        # 1 - along, the cost a straight joint always had.
+        miss = ((1 - np.cos(np.arccos(along) - self.bend))
+                + (1 - np.cos(np.arccos(-against) - self.bend)))
+        if self.bend > 1e-3:
+            a = outward - along[:, None] * unit
+            b = back - against[:, None] * unit
+            na = np.maximum(np.linalg.norm(a, axis=1), 1e-9)
+            nb = np.maximum(np.linalg.norm(b, axis=1), 1e-9)
+            seen = np.arccos(np.clip(np.sum(a * b, axis=1) / na / nb,
+                                     -1.0, 1.0))
+            miss = miss + math.sin(self.bend) ** 2 * (
+                1 - np.cos(seen - self.twist))
         return float(np.sum((length - self.span) ** 2)
-                     + self.span ** 2 * np.sum((1 - along) + (1 + against)))
+                     + self.span ** 2 * np.sum(miss))
 
     def fit(self, gammas, free):
         from itertools import product
@@ -662,7 +754,13 @@ class _Model:
         here, outward, there, _back = self.pairs(x, gamma)
         found = []
         for h, o, t in zip(here, outward, there, strict=True):
-            ideal = h + self.span * o
+            # Along the face's bond, bent off it by the linker's bend
+            # towards where the partner is.
+            side = (t - h) - ((t - h) @ o) * o
+            norm = np.linalg.norm(side)
+            side = side / norm if norm > 1e-9 else np.zeros(3)
+            way = math.cos(self.bend) * o + math.sin(self.bend) * side
+            ideal = h + self.span * way
             found.append((h, t, float(np.linalg.norm(t - ideal))))
         return found
 
@@ -714,7 +812,7 @@ def rods_for(span: float, name: str, a: float,
 
 
 __all__ = ["CLOSED", "FREE_ANGLES", "HANDS", "PATTERNS", "SPAN_SLACK", "Ends",
-           "Face", "Pattern", "Placement", "RodNet", "RodNetError",
+           "Face", "Match", "Pattern", "Placement", "RodNet", "RodNetError",
            "as_net", "colouring", "ends_of", "faces", "pattern",
            "placement", "requirement", "rod_net", "rods_for",
            "supercell"]

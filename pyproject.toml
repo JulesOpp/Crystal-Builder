@@ -212,7 +212,8 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # more than one atom -- without them the builder has 867 blocks and
 # cannot build MFU-4l.  The layer nets are not here: they are the
 # RCSR's, from xtal.analysis's gzipped .cgd.
-"xtal.mof.library" = ["blocks/*.xyz", "rods/*.xyz", "topologies/*.cgd"]
+"xtal.mof.library" = ["blocks/*.xyz", "rods/*.xyz", "rods/linkers/*.xyz",
+                      "topologies/*.cgd"]
 # The isoreticular linker series as measured, so a suggestion needs no
 # RDKit: scripts/linker_series.py writes it.
 "xtal.mof" = ["data/*.json"]

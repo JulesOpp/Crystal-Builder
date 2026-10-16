@@ -275,37 +275,15 @@ def from_structure(structure, seed: int, *, shape="rng", rules=None,
     of its donors.  ``rules`` are bond rules for perceiving the crystal
     when its own would miss a bond (MOF-74's fifth Zn-O at 2.17 A).
     """
-    from xtal.core import bonding, p1
-
-    cell = p1.expand(structure)
-    graph = bonding.graph(structure, rules)
-    orders = bonding.orders(structure, rules)
-    symbols = cell.elements
-    n = len(symbols)
+    split = _Split.of(structure, rules)
+    cell, symbols, nbr = split.cell, split.symbols, split.nbr
+    n, order_of = len(symbols), split.order_of
+    metal, heavy, bridge = split.metal, split.heavy, split.bridge
+    linker, donor = split.linker, split.donor
+    groups, group_of = split.groups, split.group_of
     if not 0 <= seed < n or not el.element(symbols[seed]).is_metal:
         raise RodError(f"atom {seed} is not a metal, so no rod starts "
                        f"there")
-
-    nbr = defaultdict(list)
-    order_of = {}
-    for b, order in zip(graph.bonds, orders, strict=True):
-        image = np.array(b.image, int)
-        nbr[b.i].append((b.j, image))
-        nbr[b.j].append((b.i, -image))
-        order_of[(b.i, b.j)] = order_of[(b.j, b.i)] = float(order)
-
-    metal = [el.element(s).is_metal and not el.is_dummy(s)
-             for s in symbols]
-    heavy = [s not in ("H", "D", "X") for s in symbols]
-    bridge = [heavy[i] and not metal[i] and bool(nbr[i])
-              and all(metal[j] for j, _ in nbr[i] if heavy[j])
-              for i in range(n)]
-    linker = {i for i in range(n)
-              if heavy[i] and not metal[i] and not bridge[i]}
-    donor = {i for i in linker if any(metal[j] for j, _ in nbr[i])}
-
-    groups = _donor_groups(donor, linker, nbr)
-    group_of = {a: k for k, g in enumerate(groups) for a in g}
 
     def allowed(i, j):
         if metal[i] or metal[j]:
@@ -427,6 +405,148 @@ def from_structure(structure, seed: int, *, shape="rng", rules=None,
     rod = Rod(out_symbols, positions, length, sorted(bonds), edges,
               name, ())
     return rod
+
+
+def linker_from_structure(structure, seed: int | None = None, *,
+                          rules=None):
+    """The linker holding atom ``seed`` (any atom of it, in the P1
+    cell's numbering; the first one when ``None``), cut where
+    :func:`from_structure` cuts a rod: a
+    :class:`~xtal.mof.trimer.Block`.
+
+    So the two halves meet exactly.  A rod keeps each donor group
+    whole and puts an ``X`` :data:`CONNECTION_DISTANCE` out from the
+    group's atoms towards the linker; the linker is everything else of
+    its molecule, with its ``X`` **where the rod's is** -- worked out
+    the same way, from the group's side.  Coinciding ``X`` is the joint
+    every build here makes, so the crystal's joint comes back as it
+    was.  Measured from the linker's own atoms instead, the two only
+    meet across a gap of 1.5 A: BTDD's triazolate carbons are 1.2 A
+    from the middle of the benzene carbons they bond to, and its
+    joints came out 1.65 A long.  A linker drawn by hand (PORMAKE's
+    E14 has 1.54 A ring bonds) reaches 0.3 A further across and puts
+    the rods that much further apart; one cut from the crystal has
+    the crystal's own lengths.
+    """
+    from xtal.mof.trimer import Block
+
+    split = _Split.of(structure, rules)
+    cell, symbols, nbr = split.cell, split.symbols, split.nbr
+    grouped = set(split.group_of)
+    body = {i for i in split.linker if i not in grouped}
+    body |= {i for i, s in enumerate(symbols) if s in ("H", "D")
+             and any(j in body for j, _ in nbr[i])}
+    if seed is None:
+        seed = min((i for i in body if split.heavy[i]), default=None)
+    if seed is None or seed not in body:
+        raise RodError("no linker atom there: a linker is what is left "
+                       "once the metals, their bridges and the donor "
+                       "groups are taken away")
+    offset, translations = _walk(seed, body, nbr, lambda i, j: True)
+    if translations:
+        raise RodError("this linker repeats through the crystal, so it "
+                       "is not a molecule to place between rods")
+    to_cart = cell.lattice.to_cart
+    where = {a: np.asarray(to_cart(cell.frac[a] + offset[a]), float)
+             for a in offset}
+    atoms = sorted(offset)
+    place = {a: k for k, a in enumerate(atoms)}
+    out_symbols = [symbols[a] for a in atoms]
+    positions = [where[a] for a in atoms]
+    bonds = []
+    cuts = []                                # (group, member, partner)
+    for i in atoms:
+        for j, image in nbr[i]:
+            if j in offset:
+                if place[i] < place[j]:
+                    letter = BOND_LETTERS.get(split.order_of[(i, j)],
+                                              "S")
+                    bonds.append((place[i], place[j], letter))
+            elif j in grouped:
+                partner = np.asarray(to_cart(cell.frac[j] + offset[i]
+                                             + image), float)
+                cuts.append((split.group_of[j], place[i], partner))
+    # One X per group *met*: a group reached by two of the linker's
+    # atoms (a triazolate fused to a benzene) is one point standing for
+    # both, and the same group seen through two cells is two points.
+    met: list[tuple[int, list[int], list[np.ndarray]]] = []
+    for group, member, partner in cuts:
+        for k, members, partners in met:
+            if k == group and min(np.linalg.norm(partner - p)
+                                  for p in partners) < 3.0:
+                members.append(member)
+                partners.append(partner)
+                break
+        else:
+            met.append((group, [member], [partner]))
+    if len(met) < 2:
+        raise RodError("this linker meets fewer than two donor groups, "
+                       "so it joins nothing")
+    connections = []
+    for _group, members, partners in met:
+        distinct = {tuple(np.round(q, 4)): q for q in partners}
+        middle = np.mean(list(distinct.values()), axis=0)
+        outward = np.mean([positions[m] for m in members], axis=0) \
+            - middle
+        outward /= np.linalg.norm(outward)
+        members = sorted(set(members))
+        x = len(out_symbols)
+        out_symbols.append("X")
+        positions.append(middle + CONNECTION_DISTANCE * outward)
+        bonds.extend((m, x, "S") for m in members)
+        connections.append(x)
+    positions = np.array(positions)
+    positions -= positions[connections].mean(axis=0)
+    return Block(out_symbols, positions, sorted(bonds), connections)
+
+
+@dataclass
+class _Split:
+    """A crystal's atoms told apart: metals, bridges (bonded to metals
+    alone), the linkers' atoms, the donors among them and the donor
+    groups a rod keeps whole."""
+
+    cell: object
+    symbols: list
+    nbr: dict
+    order_of: dict
+    metal: list
+    heavy: list
+    bridge: list
+    linker: set
+    donor: set
+    groups: list
+    group_of: dict
+
+    @classmethod
+    def of(cls, structure, rules=None) -> _Split:
+        from xtal.core import bonding, p1
+
+        cell = p1.expand(structure)
+        graph = bonding.graph(structure, rules)
+        orders = bonding.orders(structure, rules)
+        symbols = cell.elements
+        n = len(symbols)
+        nbr = defaultdict(list)
+        order_of = {}
+        for b, order in zip(graph.bonds, orders, strict=True):
+            image = np.array(b.image, int)
+            nbr[b.i].append((b.j, image))
+            nbr[b.j].append((b.i, -image))
+            order_of[(b.i, b.j)] = order_of[(b.j, b.i)] = float(order)
+        metal = [el.element(s).is_metal and not el.is_dummy(s)
+                 for s in symbols]
+        heavy = [s not in ("H", "D", "X") for s in symbols]
+        bridge = [heavy[i] and not metal[i] and bool(nbr[i])
+                  and all(metal[j] for j, _ in nbr[i] if heavy[j])
+                  for i in range(n)]
+        linker = {i for i in range(n)
+                  if heavy[i] and not metal[i] and not bridge[i]}
+        donor = {i for i in linker if any(metal[j] for j, _ in nbr[i])}
+        groups = _donor_groups(donor, linker, nbr)
+        group_of = {a: k for k, g in enumerate(groups) for a in g}
+        return cls(cell, symbols, nbr, order_of, metal, heavy, bridge,
+                   linker, donor, groups, group_of)
 
 
 def _donor_groups(donor, linker, nbr) -> list[set[int]]:
@@ -632,10 +752,22 @@ def _maps(symbols, moving, repeat, target, kinds, turn, rise) -> bool:
 LIBRARY = Path(__file__).parent / "library" / "rods"
 
 
+#: The linkers cut from the same crystals as the rods, by
+#: :func:`linker_from_structure`, so each rod has the linker that meets
+#: it at the crystal's own lengths.
+LINKERS = LIBRARY / "linkers"
+
+
 def shipped() -> dict[str, Path]:
     """Every rod in the library, by name."""
     return {p.stem: p for p in sorted(LIBRARY.glob("*.xyz"))}
 
 
-__all__ = ["LIBRARY", "MATCH", "Rod", "RodError", "from_structure",
-           "shipped"]
+def shipped_linkers() -> dict[str, Path]:
+    """Every linker in the rod library, by name."""
+    return {p.stem: p for p in sorted(LINKERS.glob("*.xyz"))}
+
+
+__all__ = ["LIBRARY", "LINKERS", "MATCH", "Rod", "RodError",
+           "from_structure", "linker_from_structure", "shipped",
+           "shipped_linkers"]

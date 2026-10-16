@@ -149,9 +149,13 @@ def test_the_shipped_rods_from_cod_samples_are_what_the_script_writes():
         "rod_blocks", ROOT / "scripts" / "rod_blocks.py")
     script = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(script)
-    for name, path, prepared, shape, rules, _swaps in script.RODS[:2]:
+    for name, path, prepared, shape, rules, _swaps, linker in \
+            script.RODS[:2]:
         made = script.cut(path, prepared, shape, rules, name)
         assert made.text() == rod.shipped()[name].read_text()
+        cut = rod.linker_from_structure(script.crystal(path, prepared),
+                                        rules=rules)
+        assert cut.text() == rod.shipped_linkers()[linker].read_text()
 
 
 def test_a_cut_rod_lies_in_one_repeat_along_its_axis():
