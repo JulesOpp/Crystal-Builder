@@ -371,3 +371,61 @@ def test_tpyp_in_the_four_rings_opens_tot_and_says_to_relax(tmp_path):
     assert "T-O-T as built 17" in said.lines[0]
     assert "relax" in said.warning
     assert said.warning in outcome.structure.meta["warnings"]
+
+
+def test_every_fill_of_sod_is_offered_with_why_the_refused_ones_are():
+    """The MOF builder greys a fill rather than hiding it, so each is
+    tried: every site of either window builds, and every other site
+    is refused for the symmetry that would bond the filler to all."""
+    offered = decorate.choices(decorate.decoration("sod"))
+    assert sorted(offered) == [4, 6]
+    assert sorted(offered[6]) == [1, 2, 3]
+    assert offered[4][1] == "" and offered[6][1] == ""
+    assert "symmetry" in offered[4][2]
+    assert "symmetry" in offered[6][3]
+
+
+def test_a_filled_nets_name_is_spelled_from_its_fills():
+    name = decorate.spelled("sod", [(6, 3), (4, 1)])
+    assert name == "sod-st-f4-f6e3"
+    assert decorate.parse(name) == ("sod", [(4, 1), (6, 3)])
+    assert decorate.spelled("lta", []) == "lta-st"
+
+
+@pytest.mark.skipif(database_root() is None,
+                    reason="the vendored PORMAKE database is missing")
+def test_a_decorated_nets_slots_say_which_is_trimer_face_and_filler():
+    """lta's three kinds of trimer come first, then its faces, then a
+    filler for each of its two kinds of 4-ring; a net that is not
+    decorated has no roles at all."""
+    catalog = Catalog.default()
+    assert decorate.roles(catalog.topology("sod-st-f4")) == {
+        0: "trimer", 1: "face", 2: "4-ring"}
+    roles = decorate.roles(catalog.topology("lta-st-f4"))
+    assert [roles[k] for k in sorted(roles)] == (
+        ["trimer"] * 3 + ["face"] * 3 + ["4-ring"] * 2)
+    assert decorate.roles(catalog.topology("pcu")) == {}
+
+
+def test_a_twin_trimers_name_gives_back_the_trimer_it_came_from():
+    from xtal.mof.trimer import twin_name, untwinned
+
+    assert untwinned(twin_name("N536", 1)) == "N536"
+    assert untwinned("N92") == "N92"
+
+
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_what_each_window_asks_is_worked_out_on_the_trimer_a_twin_is_of():
+    """A filled net's row holds the 7-c twin once a build has written
+    it; the windows are asked of the In trimer itself, and come out
+    as they do for the plain sod-ZMOF on BTC."""
+    catalog = Catalog.default()
+    decorated = decorate.decoration("sod")
+    _placed, rows = decorate.asked(decorated, catalog, "N92-7c", "N10")
+    assert [(r.kind.size, r.index, r.every) for r in rows] == [
+        (4, 0, 1), (6, 0, 1)]
+    assert rows[0].sentence.startswith("4-ring, 4 sites")
+    assert rows[1].requirement.topicity == 6
+    _placed, rows = decorate.asked(decorated, catalog, "N92", "N10",
+                                   every={6: 3})
+    assert rows[1].requirement.topicity == 2

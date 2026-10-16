@@ -1123,6 +1123,111 @@ def filled(decorated: Decoration, spec) -> Filled:
     return fill(decorated, fills)
 
 
+def spelled(parent: str, spec) -> str:
+    """The name of ``parent`` decorated, with the windows of ``spec``
+    (``(size, every)``) filled, smallest first: what :func:`parse`
+    reads back and the catalogue makes on asking."""
+    tokens = [f"-f{size}" + (f"e{every}" if every > 1 else "")
+              for size, every in sorted(spec)]
+    return parent + SUFFIX + "".join(tokens)
+
+
+def choices(decorated: Decoration) -> dict[int, dict[int, str]]:
+    """Every way one size of window can be filled on its own: size ->
+    every -> why it is refused, ``""`` where it is not.  ``every``
+    runs over the divisors that leave a filler two sites or more.
+
+    Each is the fill itself, tried -- a quarter of a second on fau --
+    because whether a choice of sites survives the window's symmetry,
+    or a long filler edge lets PORMAKE read the file by distance, is
+    only known by writing it.  Two sizes allowed alone can still be
+    refused together (a trimer has three open sites)."""
+    out: dict[int, dict[int, str]] = {}
+    for size in sorted({k.size for k in windows(decorated)}):
+        out[size] = {}
+        for every in range(1, size // 2 + 1):
+            if size % every:
+                continue
+            try:
+                filled(decorated, [(size, every)])
+                out[size][every] = ""
+            except DecorationError as exc:
+                out[size][every] = str(exc)
+    return out
+
+
+def made_from(topology):
+    """The :class:`Decoration` or :class:`Filled` a catalogue topology
+    was made from, or ``None`` for any other net."""
+    return topology._cache.get("decorated")
+
+
+def roles(topology) -> dict[int, str]:
+    """Node slot -> what goes there, for a decorated net: ``"trimer"``,
+    ``"face"``, or the window a filler fills (``"4-ring"``).  Empty
+    for any other net.  A filled net's trimer slot is 7- to
+    9-connected, and a person picks the six-connected trimer for it
+    (:func:`prepared` makes the twin), so the slot must say so."""
+    made = made_from(topology)
+    if made is None:
+        return {}
+    decorated = getattr(made, "decoration", made)
+    n_trimers = len(_representatives(decorated.trimers,
+                                     _ops(decorated.group)))
+    fillers = made.filler_slots() if isinstance(made, Filled) else {}
+    out = {}
+    for slot in range(len(made.entry().nodes)):
+        if slot in fillers:
+            out[slot] = fillers[slot].kind.label()
+        else:
+            out[slot] = "trimer" if slot < n_trimers else "face"
+    return out
+
+
+@dataclass(frozen=True)
+class Asked:
+    """One kind of window, and what fills it on these blocks."""
+
+    kind: WindowKind
+    #: Its place among the kinds of its size: lta has two 4-rings.
+    index: int
+    every: int
+    sentence: str
+    requirement: object = field(repr=False)
+
+
+def asked(decorated: Decoration, catalog, trimer: str, face: str,
+          every: dict | None = None):
+    """``(placed, [Asked, ...])``: one :func:`trial` of ``decorated``
+    on these blocks, then every window kind's :func:`sentence` and
+    :func:`requirement`, ``every`` (size -> every) choosing how many
+    sites a filler takes.  ``trimer`` may name a twin; its windows are
+    worked out on the trimer it came from.  A kind whose sites
+    ``every`` does not divide is left out."""
+    from xtal.mof.partition import node_geometry
+    from xtal.mof.trimer import untwinned
+
+    every = every or {}
+    block = catalog.building_block(untwinned(trimer))
+    face_block = catalog.building_block(face)
+    node = node_geometry(block)
+    placed = trial(decorated, plain_blocks(decorated.topology(), block,
+                                           face_block))
+    out, seen = [], {}
+    for kind in windows(decorated):
+        index = seen.get(kind.size, 0)
+        seen[kind.size] = index + 1
+        step = int(every.get(kind.size, 1))
+        try:
+            wanted = requirement(decorated, kind, node, placed, step)
+        except DecorationError:
+            continue
+        out.append(Asked(kind, index, step,
+                         sentence(decorated, kind, node, placed, step),
+                         wanted))
+    return placed, out
+
+
 # ----------------------------------------------------------------------
 #  Building one
 # ----------------------------------------------------------------------

@@ -25,6 +25,7 @@ Numpy and text only: a block file in, a block file out.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -283,6 +284,14 @@ def twin_name(name: str, count: int = 3) -> str:
     """A trimer's twin's name: ``N536`` -> ``N536-9c``, or ``N536-7c``
     with one open site made a point."""
     return f"{name}-{6 + count}c"
+
+
+def untwinned(name: str) -> str:
+    """The trimer a twin was made from: ``N536-7c`` -> ``N536``; any
+    other name as it is.  A filled net's row may hold a twin written
+    by an earlier build, and what its windows ask is worked out on
+    the six-connected trimer."""
+    return re.sub(r"-[789]c$", "", str(name))
 
 
 def write_twin(source, folder, *, strip: bool = False,

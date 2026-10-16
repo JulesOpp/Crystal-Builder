@@ -38,6 +38,7 @@ from xtal.modules.registry import (  # noqa: E402
     Module,
 )
 from xtal.mof import database_root  # noqa: E402
+from xtal.mof.catalog import installed  # noqa: E402
 from xtalapp.dialogs import module_dialog  # noqa: E402
 from xtalapp.dialogs.module_form import ModuleDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -1217,6 +1218,165 @@ def test_a_reembedded_net_picked_last_time_is_built_there_again(
     assert again._topology.name == "sph"
     assert again.values()["topology"] == "sph@-0.1250"
     assert again.sets_fold.is_open()
+
+
+# -- the supertetrahedra section ---------------------------------------
+
+def _sod(dialog):
+    assert dialog._select("sod")
+    box = dialog.supertetrahedra
+    box.decorate.setChecked(True)
+    return box
+
+
+def _rows_by_key(dialog):
+    return {r.slot.key: r for r in dialog._rows if not r.slot.is_edge}
+
+
+@needs_database
+def test_the_supertetrahedra_box_is_live_only_for_a_four_connected_net(
+        dialog):
+    """Greyed on pcu, whose vertex is six-connected, with the zeolites
+    offered as links; live on sod."""
+    box = dialog.supertetrahedra
+    assert dialog._select("pcu")
+    assert not box.decorate.isEnabled()
+    assert "<a href='sod'>" in box.status.text()
+    box.use_net.emit("sod")
+    assert dialog._topology.name == "sod"
+    assert box.decorate.isEnabled()
+    assert dialog.values()["topology"] == "sod"
+
+
+@needs_database
+def test_decorating_sod_asks_for_a_trimer_and_a_face(dialog):
+    """Ticked, the build is on sod-st and the rows are its trimer and
+    its face; unticked, sod's own 4-c row again."""
+    box = _sod(dialog)
+    assert dialog._topology.name == "sod-st"
+    assert dialog.values()["topology"] == "sod-st"
+    assert [r.slot.coordination for r in _rows_by_key(dialog).values()
+            ] == [6, 3]
+    assert "M3O trimer" in dialog.details.text()
+    box.decorate.setChecked(False)
+    assert dialog._topology.name == "sod"
+    assert dialog.values()["topology"] == "sod"
+
+
+@needs_database
+def test_filling_four_rings_keeps_the_blocks_and_adds_a_filler_row(
+        dialog):
+    """sod-st-f4: the trimer slot is seven-connected and still offers
+    the six-connected trimer the build makes its twin from, so N92 and
+    BTC stay where they were put."""
+    box = _sod(dialog)
+    rows = _rows_by_key(dialog)
+    rows[0].set_block("N92")
+    rows[1].set_block("N10")
+    tick, _every = box._rows[4]
+    tick.setChecked(True)
+    assert dialog._topology.name == "sod-st-f4"
+    rows = _rows_by_key(dialog)
+    assert rows[0].slot.coordination == 7
+    assert rows[0].block() == "N92" and rows[1].block() == "N10"
+    assert rows[2].slot.coordination == 4
+    assert "fills the 4-rings" in dialog.details.text()
+    values = dialog.values()
+    assert values["topology"] == "sod-st-f4"
+    assert "N92" in values["nodes"] and "N10" in values["nodes"]
+
+
+@needs_database
+def test_a_refused_fill_is_greyed_with_its_reason(dialog):
+    """Every other site of sod's 4-ring is turned onto the others by
+    its fourfold axis: listed, greyed, the reason its tooltip."""
+    box = _sod(dialog)
+    _tick, every = box._rows[4]
+    at = every.findData(2)
+    assert at >= 0
+    assert not every.model().item(at).isEnabled()
+    assert "symmetry" in every.itemData(at, Qt.ToolTipRole)
+
+
+@needs_database
+def test_two_fills_refused_together_put_the_tick_back_and_say_why(
+        dialog, monkeypatch):
+    from xtal.mof.catalog import CatalogError
+
+    box = _sod(dialog)
+    box._rows[4][0].setChecked(True)
+    real = dialog.catalog.topology
+
+    def refuse(name):
+        if name == "sod-st-f4-f6":
+            raise CatalogError("asks four open sites of a trimer")
+        return real(name)
+
+    monkeypatch.setattr(dialog.catalog, "topology", refuse)
+    box._rows[6][0].setChecked(True)
+    assert not box._rows[6][0].isChecked()
+    assert "four open sites" in box.status.text()
+    assert dialog._topology.name == "sod-st-f4"
+
+
+@needs_database
+def test_the_same_trimer_goes_in_every_trimer_slot(dialog):
+    """lta has three kinds of edge, so three trimer slots and three
+    face slots; one pick fills all three, unless asked otherwise."""
+    assert dialog._select("lta")
+    box = dialog.supertetrahedra
+    box.decorate.setChecked(True)
+    rows = _rows_by_key(dialog)
+    rows[0].set_block("N92")
+    rows[3].set_block("N10")
+    assert [rows[k].block() for k in range(6)] == ["N92"] * 3 + [
+        "N10"] * 3
+    box.same.setChecked(False)
+    rows[1].set_block("N536")
+    assert rows[0].block() == "N92"
+
+
+@needs_database
+def test_a_decorated_net_picked_last_time_is_offered_again(qtbot,
+                                                          window):
+    from xtalapp.dialogs.mof_build import MofBuildDialog
+
+    _module, action = MODULES.find("mof.build")
+    again = MofBuildDialog(MODULES.get("mof"), action, window,
+                           {"topology": "sod-st-f4",
+                            "nodes": "0=N92,1=N10"})
+    qtbot.addWidget(again)
+    assert again._listed.name == "sod"
+    assert again._topology.name == "sod-st-f4"
+    assert again.supertetrahedra._rows[4][0].isChecked()
+    assert _rows_by_key(again)[0].block() == "N92"
+    assert again.st_fold.is_open()
+    assert again.values()["topology"] == "sod-st-f4"
+
+
+@pytest.mark.slow
+@needs_database
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_a_suggested_filler_clicked_fills_its_window(dialog):
+    """TPyP is In-sod-ZMOF-320's 4-ring filler on TATB; on BTC the
+    4-ring asks for less, but a click on any suggestion fills the
+    window and puts the filler in the row it made."""
+    box = _sod(dialog)
+    rows = _rows_by_key(dialog)
+    rows[0].set_block("N92")
+    rows[1].set_block("N10")
+    assert box.suggest.isEnabled()
+    box._suggest()
+    text = box.suggestions.text()
+    assert "T-O-T" in text
+    assert "4-ring, 4 sites" in text and "6-ring, 6 sites" in text
+    href = next(h for h in text.split("href='")[1:]
+                if h.startswith("6:1:0:")).split("'")[0]
+    name = href.split(":", 3)[3]
+    box._clicked(href)
+    assert dialog._topology.name == "sod-st-f6"
+    assert _rows_by_key(dialog)[2].block() == name
+    assert "6-ring" in box.suggestions.text()
 
 
 needs_merged = pytest.mark.skipif(
