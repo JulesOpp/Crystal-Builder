@@ -347,10 +347,21 @@ def expand(entry: CgdEntry) -> Net:
 
 
 def _placed(entry: CgdEntry) -> tuple[Net, np.ndarray]:
+    net, frac, _symbol = resolved(entry)
+    return net, frac
+
+
+def resolved(entry: CgdEntry) -> tuple[Net, np.ndarray, str]:
+    """:func:`placement`, and the setting that resolved it.
+
+    A net derived from this one and written back in its group has to
+    name the setting, ``Fd-3m:2`` rather than ``Fd-3m``: PORMAKE
+    expands what the file says and does not retry.
+    """
     problems = []
     for symbol in _settings(entry):
         try:
-            return _expand_with(entry, symbol)
+            return (*_expand_with(entry, symbol), symbol)
         except RcsrError as exc:
             problems.append(str(exc))
     raise RcsrError(problems[0])

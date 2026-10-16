@@ -901,6 +901,7 @@ class Catalog:
         self.bb_dirs = tuple(Path(p) for p in self.bb_dirs if p)
         self._topologies: dict[str, Topology] | None = None
         self._blocks: dict[str, BuildingBlock] | None = None
+        self._made: dict[str, Topology] = {}
         self._failures: list[str] = []
 
     @classmethod
@@ -953,14 +954,40 @@ class Catalog:
 
     def topology(self, name: str) -> Topology:
         self.topologies()
+        name = str(name)
+        if name in self._topologies:
+            return self._topologies[name]
+        derived = self._derived(name)
+        if derived is not None:
+            return derived
+        raise CatalogError(
+            f"no topology called {name!r}; "
+            f"{len(self._topologies)} were read from "
+            f"{', '.join(str(d) for d in self.topology_dirs)}")
+
+    def _derived(self, name: str) -> Topology | None:
+        """A net made from another by name: ``sod-st`` is ``sod``
+        decorated with supertetrahedra (:mod:`xtal.mof.decorate`).
+
+        Made on asking and kept, never listed: the picker offers the
+        decoration beside its parent, and a request, a saved set or an
+        agent spelling it out still finds it here.  The parent is the
+        catalogue's own net first, the RCSR's if there is none.
+        """
+        from xtal.mof import decorate
+
+        if not name.endswith(decorate.SUFFIX):
+            return None
+        if name in self._made:
+            return self._made[name]
+        parent = name[:-len(decorate.SUFFIX)]
+        source = self._topologies.get(parent, parent)
         try:
-            return self._topologies[str(name)]
-        except KeyError:
-            raise CatalogError(
-                f"no topology called {name!r}; "
-                f"{len(self._topologies)} were read from "
-                f"{', '.join(str(d) for d in self.topology_dirs)}"
-            ) from None
+            made = decorate.supertetrahedral(source)
+        except decorate.DecorationError as exc:
+            raise CatalogError(str(exc)) from None
+        self._made[name] = made
+        return made
 
     # -- building blocks -----------------------------------------------
 

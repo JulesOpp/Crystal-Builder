@@ -441,6 +441,10 @@ class BuildOutcome:
     #: The partitioner's predicted fit (:class:`xtal.mof.partition.Fit`)
     #: when the build partitioned an acs framework, else ``None``.
     partition: object = None
+    #: The asked net's own reading, for a net made from another
+    #: (``sod-st``): most have no RCSR name, so what the build is held
+    #: to is this, by invariants.  ``None`` for a net of a file.
+    asked_net: object = None
 
     @property
     def net_name(self) -> str:
@@ -453,6 +457,8 @@ class BuildOutcome:
         re-embedded, and is read back under the RCSR's name."""
         from xtal.mof.catalog import NET_ALIASES
 
+        if self.asked_net is not None and self.asked_net.name:
+            return self.asked_net.name
         return NET_ALIASES.get(self.asked, self.asked)
 
     @property
@@ -465,8 +471,12 @@ class BuildOutcome:
     def net_agrees(self) -> bool:
         """Whether what came out is the net that was asked for --
         and in as many copies as were asked for."""
-        return (bool(self.net_name) and self.net_name == self.rcsr_asked
-                and self.copies == self.request.interpenetration)
+        if self.copies != self.request.interpenetration:
+            return False
+        if self.asked_net is not None and not self.asked_net.name:
+            return bool(self.identified) and _same_invariants(
+                self.identified, self.asked_net)
+        return bool(self.net_name) and self.net_name == self.rcsr_asked
 
     @property
     def copies(self) -> int:
@@ -630,6 +640,10 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
                                     log)
     outcome.identified = check_net(structure)
     outcome.partition = predicted
+    from xtal.mof.decorate import SUFFIX
+
+    if topology.path is None and topology.name.endswith(SUFFIX):
+        outcome.asked_net = _reading(topology)
     _say(log, outcome.verdict())
     return outcome
 
@@ -1696,6 +1710,29 @@ def _contact_key(i: int, j: int, image) -> tuple:
     if i <= j:
         return (int(i), int(j), tuple(int(v) for v in image))
     return (int(j), int(i), tuple(int(-v) for v in image))
+
+
+def _reading(topology):
+    """What a net made from another is, by its invariants alone.
+
+    A decoration the RCSR names by them -- ``mtn-st`` is ``moo`` --
+    is held to that name; one it has no name for is held to the
+    invariants themselves.  Never by canonical form: the built net is
+    keyed anyway, and keying the asked one too is the same twenty
+    seconds again on ``sod-st`` and a minute on moo.
+    """
+    from xtal.analysis import rcsr
+
+    fingerprint = topology.net().fingerprint()
+    names = rcsr.catalogue().lookup(fingerprint)
+    return rcsr.NetReport((rcsr.Identification(
+        fingerprint, names if len(names) == 1 else ()),))
+
+
+def _same_invariants(one, other) -> bool:
+    """Whether two reports' pieces walk and ring alike."""
+    return ({part.fingerprint.token() for part in one.parts}
+            == {part.fingerprint.token() for part in other.parts})
 
 
 def check_net(structure):
