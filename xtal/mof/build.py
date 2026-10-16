@@ -132,12 +132,17 @@ class BuildRequest:
     #: :func:`xtal.analysis.interpenetrate.best` -- the placement with
     #: the most room -- and refused, by name, when none has any.
     interpenetration: int = 1
+    #: A pyridyl partitioner for an ``acs`` framework, by name, or
+    #: ``"auto"`` for the one :mod:`xtal.mof.partition` ranks first;
+    #: empty for none.  The build is then of the partitioned net,
+    #: ``pacs``, and this holds the partitioner it was made with.
+    partition: str = ""
 
     @classmethod
     def parse(cls, topology: str, nodes: str, edges: str,
               repeat: str = "", orientation: str = "",
               spacing: str = "", offset: str = "",
-              interpenetration="") -> BuildRequest:
+              interpenetration="", partition: str = "") -> BuildRequest:
         """The strings a parameter form and a command line both hand
         over.
 
@@ -164,7 +169,8 @@ class BuildRequest:
                    _repeat(repeat),
                    str(orientation or "").strip() or "consistent",
                    _spacing(spacing), _offset(offset),
-                   _interpenetration(interpenetration))
+                   _interpenetration(interpenetration),
+                   str(partition or "").strip())
 
     def spelled(self) -> tuple[str, str, str]:
         """Back to the three strings, for a log and for a saved set.
@@ -432,16 +438,34 @@ class BuildOutcome:
     #: as ``(distance, one atom, the other)`` -- each atom named with
     #: the block it came from.  See :func:`overlaps`.
     overlaps: tuple = ()
+    #: The partitioner's predicted fit (:class:`xtal.mof.partition.Fit`)
+    #: when the build partitioned an acs framework, else ``None``.
+    partition: object = None
 
     @property
     def net_name(self) -> str:
         return self.identified.name if self.identified else ""
 
     @property
+    def rcsr_asked(self) -> str:
+        """The RCSR's name for the net asked for: one of our own nets
+        (:data:`xtal.mof.catalog.NET_ALIASES`) is another's graph,
+        re-embedded, and is read back under the RCSR's name."""
+        from xtal.mof.catalog import NET_ALIASES
+
+        return NET_ALIASES.get(self.asked, self.asked)
+
+    @property
+    def _asked_said(self) -> str:
+        if self.rcsr_asked == self.asked:
+            return self.asked
+        return f"{self.asked} (the {self.rcsr_asked} net)"
+
+    @property
     def net_agrees(self) -> bool:
         """Whether what came out is the net that was asked for --
         and in as many copies as were asked for."""
-        return (bool(self.net_name) and self.net_name == self.asked
+        return (bool(self.net_name) and self.net_name == self.rcsr_asked
                 and self.copies == self.request.interpenetration)
 
     @property
@@ -468,8 +492,8 @@ class BuildOutcome:
             head = (f"the framework is {self.identified.headline()}, "
                     f"as asked")
         elif self.net_agrees:
-            head = f"the framework is {self.asked}, as asked"
-        elif self.net_name == self.asked:
+            head = f"the framework is {self._asked_said}, as asked"
+        elif self.net_name == self.rcsr_asked:
             asked = self.request.interpenetration
             head = (f"asked for {asked} "
                     f"cop{'y' if asked == 1 else 'ies'} of {self.asked} "
@@ -534,6 +558,14 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     """
     catalog = catalog or Catalog.default()
     directory = Path(directory)
+    predicted = None
+    if request.partition:
+        from xtal.mof.partition import partitioned
+
+        request, catalog, predicted = partitioned(request, catalog,
+                                                  directory)
+        _say(log, f"partitioning acs with {request.partition}: "
+                  f"predicted {predicted.sentence()}")
     topology, node_bbs, edge_bbs = _resolve(request, catalog)
     _say(log, f"topology {topology.name}: {topology.summary()}")
 
@@ -597,6 +629,7 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
         structure = _interpenetrate(outcome, request.interpenetration,
                                     log)
     outcome.identified = check_net(structure)
+    outcome.partition = predicted
     _say(log, outcome.verdict())
     return outcome
 

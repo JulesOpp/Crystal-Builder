@@ -156,6 +156,23 @@ def library_root() -> Path | None:
     return _library("blocks")
 
 
+#: Our own nets that are an RCSR net's graph under another embedding,
+#: and the RCSR's name a build of one reads back as.
+NET_ALIASES = {"pacs": "nia-d"}
+
+
+def library_nets() -> Path | None:
+    """Our own ``topologies/``, or ``None``.
+
+    Nets PORMAKE cannot read as the RCSR embeds them: ``pacs`` is
+    ``nia-d``'s graph with *c* at the pore-space-partitioned
+    frameworks' own proportion, because at the RCSR's c = 0.48 the
+    trimers stacked along *c* are nearer than their neighbours along
+    an edge and PORMAKE's distance-based reading refuses the file.
+    """
+    return _library("topologies")
+
+
 def _library(folder: str) -> Path | None:
     try:
         spec = importlib.util.find_spec("xtal.mof.library")
@@ -909,6 +926,9 @@ class Catalog:
         topologies = [root / "topologies"] if root else []
         blocks = [root / "bbs"] if root else []
         topologies.append(RCSR_LAYERS)
+        our_nets = library_nets()
+        if our_nets:
+            topologies.append(our_nets)
         if ours:
             blocks.append(ours)
         if topology_dir:

@@ -141,7 +141,7 @@ PACKAGE_DATA = {
     # looks.  The layer nets are not here: they are the RCSR's,
     # read from `xtal/analysis/data` above by
     # `xtal.mof.catalog.rcsr_layers`.
-    "xtal/mof/library": ["blocks/*.xyz"],
+    "xtal/mof/library": ["blocks/*.xyz", "topologies/*.cgd"],
     # The AI assistant skill, which Help > Set up an AI assistant
     # copies out of the bundle: without it the entry has nothing to
     # install.

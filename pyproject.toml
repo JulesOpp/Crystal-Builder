@@ -212,7 +212,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 # more than one atom -- without them the builder has 867 blocks and
 # cannot build MFU-4l.  The layer nets are not here: they are the
 # RCSR's, from xtal.analysis's gzipped .cgd.
-"xtal.mof.library" = ["blocks/*.xyz"]
+"xtal.mof.library" = ["blocks/*.xyz", "topologies/*.cgd"]
 # The skill an AI assistant reads to drive this program.  Shipped in
 # the wheel, as rietx ships its own, so `xtal skill install` copies
 # the text that matches the installed API rather than whatever a web

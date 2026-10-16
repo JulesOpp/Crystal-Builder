@@ -25,6 +25,7 @@ print(s.inspect())
 | `orientation` | `consistent` (default) or `as-found` (PORMAKE's own) |
 | `spacing`, `offset` | layer nets only: sheet spacing in Å (default 3.4) and stacking offset |
 | `interpenetration` | copies threaded through each other, where the most room is |
+| `partition` | `acs` with a trimer node only: a pyridyl partitioner on every channel (`tpt`, `tpb`, `tripp`, `tppb`, or `auto`) |
 
 ## Choosing blocks
 
@@ -45,6 +46,33 @@ Known combinations: MOF-5 is `pcu` + `N16` (the Zn4O(CO2)6 cluster) +
 `E14` (the benzene of BDC), 2x2x2 for the conventional cell. HKUST-1 is
 `tbo`. A layer net (`hcb`, `sql`, `kgm`, `hxl`) builds sheets that are
 stacked afterwards, never by the builder.
+
+## Partitioning the pores (pacs)
+
+`partition` builds a MIL-88-type `acs` framework with a C3 pyridyl on
+each channel axis, bonded to the trimers' open metal sites: the
+pore-space-partitioned **pacs** frameworks. Give `topology="acs"`, one
+open M3O trimer node (`N589` Ni, `N92` In, `N536` Cr …) and one linker;
+the build is then on `pacs`, which reads back as the `nia-d` net.
+
+The partitioner sets the cell's *a* and the linker its *c*, so not
+every pair closes. Ask first, without building:
+
+```python
+from xtal.mof import partition
+node = partition.node_geometry(catalog.building_block("N589"))
+span = partition.linker_span(catalog.building_block("E14"))
+for fit in partition.rank(node, "E14", span):
+    print(fit.sentence())          # predicted a, c; or why it cannot
+need = partition.linker_requirement(node, partition.partitioner("tpt"),
+                                    pocket=8.0)   # layers 8 A apart
+print(need.sentence())
+```
+
+A refused pair is a failed build with the same sentence, never a
+strained framework. The report's *Pore-space partition* table puts
+the predicted cell beside the built one, and the metal-N lengths as
+built. Relax before reading the cell as a material's.
 
 ## Judging a build
 

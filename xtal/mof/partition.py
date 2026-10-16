@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
@@ -53,6 +54,13 @@ PHI_WINDOW = (28.0, 52.0)
 
 #: The middle of the observed elevations, which a fit is ranked by.
 PHI_IDEAL = 38.0
+
+#: Elevations this close count as the same fit, degrees, and the
+#: catalogue's order decides between them.  tpt and tpb on a Ni trimer
+#: with BDC are 0.5 and 0.15 degrees off ideal, which says nothing; tpb
+#: is the one whose central C-H meets the framework at 1.52 A, and tpt
+#: is the one the pacs literature is built on.
+PHI_TIE = 2.0
 
 #: Partitioner layers are c/2 apart.  Closer than a pi-stack and the
 #: rings meet; nothing deposited is under 7 A.
@@ -80,7 +88,8 @@ class Partitioner:
 _PY = "c1cc[n+](*)cc1"
 
 #: The tritopic partitioners of the pacs literature, and the extended
-#: one a larger linker asks for.
+#: one a larger linker asks for, in the order a tie is broken: the
+#: most used first.
 PARTITIONERS = (
     Partitioner("tpt", "2,4,6-tri(4-pyridyl)-1,3,5-triazine",
                 f"*[n+]1ccc(cc1)-c1nc(nc(n1)-{_PY})-{_PY}", 5.58),
@@ -254,8 +263,14 @@ def rank(node: Node, linker_name: str, span: float,
          candidates=PARTITIONERS) -> list[Fit]:
     """Every candidate partitioner, buildable first, least strained
     first."""
+    order = {p.name: k for k, p in enumerate(candidates)}
     fits = [predict(node, linker_name, span, p) for p in candidates]
-    return sorted(fits, key=lambda f: (not f.ok, f.strain, f.partitioner))
+    return sorted(fits, key=lambda f: (not f.ok, _bucket(f),
+                                       order[f.partitioner]))
+
+
+def _bucket(fit: Fit) -> float:
+    return math.floor(fit.strain / PHI_TIE) if fit.ok else math.inf
 
 
 @dataclass(frozen=True)
@@ -307,3 +322,130 @@ def rank_linkers(node: Node, p: Partitioner, linkers) -> list[Fit]:
             continue
         fits.append(predict(node, block.name, linker_span(block), p))
     return sorted(fits, key=lambda f: (not f.ok, f.strain, f.linker))
+
+
+
+# ----------------------------------------------------------- the build
+
+#: What ``partition`` is set to for the ranker's first choice.
+AUTO = "auto"
+
+#: The net a partitioned acs is built on: ``nia-d``'s graph at the
+#: pacs frameworks' proportions (``xtal/mof/library/topologies``).
+NET = "pacs"
+
+
+def block_name(p: Partitioner) -> str:
+    """What a partitioner's building block is called in a run."""
+    return f"pacs-{p.name}"
+
+
+def partitioned(request, catalog, folder):
+    """``(request, catalog, fit)``: an ``acs`` request rewritten onto
+    :data:`NET`, with the blocks it needs written into ``folder``.
+
+    The node is the trimer's nine-connected twin, the partitioner the
+    second node, the linker the trimer-to-trimer edge, and the edge
+    from trimer to partitioner is left empty -- a dative joint.  A
+    partitioner the arithmetic refuses is refused here by the same
+    sentence, never built strained.
+    """
+    from dataclasses import replace
+
+    from xtal.mof.build import MofError
+    from xtal.mof.catalog import Catalog, CatalogError
+    from xtal.mof.trimer import TrimerError, twin_name, write_twin
+
+    if request.topology != "acs":
+        raise MofError(f"pore-space partition is of an acs framework; "
+                       f"this build is on {request.topology}")
+    nodes = set(request.nodes.values())
+    edges = set(request.edges.values())
+    if len(nodes) != 1:
+        raise MofError("a partitioned acs has one trimer node; name it")
+    if len(edges) != 1:
+        raise MofError("a partitioned acs needs one linker between "
+                       "its trimers; name it")
+    node_name, linker_name = nodes.pop(), edges.pop()
+    try:
+        node_block = catalog.building_block(node_name)
+        linker = catalog.building_block(linker_name)
+        node = node_geometry(node_block)
+    except (CatalogError, TrimerError) as exc:
+        raise MofError(str(exc)) from None
+    span = linker_span(linker)
+
+    if request.partition == AUTO:
+        fits = rank(node, linker_name, span)
+        if not fits[0].ok:
+            raise MofError("no partitioner fits: " + "; ".join(
+                f.sentence() for f in fits))
+        fit = fits[0]
+    else:
+        try:
+            chosen = partitioner(request.partition)
+        except KeyError as exc:
+            raise MofError(str(exc.args[0])) from None
+        fit = predict(node, linker_name, span, chosen)
+        if not fit.ok:
+            raise MofError(fit.sentence())
+    chosen = partitioner(fit.partitioner)
+
+    folder = Path(folder) / "blocks"
+    folder.mkdir(parents=True, exist_ok=True)
+    if node_block.n_connections == 9:
+        twin = node_name
+    else:
+        try:
+            write_twin(node_block.path, folder)
+        except TrimerError as exc:
+            raise MofError(f"{node_name}: {exc}") from None
+        twin = twin_name(node_name)
+    _write_partitioner(chosen, folder, catalog)
+
+    catalog = Catalog(catalog.topology_dirs, catalog.bb_dirs + (folder,))
+    rewritten = replace(request, topology=NET,
+                        nodes={0: twin, 1: block_name(chosen)},
+                        edges={(0, 0): linker_name},
+                        partition=chosen.name)
+    return rewritten, catalog, fit
+
+
+def _write_partitioner(p: Partitioner, folder: Path, catalog) -> None:
+    """The partitioner's block, from its SMILES -- or the one a person
+    already put in the catalogue under the same name, which wins."""
+    from xtal.build import chem
+    from xtal.mof.build import MofError
+    from xtal.mof.catalog import CatalogError
+
+    try:
+        catalog.building_block(block_name(p))
+        return
+    except CatalogError:
+        pass
+    if not chem.installed():
+        raise MofError(f"building {p.name} from its SMILES needs the "
+                       f"'build' extra (RDKit)")
+    from xtal.build.molecule import from_smiles
+    from xtal.io.atomic import write_text
+    from xtal.mof.block import block_string
+
+    molecule = from_smiles(p.smiles, name=p.name)
+    write_text(folder / f"{block_name(p)}.xyz",
+               block_string(molecule.to_structure()))
+
+
+def measured_dative(structure) -> list[float]:
+    """Every metal-to-nitrogen bond length in a built framework, A."""
+    from xtal.core import bonding, p1
+
+    cell = p1.expand(structure)
+    matrix = np.asarray(structure.lattice.matrix)
+    out = []
+    for bond in bonding.graph(structure).bonds:
+        pair = {cell.elements[bond.i], cell.elements[bond.j]}
+        if "N" in pair and pair & set(DATIVE_MN):
+            d = (cell.frac[bond.j] + np.asarray(bond.image)
+                 - cell.frac[bond.i]) @ matrix
+            out.append(float(np.linalg.norm(d)))
+    return out

@@ -113,6 +113,16 @@ def available() -> Availability:
 #  PARAMETERS
 # ======================================================================
 
+def _partition_choices() -> tuple:
+    from xtal.mof.partition import AUTO, PARTITIONERS
+
+    return ((("", "None"), (AUTO, "Best fit"))
+            + tuple((p.name, f"{p.name} -- {p.full_name}")
+                    for p in PARTITIONERS))
+
+
+_PARTITION_CHOICES = _partition_choices()
+
 PARAMS = (
     Param("topology", "Topology", kind="text", default="pcu",
           help="The net to build on, by its RCSR name -- pcu, tbo, "
@@ -168,6 +178,16 @@ PARAMS = (
                "between them, and a framework too dense for any "
                "placement is refused rather than built crowded.  "
                "Structure > Interpenetrate lists every placement."),
+    Param("partition", "Partition the pores", kind="choice", default="",
+          choices=_PARTITION_CHOICES,
+          help="For a trimer on acs (MIL-88): a C3 pyridyl on the "
+               "channel axis in every trimer layer, bonded to the "
+               "trimers' open metal sites -- the pore-space-"
+               "partitioned pacs frameworks.  The partitioner sets "
+               "the cell's a and the linker its c, so not every pair "
+               "fits; 'Best fit' takes the one that strains the "
+               "linker least, and one that cannot close the cell is "
+               "refused with the reason."),
     Param("topology_dir", "Extra topologies", kind="path",
           help="A folder of your own .cgd nets, read alongside the "
                "ones PORMAKE ships"),
@@ -247,7 +267,8 @@ def build_framework(job) -> JobResult:
                                      job.param("orientation", ""),
                                      job.param("spacing", ""),
                                      job.param("offset", ""),
-                                     job.param("interpenetration", 1))
+                                     job.param("interpenetration", 1),
+                                     job.param("partition", ""))
         job.say(f"PORMAKE: building {request.title()}")
         job.check()
         # ``say`` for our own five lines, ``note`` for PORMAKE's
@@ -363,8 +384,47 @@ def _report(outcome) -> Report:
              "next table.")
     return Report(
         title=f"{outcome.request.title()}",
-        blocks=(what, fit, _check(outcome)),
+        blocks=(what, fit) + _partition(outcome) + (_check(outcome),),
         note=outcome.verdict())
+
+
+def _partition(outcome) -> tuple:
+    """The partitioner, and the cell it was predicted to make against
+    the cell built -- a table only when the build partitioned."""
+    fit = outcome.partition
+    if fit is None:
+        return ()
+    from xtal.mof.partition import measured_dative, partitioner
+
+    a, _b, c = outcome.structure.lattice.parameters[:3]
+    chosen = partitioner(fit.partitioner)
+    rows = (
+        Row("Partitioner", chosen.name, "", chosen.full_name),
+        Row.number("Predicted a", fit.a, "A",
+                   "the partitioner's donor radius, the dative bond "
+                   "and the trimer, laid out from the channel axis",
+                   "", decimals=2),
+        Row.number("Built a", a, "A", "", "", decimals=2),
+        Row.number("Predicted c", fit.c, "A",
+                   "the linker's reach from one trimer layer to the "
+                   "next", "", decimals=2),
+        Row.number("Built c", c, "A", "", "", decimals=2),
+        Row.number("Linker elevation", fit.phi, "deg",
+                   "how far the linker climbs out of the trimer "
+                   "plane; the deposited pacs frameworks are 34-47",
+                   "", decimals=1),
+    )
+    lengths = measured_dative(outcome.structure)
+    if lengths:
+        rows += (Row("Metal-N as built",
+                     f"{min(lengths):.2f}-{max(lengths):.2f}", "A",
+                     f"{len(lengths)} dative bond(s) to the "
+                     f"partitioner"),)
+    return (Table(
+        title="Pore-space partition", rows=rows,
+        note="The prediction is arithmetic on the blocks; the build "
+             "is PORMAKE's cell relaxation.  Relax the framework "
+             "before reading the cell as a material's."),)
 
 
 def _overlap_rows(outcome) -> tuple:
