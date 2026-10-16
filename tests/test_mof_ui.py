@@ -1125,3 +1125,17 @@ def test_a_partitioner_picked_last_time_is_offered_again(qtbot, window):
     qtbot.addWidget(again)
     assert again.values()["partition"] == "tpt"
     assert again.partition_fold.is_open()
+
+
+@needs_database
+def test_the_note_names_the_compatible_nodes_and_a_click_uses_one(
+        dialog):
+    """Shown whatever the net, so somebody on pcu learns where pacs
+    starts; a click moves to acs with that trimer in the node row."""
+    note = dialog.partition.nodes.text()
+    assert "Nodes that can be partitioned" in note
+    assert "N589" in note and "N590" not in note
+    dialog.partition.use_node.emit("N92")
+    assert dialog._topology.name == "acs"
+    assert dialog._rows[0].block() == "N92"
+    assert dialog.partition.choice.isEnabled()

@@ -97,3 +97,16 @@ def test_a_cluster_whose_own_carboxylate_sits_on_the_site_is_refused():
 def test_a_block_without_an_m3o_core_is_refused():
     with pytest.raises(TrimerError, match="no M3O"):
         with_axial_points(_block("N16"))
+
+
+def test_a_tetrahedral_zinc_trimer_has_no_open_site():
+    """N590's zinc is four-coordinate: nothing sits opposite the oxide
+    because there is no octahedron to have a sixth corner."""
+    with pytest.raises(TrimerError, match="no open octahedral site"):
+        with_axial_points(_block("N590"))
+
+
+def test_a_bond_missing_from_the_block_file_still_counts():
+    """N268's file lists three of a cobalt's four carboxylate O-Co
+    bonds; by distance it is the open trimer it is."""
+    assert len(with_axial_points(_block("N268")).connections) == 9

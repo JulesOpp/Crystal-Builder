@@ -43,6 +43,8 @@ class PartitionBox(QWidget):
 
     #: The person asked for a suggested linker to be used.
     use_linker = Signal(str)                         # noqa: N815
+    #: The person picked a compatible node from the note.
+    use_node = Signal(str)                           # noqa: N815
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -53,6 +55,11 @@ class PartitionBox(QWidget):
             "linker its c; one that cannot close the cell is listed "
             "greyed, with the reason.")
         self.choice.currentIndexChanged.connect(self._say)
+        self.nodes = QLabel(self)
+        self.nodes.setWordWrap(True)
+        self.nodes.setTextFormat(Qt.RichText)
+        self.nodes.linkActivated.connect(self.use_node)
+        set_tone(self.nodes, HINT)
         self.status = QLabel(self)
         self.status.setWordWrap(True)
         set_tone(self.status, HINT)
@@ -79,10 +86,12 @@ class PartitionBox(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(form)
+        layout.addWidget(self.nodes)
         layout.addWidget(self.status)
         layout.addWidget(self.suggestions)
 
         self._catalog = None
+        self._compatible = None
         self._node = None
         self._linker = ""
         self._fits: dict[str, partition.Fit] = {}
@@ -94,9 +103,12 @@ class PartitionBox(QWidget):
     def set_framework(self, catalog, topology: str, node: str,
                       linker: str) -> None:
         """The net, trimer and linker chosen above, as names."""
+        if catalog is not self._catalog:
+            self._compatible = None
         self._catalog = catalog
         self._node = None
         self._linker = linker
+        self._say_nodes(node)
         reason = ""
         if topology != "acs":
             reason = ("Pore-space partition is of an acs framework "
@@ -123,6 +135,30 @@ class PartitionBox(QWidget):
             span = partition.linker_span(catalog.building_block(linker))
             fits = partition.rank(self._node, linker, span)
         self._fill(fits)
+
+    def _say_nodes(self, chosen: str) -> None:
+        """The note of nodes a pacs build takes, each a link that puts
+        it in the node row.  Worked out once per catalogue -- 14 ms
+        over every six-connected block."""
+        if self._catalog is None:
+            self.nodes.clear()
+            return
+        if self._compatible is None:
+            self._compatible = partition.compatible_nodes(self._catalog)
+        if not self._compatible:
+            self.nodes.setText("No node in the catalogue can be "
+                               "partitioned: none is an M3O trimer "
+                               "with open metal sites.")
+            return
+        items = ", ".join(
+            (f"<b>{n.name}</b>" if n.name == chosen
+             else f"<a href='{n.name}'>{n.name}</a>") + f" ({n.metal})"
+            for n in self._compatible)
+        self.nodes.setText(
+            f"Nodes that can be partitioned: {items} -- M3O trimers "
+            f"whose metals each have an open octahedral site.  A "
+            f"trimer carrying terminal waters (N9, N354) or with "
+            f"tetrahedral zinc is not one.")
 
     # -- what it hands back --------------------------------------------
 

@@ -93,3 +93,18 @@ def test_every_stored_donor_radius_is_what_embedding_measures():
     for p in partition.PARTITIONERS:
         assert partition.measure(p.smiles) == pytest.approx(p.radius,
                                                             abs=0.01)
+
+
+def test_the_compatible_nodes_are_the_open_trimers(catalog):
+    """Every shipped open M3O trimer, and none with a terminal water or
+    tetrahedral zinc -- and the agent skill names the same nine."""
+    from pathlib import Path
+
+    names = {n.name for n in partition.compatible_nodes(catalog)}
+    assert names == {"N268", "N536", "N481", "N270", "N92", "N198",
+                     "N589", "N433", "N287"}
+    skill = Path("xtal/agent/skill/references/mof.md").read_text(
+        encoding="utf-8")
+    line = skill.split("Compatible nodes:")[1].split("--")[0]
+    assert {w.strip(" ,\n") for w in line.split()
+            if w.startswith("N")} == names

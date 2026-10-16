@@ -294,6 +294,7 @@ class MofBuildDialog(QDialog):
 
         self.partition = PartitionBox(self)
         self.partition.use_linker.connect(self._use_linker)
+        self.partition.use_node.connect(self._use_node)
 
         folders = QWidget(self)
         form = QFormLayout(folders)
@@ -532,6 +533,15 @@ class MofBuildDialog(QDialog):
         self.partition.set_framework(
             self.catalog, self._topology.name if self._topology else "",
             node, linker)
+
+    def _use_node(self, name: str) -> None:
+        """A compatible node was clicked: on acs, in the node row."""
+        if self._topology is None or self._topology.name != "acs":
+            self._select("acs")
+        for row in self._rows:
+            if not row.slot.is_edge:
+                row.set_block(name)
+                return
 
     def _use_linker(self, name: str) -> None:
         """A suggested linker was clicked: put it on the edge row.

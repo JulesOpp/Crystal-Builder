@@ -480,3 +480,25 @@ def measured_dative(structure) -> list[float]:
                  - cell.frac[bond.i]) @ matrix
             out.append(float(np.linalg.norm(d)))
     return out
+
+
+def compatible_nodes(catalog) -> list[Node]:
+    """Every block in ``catalog`` a pacs build can take as its node.
+
+    An M3O trimer whose metals each have one open octahedral site --
+    six-connected, or a nine-connected twin already.  Asked of the
+    catalogue rather than listed, so a trimer somebody draws joins the
+    list; a terminal water or a tetrahedral zinc keeps a block off it,
+    for the reason :func:`xtal.mof.trimer.with_axial_points` gives.
+    """
+    from xtal.mof.trimer import TrimerError
+
+    found = []
+    for block in catalog.building_blocks():
+        if len(block.connections) not in (6, 9):
+            continue
+        try:
+            found.append(node_geometry(block))
+        except (TrimerError, KeyError, ValueError):
+            continue
+    return sorted(found, key=lambda n: (n.metal, n.name))

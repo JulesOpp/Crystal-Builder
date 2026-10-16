@@ -52,8 +52,14 @@ stacked afterwards, never by the builder.
 `partition` builds a MIL-88-type `acs` framework with a C3 pyridyl on
 each channel axis, bonded to the trimers' open metal sites: the
 pore-space-partitioned **pacs** frameworks. Give `topology="acs"`, one
-open M3O trimer node (`N589` Ni, `N92` In, `N536` Cr …) and one linker;
-the build is then on `pacs`, which reads back as the `nia-d` net.
+open M3O trimer node and one linker; the build is then on `pacs`, which
+reads back as the `nia-d` net.
+
+Compatible nodes: N268 (Co), N536 (Cr), N481 (Fe), N270 (Ga), N92 (In),
+N198 (Mn), N589 (Ni), N433 (Sc), N287 (Zn) -- M3O trimers whose metals
+each have an open octahedral site. `partition.compatible_nodes(catalog)`
+asks the catalogue, workspace blocks included. N9 and N354 carry
+terminal waters and N422, N554, N590 have tetrahedral zinc: refused.
 
 The partitioner sets the cell's *a* and the linker its *c*, so not
 every pair closes. Ask first, without building:

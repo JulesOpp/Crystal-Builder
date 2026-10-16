@@ -37,6 +37,11 @@ from xtal.mof.attach import DATIVE_MN, dative_point
 #: ``prepare._trimers`` judges it.
 _ON_AXIS = 0.866
 
+#: How many atoms a trimer metal with one open site is bonded to: the
+#: mu3-oxide and four carboxylate oxygens, an octahedron less its
+#: sixth corner.  A terminal ligand makes six, which is "filled".
+OPEN_OCTAHEDRON = 5
+
 #: An oxygen within this of a metal is bonded to it, A.  Used only to
 #: judge whether a site is filled when a block's bond list has no word
 #: for it; a trimer's own M-O are 1.9-2.2.
@@ -177,6 +182,18 @@ def with_axial_points(block: Block, *, strip: bool = False) -> Block:
         raise TrimerError(f"this block has {len(found)} M3O cores; a "
                           f"trimer node has one")
     trimer = found[0]
+    short = {m: n for m in trimer.metals
+             if (n := _coordination(block, m)) < OPEN_OCTAHEDRON}
+    if short:
+        # N422, N554 and N590 are Zn3O cores with tetrahedral zinc:
+        # nothing is opposite the oxide because there is no octahedron
+        # to have a sixth corner, and a pyridyl there would make the
+        # zinc five-coordinate rather than fill a site.
+        names = ", ".join(f"{block.symbols[m]}{m} is {n}-coordinate"
+                          for m, n in short.items())
+        raise TrimerError(f"no open octahedral site: {names}, where an "
+                          f"open site needs {OPEN_OCTAHEDRON} (the "
+                          f"oxide and four carboxylate oxygens)")
     taken = {m: filled_by(block, trimer, m) for m in trimer.metals}
     framework = {m: a for m, a in taken.items()
                  if a is not None and not _terminal(block, a, m)}
@@ -212,6 +229,20 @@ def with_axial_points(block: Block, *, strip: bool = False) -> Block:
         bonds.append((m, len(symbols) - 1, "S"))
         connections.append(len(symbols) - 1)
     return Block(symbols, np.array(positions), bonds, connections)
+
+
+def _coordination(block: Block, metal: int) -> int:
+    """How many atoms coordinate ``metal``: bonded in the block, or an
+    O or N within :data:`_BONDED` of it.  Either, because PORMAKE's
+    bond lists are not complete -- N268's lists three of a cobalt's
+    four carboxylate oxygens."""
+    near = {j for j in block.neighbours(metal)
+            if block.symbols[j] != "X"}
+    here = block.positions[metal]
+    near |= {j for j, symbol in enumerate(block.symbols)
+             if symbol in ("O", "N") and j != metal
+             and np.linalg.norm(block.positions[j] - here) < _BONDED}
+    return len(near)
 
 
 def _terminal(block: Block, atom: int, metal: int) -> bool:
