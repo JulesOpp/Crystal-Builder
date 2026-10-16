@@ -933,7 +933,7 @@ def _known(given: Catalogue | None) -> Catalogue:
 
 
 def identify(net: Net, catalogue_: Catalogue | None = None,
-             depth: int = DEPTH) -> Identification:
+             depth: int = DEPTH, keyed: bool = True) -> Identification:
     """Name one connected net.
 
     **Both layers run.**  The invariants are a filter with a measured
@@ -946,11 +946,16 @@ def identify(net: Net, catalogue_: Catalogue | None = None,
     drawn net into its components first, and identifying a
     disconnected one would compute the invariants of two nets at once
     and match neither.
+
+    ``keyed=False`` is the filter alone, for a caller holding the net
+    to invariants it already has: a supertetrahedral net's key is
+    twenty seconds or more and would decide nothing there.
     """
     known = _known(catalogue_)
     fingerprint = net.fingerprint(depth)
     names = known.lookup(fingerprint)
-    key = _key(net) if fingerprint.periodicity >= 2 else ""
+    key = (_key(net) if keyed and fingerprint.periodicity >= 2
+           else "")
     matched = known.lookup_key(key)
     decided = bool(key) and (bool(matched) or known.keyed)
     looks_like = ()
@@ -994,7 +999,7 @@ def _key(net: Net) -> str:
 
 
 def describe(net: Net, catalogue_: Catalogue | None = None,
-             depth: int = DEPTH) -> NetReport:
+             depth: int = DEPTH, keyed: bool = True) -> NetReport:
     """Name the whole of what a user drew.
 
     Split into components first, because a framework that carries two
@@ -1005,7 +1010,7 @@ def describe(net: Net, catalogue_: Catalogue | None = None,
     if net.is_empty():
         return NetReport()
     known = _known(catalogue_)
-    return NetReport(tuple(identify(part, known, depth)
+    return NetReport(tuple(identify(part, known, depth, keyed)
                            for part in net.components()))
 
 

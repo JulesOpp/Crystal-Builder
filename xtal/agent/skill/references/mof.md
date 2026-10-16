@@ -80,6 +80,34 @@ strained framework. The report's *Pore-space partition* table puts
 the predicted cell beside the built one, and the metal-N lengths as
 built. Relax before reading the cell as a material's.
 
+## Supertetrahedra on a zeolite net (sod-st)
+
+Any 4-connected net decorated with supertetrahedra is a topology by
+name: `sod-st` is `sod` with an M3O trimer (6-c) at every edge and a
+tritopic face (3-c) on each supertetrahedron; `mtn-st` is MIL-100's
+net (`moo`). Node 0 is the trimer and the next the face. A window is
+filled by naming it: `sod-st-f6` puts a filler (6-c pyridyl) in every
+6-ring, `sod-st-f4-f6` in both kinds, which makes the trimer 9-c.
+Name the plain 6-c trimer (`N536`); the build writes its twin with
+the open sites the windows take. A net whose vertex is held flat
+(`asv`, `ptt`, `ssf`) or whose window is too wide to read is refused
+by name. Ask what a window wants before building:
+
+```python
+from xtal.mof import decorate, linkers
+from xtal.mof.partition import node_geometry
+sod = decorate.decoration("sod")
+trimer, face = catalog.building_block("N536"), catalog.building_block("N19")
+scale = decorate.trial_scale(sod, trimer, face)   # one PORMAKE pass
+for kind in decorate.windows(sod):
+    need = decorate.requirement(sod, kind, node_geometry(trimer), face,
+                                at_scale=scale)
+    print(kind.label(), need.sentence(), linkers.suggest(need, catalog))
+```
+
+A filler outside its window's range is a failed build with both
+numbers, never a strained framework.
+
 ## Judging a build
 
 The build's report (`s.built`, and `data["tables"]`) is the first thing

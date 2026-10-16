@@ -110,3 +110,17 @@ def test_a_bond_missing_from_the_block_file_still_counts():
     """N268's file lists three of a cobalt's four carboxylate O-Co
     bonds; by distance it is the open trimer it is."""
     assert len(with_axial_points(_block("N268")).connections) == 9
+
+
+def test_a_twin_with_one_point_keeps_its_other_two_sites_open(tmp_path):
+    """A filler in sod's 4-rings takes one site of each trimer, so the
+    slot is 7-connected; the other two metals stay as they were."""
+    block = _block("N536")
+    twin = with_axial_points(block, count=1)
+    assert len(twin.connections) == 7
+    assert twin_name("N536", 1) == "N536-7c"
+    written = write_twin(database_root() / "bbs" / "N536.xyz", tmp_path,
+                         count=2)
+    assert written.name == "N536-8c.xyz"
+    with pytest.raises(TrimerError, match="three open sites"):
+        with_axial_points(block, count=4)

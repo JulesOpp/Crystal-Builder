@@ -164,8 +164,15 @@ def filled_by(block: Block, trimer: Trimer, metal: int) -> int | None:
     return None
 
 
-def with_axial_points(block: Block, *, strip: bool = False) -> Block:
+def with_axial_points(block: Block, *, strip: bool = False,
+                      count: int = 3) -> Block:
     """``block`` with a connection point on each open metal site.
+
+    ``count`` of them: a window filler that takes one site of each
+    trimer round sod's 4-rings asks for a 7-connected trimer, and the
+    two metals it leaves keep their sites open.  Which metals is the
+    block's order; the three are alike, and the build turns the
+    trimer to put the point where the slot wants it.
 
     Refused when ``block`` holds no M3O core, or when a site is already
     taken -- a terminal water is part of what the block says the
@@ -174,6 +181,9 @@ def with_axial_points(block: Block, *, strip: bool = False) -> Block:
     for it to go: the terminal atom and anything bonded only through it
     (its hydrogens) are removed first.
     """
+    if not 1 <= count <= 3:
+        raise TrimerError(f"a trimer has three open sites; {count} "
+                          f"cannot be made points")
     found = trimers(block)
     if not found:
         raise TrimerError("this block has no M3O trimer: no oxygen is "
@@ -221,7 +231,7 @@ def with_axial_points(block: Block, *, strip: bool = False) -> Block:
     positions = [p for p in block.positions]
     bonds = list(block.bonds)
     connections = list(block.connections)
-    for m in trimer.metals:
+    for m in trimer.metals[:count]:
         point = dative_point(symbols[m], block.positions[m],
                              open_site(block, trimer, m))
         symbols.append("X")
@@ -269,17 +279,21 @@ def _without(block: Block, atoms: set[int]) -> Block:
         [place[i] for i in block.connections if i in place])
 
 
-def twin_name(name: str) -> str:
-    """A trimer's nine-connected twin's name: ``N536`` -> ``N536-9c``."""
-    return f"{name}-9c"
+def twin_name(name: str, count: int = 3) -> str:
+    """A trimer's twin's name: ``N536`` -> ``N536-9c``, or ``N536-7c``
+    with one open site made a point."""
+    return f"{name}-{6 + count}c"
 
 
-def write_twin(source, folder, *, strip: bool = False) -> Path:
-    """Write the nine-connected twin of the block at ``source`` into
-    ``folder``, named by :func:`twin_name`, and return its path."""
+def write_twin(source, folder, *, strip: bool = False,
+               count: int = 3) -> Path:
+    """Write the twin of the block at ``source`` with ``count`` open
+    sites made points into ``folder``, named by :func:`twin_name`, and
+    return its path."""
     source = Path(source)
-    twin = with_axial_points(Block.read(source), strip=strip)
-    out = Path(folder) / f"{twin_name(source.stem)}.xyz"
+    twin = with_axial_points(Block.read(source), strip=strip,
+                             count=count)
+    out = Path(folder) / f"{twin_name(source.stem, count)}.xyz"
     out.parent.mkdir(parents=True, exist_ok=True)
     from xtal.io.atomic import write_text
 

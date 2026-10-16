@@ -178,14 +178,34 @@ _TRIGONAL = {
     "pyridine": "c1c({R})cc({R})nc1{R}",
 }
 
+#: Four-connected cores: what fills a supertetrahedral net's 4-ring
+#: window (:mod:`xtal.mof.decorate`).  The ethylene is
+#: tetra(4-pyridyl)ethylene's, the benzene 1,2,4,5's, and the methane
+#: the one tetrahedral core, for a puckered window.
+_TETRAGONAL = {
+    "ethylene": "C({R})({R})=C({R}){R}",
+    "benzene": "c1c({R})c({R})cc({R})c1{R}",
+    "methane": "C({R})({R})({R}){R}",
+}
+
+#: Six-connected: a 6-ring window's filler.
+_HEXAGONAL = {
+    "benzene": "c1({R})c({R})c({R})c({R})c({R})c1{R}",
+}
+
+#: Topicity -> the cores of that many arms, and the letter a
+#: generated name starts with.
+_BRANCHED = {3: ("T", _TRIGONAL), 4: ("Q", _TETRAGONAL),
+             6: ("H", _HEXAGONAL)}
+
 
 def series() -> list[tuple[str, int, str, str]]:
     """Every generated linker as ``(name, topicity, donor, smiles)``.
 
     Two-connected: an aryl edge is ``*`` + phenylenes and ethynylenes
     + ``*``, starting and ending on a phenylene; a pyridyl one is two
-    4-pyridyls with the same between them.  Three-connected: a core
-    with three equal arms, each ending on a donor.
+    4-pyridyls with the same between them.  Three-, four- and
+    six-connected: a core with equal arms, each ending on a donor.
     """
     out = []
     for core in _LINEAR:
@@ -198,13 +218,19 @@ def series() -> list[tuple[str, int, str, str]]:
                             _linear(chain, "aryl")))
             out.append((f"L-{chain}-py", 2, "pyridyl",
                         _linear(chain, "pyridyl")))
-    for core, ring in _TRIGONAL.items():
-        for arm in _ARMS:
-            for donor in ("aryl", "pyridyl"):
-                if donor == "aryl" and not arm.endswith("P"):
-                    continue
-                name = f"T-{core}-{arm or '0'}-{donor[:2]}"
-                out.append((name, 3, donor, _trigonal(ring, arm, donor)))
+    for topicity, (letter, cores) in _BRANCHED.items():
+        for core, ring in cores.items():
+            for arm in _ARMS:
+                for donor in ("aryl", "pyridyl"):
+                    if donor == "aryl" and not arm.endswith("P"):
+                        continue
+                    if topicity > 3 and len(arm) > 2:
+                        # A window filler is a few A across; three
+                        # units on four arms is a cage of its own.
+                        continue
+                    name = f"{letter}-{core}-{arm or '0'}-{donor[:2]}"
+                    out.append((name, topicity, donor,
+                                _trigonal(ring, arm, donor)))
     # One spelling per chain: a palindrome reached from two cores
     # (PP from core P with arm P, and from core PP with none).
     seen, unique = set(), []

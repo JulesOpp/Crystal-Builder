@@ -967,7 +967,8 @@ class Catalog:
 
     def _derived(self, name: str) -> Topology | None:
         """A net made from another by name: ``sod-st`` is ``sod``
-        decorated with supertetrahedra (:mod:`xtal.mof.decorate`).
+        decorated with supertetrahedra (:mod:`xtal.mof.decorate`),
+        ``sod-st-f4`` the same with its 4-ring windows filled.
 
         Made on asking and kept, never listed: the picker offers the
         decoration beside its parent, and a request, a saved set or an
@@ -976,14 +977,14 @@ class Catalog:
         """
         from xtal.mof import decorate
 
-        if not name.endswith(decorate.SUFFIX):
+        spelled = decorate.parse(name)
+        if spelled is None:
             return None
         if name in self._made:
             return self._made[name]
-        parent = name[:-len(decorate.SUFFIX)]
-        source = self._topologies.get(parent, parent)
+        source = self._topologies.get(spelled[0], spelled[0])
         try:
-            made = decorate.supertetrahedral(source)
+            made = decorate.derived(name, source)
         except decorate.DecorationError as exc:
             raise CatalogError(str(exc)) from None
         self._made[name] = made

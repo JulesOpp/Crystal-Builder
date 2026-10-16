@@ -67,16 +67,28 @@ def primitive(cell, graph, max_size: int = DEFAULT_MAX_SIZE) -> list:
     as :func:`bonding.find_rings` gives them, so a ring closing
     through a cell face can still be laid out in space.
     """
-    max_size = max(3, min(int(max_size), LARGEST))
     candidates = {i for i in range(cell.n_atoms)
                   if not elements.is_dummy(cell.elements[i])}
     adjacency = {
         i: [(int(j), tuple(t.tolist()))
             for j, t, _k in graph._adj[i] if j in candidates]
         for i in candidates}
+    return of_adjacency(adjacency, max_size)
+
+
+def of_adjacency(adjacency, max_size: int = DEFAULT_MAX_SIZE,
+                 budget: int | None = None) -> list:
+    """:func:`primitive` over a plain periodic graph: vertex ->
+    ``[(neighbour, lattice shift), ...]``, both directions listed.
+
+    For a net rather than a structure -- a zeolite's windows are its
+    rings, and a net has no atoms to be dummies.
+    """
+    max_size = max(3, min(int(max_size), LARGEST))
     reach: dict[int, dict] = {}
     depth = max_size // 2
-    budget = BUDGET_FLOOR + BUDGET_PER_ATOM * len(candidates)
+    if budget is None:
+        budget = BUDGET_FLOOR + BUDGET_PER_ATOM * len(adjacency)
     return [ring for ring in _cycles(adjacency, max_size, budget)
             if _is_primitive(ring, adjacency, reach, depth)]
 

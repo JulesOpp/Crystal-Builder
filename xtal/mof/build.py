@@ -576,6 +576,10 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
                                                   directory)
         _say(log, f"partitioning acs with {request.partition}: "
                   f"predicted {predicted.sentence()}")
+    from xtal.mof import decorate
+
+    if decorate.parse(request.topology):
+        request, catalog = decorate.prepared(request, catalog, directory)
     topology, node_bbs, edge_bbs = _resolve(request, catalog)
     _say(log, f"topology {topology.name}: {topology.summary()}")
 
@@ -638,11 +642,13 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     if request.interpenetration > 1:
         structure = _interpenetrate(outcome, request.interpenetration,
                                     log)
-    outcome.identified = check_net(structure)
+    derived = topology.path is None and bool(
+        decorate.parse(topology.name))
+    # A derived net is held to its invariants (`_reading`), so the
+    # built one's key would decide nothing: 25 s on sod-st-f6.
+    outcome.identified = check_net(structure, keyed=not derived)
     outcome.partition = predicted
-    from xtal.mof.decorate import SUFFIX
-
-    if topology.path is None and topology.name.endswith(SUFFIX):
+    if derived:
         outcome.asked_net = _reading(topology)
     _say(log, outcome.verdict())
     return outcome
@@ -1735,7 +1741,7 @@ def _same_invariants(one, other) -> bool:
             == {part.fingerprint.token() for part in other.parts})
 
 
-def check_net(structure):
+def check_net(structure, keyed: bool = True):
     """What the net drawn on this framework actually is.
 
     Read back off the structure with the same two functions the Net
@@ -1744,7 +1750,7 @@ def check_net(structure):
     """
     from xtal.analysis import net_of, rcsr
 
-    return rcsr.describe(net_of(structure))
+    return rcsr.describe(net_of(structure), keyed=keyed)
 
 
 # ======================================================================

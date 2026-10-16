@@ -590,5 +590,261 @@
   "value": 17.38,
   "formula": "C74H50N4",
   "smiles": "c1c(c2ccc(cc2)c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)cc(c2ccc(cc2)c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)nc1c2ccc(cc2)c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-ethylene-0-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 4.69,
+  "formula": "C22H16N4",
+  "smiles": "C(c3cc[n+](*)cc3)(c3cc[n+](*)cc3)=C(c3cc[n+](*)cc3)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-ethylene-P-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 4.695,
+  "formula": "C26H16",
+  "smiles": "C(c2ccc(cc2)*)(c2ccc(cc2)*)=C(c2ccc(cc2)*)c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-ethylene-P-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 9.011,
+  "formula": "C46H32N4",
+  "smiles": "C(c2ccc(cc2)c3cc[n+](*)cc3)(c2ccc(cc2)c3cc[n+](*)cc3)=C(c2ccc(cc2)c3cc[n+](*)cc3)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-ethylene-E-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 7.246,
+  "formula": "C30H16N4",
+  "smiles": "C(C#Cc3cc[n+](*)cc3)(C#Cc3cc[n+](*)cc3)=C(C#Cc3cc[n+](*)cc3)C#Cc3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-ethylene-PP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 8.988,
+  "formula": "C50H32",
+  "smiles": "C(c2ccc(cc2)c2ccc(cc2)*)(c2ccc(cc2)c2ccc(cc2)*)=C(c2ccc(cc2)c2ccc(cc2)*)c2ccc(cc2)c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-ethylene-PP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 13.293,
+  "formula": "C70H48N4",
+  "smiles": "C(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)=C(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-ethylene-EP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 7.195,
+  "formula": "C34H16",
+  "smiles": "C(C#Cc2ccc(cc2)*)(C#Cc2ccc(cc2)*)=C(C#Cc2ccc(cc2)*)C#Cc2ccc(cc2)*"
+ },
+ {
+  "name": "Q-ethylene-EP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 11.545,
+  "formula": "C54H32N4",
+  "smiles": "C(C#Cc2ccc(cc2)c3cc[n+](*)cc3)(C#Cc2ccc(cc2)c3cc[n+](*)cc3)=C(C#Cc2ccc(cc2)c3cc[n+](*)cc3)C#Cc2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-benzene-0-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 5.676,
+  "formula": "C26H18N4",
+  "smiles": "c1c(c3cc[n+](*)cc3)c(c3cc[n+](*)cc3)cc(c3cc[n+](*)cc3)c1c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-benzene-P-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 5.715,
+  "formula": "C30H18",
+  "smiles": "c1c(c2ccc(cc2)*)c(c2ccc(cc2)*)cc(c2ccc(cc2)*)c1c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-benzene-P-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 9.982,
+  "formula": "C50H34N4",
+  "smiles": "c1c(c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c3cc[n+](*)cc3)cc(c2ccc(cc2)c3cc[n+](*)cc3)c1c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-benzene-E-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 8.207,
+  "formula": "C34H18N4",
+  "smiles": "c1c(C#Cc3cc[n+](*)cc3)c(C#Cc3cc[n+](*)cc3)cc(C#Cc3cc[n+](*)cc3)c1C#Cc3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-benzene-PP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 10.027,
+  "formula": "C54H34",
+  "smiles": "c1c(c2ccc(cc2)c2ccc(cc2)*)c(c2ccc(cc2)c2ccc(cc2)*)cc(c2ccc(cc2)c2ccc(cc2)*)c1c2ccc(cc2)c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-benzene-PP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 14.273,
+  "formula": "C74H50N4",
+  "smiles": "c1c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)cc(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c1c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-benzene-EP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 8.257,
+  "formula": "C38H18",
+  "smiles": "c1c(C#Cc2ccc(cc2)*)c(C#Cc2ccc(cc2)*)cc(C#Cc2ccc(cc2)*)c1C#Cc2ccc(cc2)*"
+ },
+ {
+  "name": "Q-benzene-EP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 12.507,
+  "formula": "C58H34N4",
+  "smiles": "c1c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)cc(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c1C#Cc2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-methane-0-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 4.399,
+  "formula": "C21H16N4",
+  "smiles": "C(c3cc[n+](*)cc3)(c3cc[n+](*)cc3)(c3cc[n+](*)cc3)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-methane-P-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 4.415,
+  "formula": "C25H16",
+  "smiles": "C(c2ccc(cc2)*)(c2ccc(cc2)*)(c2ccc(cc2)*)c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-methane-P-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 8.71,
+  "formula": "C45H32N4",
+  "smiles": "C(c2ccc(cc2)c3cc[n+](*)cc3)(c2ccc(cc2)c3cc[n+](*)cc3)(c2ccc(cc2)c3cc[n+](*)cc3)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-methane-E-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 6.884,
+  "formula": "C29H16N4",
+  "smiles": "C(C#Cc3cc[n+](*)cc3)(C#Cc3cc[n+](*)cc3)(C#Cc3cc[n+](*)cc3)C#Cc3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-methane-PP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 8.744,
+  "formula": "C49H32",
+  "smiles": "C(c2ccc(cc2)c2ccc(cc2)*)(c2ccc(cc2)c2ccc(cc2)*)(c2ccc(cc2)c2ccc(cc2)*)c2ccc(cc2)c2ccc(cc2)*"
+ },
+ {
+  "name": "Q-methane-PP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 13.022,
+  "formula": "C69H48N4",
+  "smiles": "C(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "Q-methane-EP-ar",
+  "topicity": 4,
+  "donor": "aryl",
+  "value": 6.91,
+  "formula": "C33H16",
+  "smiles": "C(C#Cc2ccc(cc2)*)(C#Cc2ccc(cc2)*)(C#Cc2ccc(cc2)*)C#Cc2ccc(cc2)*"
+ },
+ {
+  "name": "Q-methane-EP-py",
+  "topicity": 4,
+  "donor": "pyridyl",
+  "value": 11.195,
+  "formula": "C53H32N4",
+  "smiles": "C(C#Cc2ccc(cc2)c3cc[n+](*)cc3)(C#Cc2ccc(cc2)c3cc[n+](*)cc3)(C#Cc2ccc(cc2)c3cc[n+](*)cc3)C#Cc2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "H-benzene-0-py",
+  "topicity": 6,
+  "donor": "pyridyl",
+  "value": 5.731,
+  "formula": "C36H24N6",
+  "smiles": "c1(c3cc[n+](*)cc3)c(c3cc[n+](*)cc3)c(c3cc[n+](*)cc3)c(c3cc[n+](*)cc3)c(c3cc[n+](*)cc3)c1c3cc[n+](*)cc3"
+ },
+ {
+  "name": "H-benzene-P-ar",
+  "topicity": 6,
+  "donor": "aryl",
+  "value": 5.721,
+  "formula": "C42H24",
+  "smiles": "c1(c2ccc(cc2)*)c(c2ccc(cc2)*)c(c2ccc(cc2)*)c(c2ccc(cc2)*)c(c2ccc(cc2)*)c1c2ccc(cc2)*"
+ },
+ {
+  "name": "H-benzene-P-py",
+  "topicity": 6,
+  "donor": "pyridyl",
+  "value": 10.05,
+  "formula": "C72H48N6",
+  "smiles": "c1(c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c3cc[n+](*)cc3)c1c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "H-benzene-E-py",
+  "topicity": 6,
+  "donor": "pyridyl",
+  "value": 8.264,
+  "formula": "C48H24N6",
+  "smiles": "c1(C#Cc3cc[n+](*)cc3)c(C#Cc3cc[n+](*)cc3)c(C#Cc3cc[n+](*)cc3)c(C#Cc3cc[n+](*)cc3)c(C#Cc3cc[n+](*)cc3)c1C#Cc3cc[n+](*)cc3"
+ },
+ {
+  "name": "H-benzene-PP-ar",
+  "topicity": 6,
+  "donor": "aryl",
+  "value": 10.036,
+  "formula": "C78H48",
+  "smiles": "c1(c2ccc(cc2)c2ccc(cc2)*)c(c2ccc(cc2)c2ccc(cc2)*)c(c2ccc(cc2)c2ccc(cc2)*)c(c2ccc(cc2)c2ccc(cc2)*)c(c2ccc(cc2)c2ccc(cc2)*)c1c2ccc(cc2)c2ccc(cc2)*"
+ },
+ {
+  "name": "H-benzene-PP-py",
+  "topicity": 6,
+  "donor": "pyridyl",
+  "value": 14.282,
+  "formula": "C108H72N6",
+  "smiles": "c1(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c(c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3)c1c2ccc(cc2)c2ccc(cc2)c3cc[n+](*)cc3"
+ },
+ {
+  "name": "H-benzene-EP-ar",
+  "topicity": 6,
+  "donor": "aryl",
+  "value": 8.27,
+  "formula": "C54H24",
+  "smiles": "c1(C#Cc2ccc(cc2)*)c(C#Cc2ccc(cc2)*)c(C#Cc2ccc(cc2)*)c(C#Cc2ccc(cc2)*)c(C#Cc2ccc(cc2)*)c1C#Cc2ccc(cc2)*"
+ },
+ {
+  "name": "H-benzene-EP-py",
+  "topicity": 6,
+  "donor": "pyridyl",
+  "value": 12.519,
+  "formula": "C84H48N6",
+  "smiles": "c1(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c(C#Cc2ccc(cc2)c3cc[n+](*)cc3)c1C#Cc2ccc(cc2)c3cc[n+](*)cc3"
  }
 ]

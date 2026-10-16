@@ -148,3 +148,130 @@ def test_a_supertetrahedral_sod_builds_and_reads_back_as_asked(tmp_path):
     assert "sod-st, as asked" in outcome.verdict()
     assert outcome.max_rmsd < 0.2
     assert not outcome.overlaps
+
+
+# ---------------------------------------------------------------- windows
+
+def _blocks():
+    from xtal.mof.partition import node_geometry
+
+    catalog = Catalog.default()
+    return (catalog, node_geometry(catalog.building_block("N536")),
+            catalog.building_block("N19"))
+
+
+#: What one PORMAKE pass builds sod-st at with N536 and N19, A a unit
+#: (``trial_scale``): fixed here so the window tests need no build.
+SOD_TRIAL = 9.06
+
+
+def test_sod_has_four_and_six_ring_windows_with_their_site_polygons():
+    """Six 4-rings and eight 6-rings a cell -- a truncated
+    octahedron's faces -- each flat, with every trimer round it able
+    to turn an open site to its centre."""
+    kinds = decorate.windows(decorate.decoration("sod"))
+    assert [(k.size, k.count) for k in kinds] == [(4, 6), (6, 8)]
+    for kind in kinds:
+        assert kind.inward == kind.size
+        assert kind.pucker < 1e-6
+    assert kinds[1].radius > kinds[0].radius
+
+
+@pytest.mark.skipif(database_root() is None,
+                    reason="the vendored PORMAKE database is missing")
+def test_a_window_asks_for_a_pyridyl_with_a_donor_on_every_site():
+    """sod's 6-ring on a Cr trimer asks for a hexatopic pyridyl, and
+    hexa(4-pyridyl)benzene from the series is what answers -- the one
+    sod-st-f6 builds with, Cr-N within 0.1 A of the dative length."""
+    from xtal.mof import linkers
+
+    catalog, node, face = _blocks()
+    decorated = decorate.decoration("sod")
+    six = decorate.windows(decorated)[1]
+    wanted = decorate.requirement(decorated, six, node, face,
+                                  at_scale=SOD_TRIAL)
+    assert (wanted.topicity, wanted.donor) == (6, "pyridyl")
+    found = [s.candidate.name for s in linkers.suggest(wanted, catalog)]
+    assert "H-benzene-0-py" in found
+    said = decorate.sentence(decorated, six, node, face,
+                             at_scale=SOD_TRIAL)
+    assert said.startswith("6-ring, 6 sites (6 facing in)")
+
+
+def test_filling_both_sod_windows_makes_every_trimer_nine_connected():
+    """One site to its 4-ring and two to its 6-rings: the trimer of a
+    filled sod is the nine-connected twin S1 makes."""
+    decorated = decorate.decoration("sod")
+    filled = decorate.filled(decorated, [(4, 1), (6, 1)])
+    assert filled.name == "sod-st-f4-f6"
+    assert filled.topology().coordinations == (9, 3, 4, 6)
+    assert decorate.filled(decorated, [(4, 1)]).topology(
+        ).coordinations == (7, 3, 4)
+
+
+def test_a_filler_on_every_other_site_that_symmetry_relates_is_refused():
+    """sod's 4-ring sits on a fourfold axis, which turns the two sites
+    a ditopic filler would take onto the two it leaves; written in
+    Im-3m it would bond to all four."""
+    with pytest.raises(decorate.DecorationError, match="symmetry"):
+        decorate.filled(decorate.decoration("sod"), [(4, 2)])
+
+
+def test_a_window_too_wide_for_pormake_to_read_is_refused():
+    """lta's 8-ring filler edges are longer than the faces beside them
+    are far: no cutoff tells the two apart, so it is said, not
+    written."""
+    with pytest.raises(decorate.DecorationError,
+                       match="every edge shorter"):
+        decorate.filled(decorate.decoration("lta"), [(8, 1)])
+
+
+def test_a_net_without_that_window_says_which_it_has():
+    with pytest.raises(decorate.DecorationError,
+                       match="no 8-ring windows"):
+        decorate.filled(decorate.decoration("sod"), [(8, 1)])
+
+
+@pytest.mark.skipif(database_root() is None,
+                    reason="the vendored PORMAKE database is missing")
+def test_the_catalogue_finds_a_filled_net_by_name():
+    made = Catalog.default().topology("sod-st-f6")
+    assert made.coordinations == (8, 3, 6)
+    assert decorate.parse("sod-st-f4-f6e3") == ("sod", [(4, 1), (6, 3)])
+    assert decorate.parse("nia-d") is None
+
+
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_a_filler_that_cannot_span_a_window_is_refused(tmp_path):
+    """Tetra(4-pyridyl)ethylene is three times what sod's 4-ring asks
+    for on this trimer; built, it put a nitrogen 0.6 A from a
+    chromium.  Refused before the build, with both numbers."""
+    from xtal.mof.build import BuildRequest, MofError, build
+
+    request = BuildRequest.parse("sod-st-f4", "0=N536,1=N19,"
+                                 "2=Q-ethylene-0-py", "")
+    with pytest.raises(MofError, match=r"donor radius of 4\.69 A.*"
+                                       r"4-rings of sod-st"):
+        build(request, tmp_path, Catalog.default())
+
+
+@pytest.mark.slow
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_a_filled_sod_states_its_metal_nitrogen_bonds_at_the_dative_length(
+        tmp_path):
+    """sod's 6-rings filled with hexa(4-pyridyl)benzene on the 8-c twin
+    of a Cr trimer: the net read back is the one asked for, every
+    filler nitrogen is bonded to a chromium, and none of those bonds is
+    far from 2.10 A."""
+    from xtal.mof.attach import DATIVE_MN
+    from xtal.mof.build import BuildRequest, build
+    from xtal.mof.partition import measured_dative
+
+    outcome = build(BuildRequest.parse(
+        "sod-st-f6", "0=N536,1=N19,2=H-benzene-0-py", ""),
+        tmp_path, Catalog.default())
+    assert outcome.net_agrees
+    bonds = measured_dative(outcome.structure)
+    assert len(bonds) == 6 * 8
+    assert max(abs(b - DATIVE_MN["Cr"]) for b in bonds) < 0.15
+    assert not outcome.overlaps
