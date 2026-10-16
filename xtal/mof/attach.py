@@ -67,12 +67,13 @@ MAX_ATTACHMENT_SPAN = 5.0
 #: bond.  A pyridine on a metal is 2.0-2.3 A, so its X keeps 0.75 and
 #: the metal's sits at the difference (:func:`dative_point`).  No
 #: shipped block has a point on a metal at all.  Typical M(III)-N(py)
-#: lengths in M3O trimers and the M(II) ones of the Co, Ni and Mg
-#: pacs frameworks, rounded to 0.05 A.
+#: lengths in M3O trimers, rounded to 0.05 A; Mg and Co are the axial
+#: M-N measured in the deposited pacs frameworks (COD 4134050-4134054:
+#: Mg 2.23-2.30; 4518868-9: Co 2.19).
 DATIVE_MN = {
     "Al": 2.05, "Sc": 2.25, "Ti": 2.15, "V": 2.15, "Cr": 2.10,
-    "Mn": 2.25, "Fe": 2.20, "Co": 2.15, "Ni": 2.10, "Zn": 2.15,
-    "Mg": 2.20, "Ga": 2.10, "In": 2.25,
+    "Mn": 2.25, "Fe": 2.20, "Co": 2.20, "Ni": 2.10, "Zn": 2.15,
+    "Mg": 2.25, "Ga": 2.10, "In": 2.25,
 }
 
 
