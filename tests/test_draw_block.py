@@ -152,6 +152,39 @@ def test_saving_writes_a_block_the_catalog_can_read_back(qtbot,
 
 
 @needs_rdkit
+def test_a_linker_drawn_as_its_acid_is_saved_as_pormake_draws_it(
+        qtbot, tmp_path):
+    """Terephthalic acid on an edge slot: two carboxylic acids are its
+    two points, and the block written is E14's -- a benzene with an
+    X where each carboxylate joined, 0.75 A out -- since the cluster
+    carries the carboxylates.  The dialog says it can be drawn so."""
+    import numpy as np
+
+    from xtal.mof.trimer import Block
+
+    slot = Slot("edge", (0, 0), 2)
+    dialog = DrawBlockDialog(slot, str(tmp_path))
+    qtbot.addWidget(dialog)
+    assert "carboxylic acids" in dialog.note.text()
+    dialog.form.set_values({"name": "bdc"})
+    typed(dialog, qtbot, "OC(=O)c1ccc(C(O)=O)cc1")
+    assert "2 carboxylates: 2 connection" in dialog.footer.text()
+    assert dialog.save_button.isEnabled()
+    dialog.accept()
+
+    written = tmp_path / "bdc.xyz"
+    assert read_building_block(written).n_connections == 2
+    block = Block.read(written)
+    assert sorted(block.symbols) == sorted("C" * 6 + "H" * 4 + "XX")
+    xyz = block.positions
+    for x in block.connections:
+        (ring,) = block.neighbours(x)
+        assert block.symbols[ring] == "C"
+        assert np.linalg.norm(xyz[x] - xyz[ring]) == pytest.approx(
+            0.75, abs=0.05)
+
+
+@needs_rdkit
 def test_a_click_inside_the_debounce_window_saves_the_latest_drawing(
         qtbot, tmp_path):
     """A click landing inside the 350 ms window after the last edit

@@ -470,6 +470,35 @@ def _no_blocking_modal(monkeypatch):
         monkeypatch.setattr(QMessageBox, name, refuse_static,
                             raising=False)
 
+    # The file, input, colour and font pickers' statics run their
+    # dialog's exec inside C++, past the patch above: a test that
+    # reached QFileDialog.getExistingDirectory sat 74 minutes with
+    # nothing on screen (2026-10-17), and -n0 has no timeout to end it.
+    from PySide6.QtWidgets import (
+        QColorDialog,
+        QFileDialog,
+        QFontDialog,
+        QInputDialog,
+    )
+
+    for cls, names in (
+            (QFileDialog, ("getOpenFileName", "getOpenFileNames",
+                           "getSaveFileName", "getExistingDirectory",
+                           "getOpenFileUrl", "getOpenFileUrls",
+                           "getSaveFileUrl", "getExistingDirectoryUrl")),
+            (QInputDialog, ("getText", "getMultiLineText", "getInt",
+                            "getDouble", "getItem")),
+            (QColorDialog, ("getColor",)),
+            (QFontDialog, ("getFont",))):
+        for name in names:
+            def refuse_picker(*args, _name=f"{cls.__name__}.{name}",
+                              **kwargs):
+                raise AssertionError(
+                    f"{_name}() would wait for a click. Patch it if "
+                    "the test means to reach it.")
+
+            monkeypatch.setattr(cls, name, refuse_picker, raising=False)
+
 
 @pytest.fixture(autouse=True)
 def _a_default_workspace_of_this_test_own(monkeypatch, tmp_path):

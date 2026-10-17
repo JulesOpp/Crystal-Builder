@@ -12,9 +12,10 @@ the rows above are asked again for a trimer and a face.  The windows
 filler (``sod-st-f4``) and a row of its own.
 
 The arithmetic is :mod:`xtal.mof.decorate` and nothing here repeats
-it.  Every fill is tried when the net is decorated, so one that cannot
-be written stays in the list greyed with its reason as the tooltip,
-as a refused partitioner does; two allowed alone can still be refused
+it.  Every fill is tried once the net is decorated, one an event-loop
+turn so a click on fau is not three seconds of fills, and one that
+cannot be written is greyed in the list with its reason as the
+tooltip, as a refused partitioner is; two allowed alone can still be refused
 together, which is said and the tick put back.  *Suggest fillers* is
 a button and not a reaction to every change, because what a window
 asks is read off one trial pass of PORMAKE on the blocks chosen --
@@ -25,7 +26,7 @@ Greyed rather than hidden, as the partition section is.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -129,6 +130,12 @@ class SupertetrahedraBox(QWidget):
         self._rows: dict[int, tuple[QCheckBox, QComboBox]] = {}
         self._topology = None
         self._chosen: dict[int, str] = {}
+        #: The fills still to be tried, ``(size, every)``, one a turn.
+        self._untried: list[tuple[int, int]] = []
+        self._trying = QTimer(self)
+        self._trying.setSingleShot(True)
+        self._trying.setInterval(0)
+        self._trying.timeout.connect(self._try_next)
         self.set_net(None, None)
 
     # -- what it is told -----------------------------------------------
@@ -192,6 +199,7 @@ class SupertetrahedraBox(QWidget):
         self.decorate.setChecked(True)
         if self._decorated is None:
             return False
+        self.settle()
         for size, every in spelled[1]:
             if size not in self._rows:
                 continue
@@ -254,7 +262,7 @@ class SupertetrahedraBox(QWidget):
                     made = self._catalog.topology(
                         self._parent.name + decorate.SUFFIX)
                     self._decorated = decorate.made_from(made)
-                    offered = decorate.choices(self._decorated)
+                    offered = decorate.offered(self._decorated)
             except (CatalogError, decorate.DecorationError) as exc:
                 self.decorate.blockSignals(True)
                 self.decorate.setChecked(False)
@@ -266,36 +274,71 @@ class SupertetrahedraBox(QWidget):
         self._say()
         self.net_changed.emit(self.name())
 
+    def settle(self) -> None:
+        """Try every fill not yet tried, now: for a caller about to
+        read the rows (a restore, a test)."""
+        self._trying.stop()
+        while self._untried:
+            self._try_one()
+
+    def _try_next(self) -> None:
+        if self._untried:
+            self._try_one()
+        if self._untried:
+            self._trying.start()
+
+    def _try_one(self) -> None:
+        size, every = self._untried.pop(0)
+        if self._decorated is None or size not in self._rows:
+            return
+        why = decorate.choice(self._decorated, size, every)
+        tick, combo = self._rows[size]
+        at = combo.findData(every)
+        if why and at >= 0:
+            combo.setItemData(at, why, Qt.ToolTipRole)
+            model = combo.model()
+            if isinstance(model, QStandardItemModel):
+                model.item(at).setEnabled(False)
+        if any(s == size for s, _ in self._untried):
+            return
+        # The row's last one: point it at a fill that can be made.
+        allowed = [combo.itemData(i) for i in range(combo.count())
+                   if not combo.itemData(i, Qt.ToolTipRole)]
+        if not allowed:
+            tick.setEnabled(False)
+            combo.setEnabled(False)
+            tick.setToolTip(str(combo.itemData(0, Qt.ToolTipRole)))
+        elif (combo.currentData() not in allowed
+              and not tick.isChecked()):
+            combo.blockSignals(True)
+            combo.setCurrentIndex(combo.findData(allowed[0]))
+            combo.blockSignals(False)
+
     def _clear_rows(self) -> None:
+        self._trying.stop()
+        self._untried = []
         while self.grid.count():
             item = self.grid.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+            widget = item.widget()
+            if widget is not None:
+                # Unparented first, as the dialog's slot rows are.
+                widget.setParent(None)
+                widget.deleteLater()
         self._rows = {}
 
     def _fill_rows(self, offered: dict) -> None:
+        """A row per window size, every fill listed; each is tried
+        afterwards (:meth:`_try_next`) and greyed if refused."""
         kinds = decorate.windows(self._decorated)
         for line, (size, everies) in enumerate(offered.items()):
             same = [k for k in kinds if k.size == size]
             tick = QCheckBox(f"Fill the {size}-rings", self.windows)
             combo = QComboBox(self.windows)
-            model = combo.model()
-            for every, why in everies.items():
+            for every in everies:
                 combo.addItem("every site" if every == 1 else
                               f"every {_ordinal(every)} site "
                               f"({size // every} taken)", every)
-                if why:
-                    at = combo.count() - 1
-                    combo.setItemData(at, why, Qt.ToolTipRole)
-                    if isinstance(model, QStandardItemModel):
-                        model.item(at).setEnabled(False)
-            allowed = [e for e, why in everies.items() if not why]
-            if allowed:
-                combo.setCurrentIndex(combo.findData(allowed[0]))
-            else:
-                tick.setEnabled(False)
-                combo.setEnabled(False)
-                tick.setToolTip(everies[min(everies)])
+                self._untried.append((size, every))
             count = sum(k.count for k in same)
             facing = min(k.inward for k in same)
             note = QLabel(f"{count} a cell"
@@ -312,6 +355,8 @@ class SupertetrahedraBox(QWidget):
             self.grid.addWidget(note, line, 2)
             self._rows[size] = (tick, combo)
         self.grid.setColumnStretch(2, 1)
+        if self._untried:
+            self._trying.start()
 
     def _wanted(self) -> list[tuple[int, int]]:
         return [(size, int(combo.currentData()))
@@ -384,9 +429,11 @@ class SupertetrahedraBox(QWidget):
                 else f"a {a:.1f}, b {b:.1f}, c {c:.1f} A")
         lines = [f"On {trimer} and {face}, unfilled: {cell}, T-O-T "
                  f"{tot.min():.0f}-{tot.max():.0f} degrees."]
+        marked = []
         for row in rows:
             found = linkers.suggest(row.requirement, self._catalog,
-                                    n=SUGGESTIONS)
+                                    n=SUGGESTIONS, invent=True)
+            marked.extend(found)
             if not found:
                 lines.append(f"{row.sentence}.  Nothing in the "
                              f"catalogue or the series.")
@@ -394,13 +441,11 @@ class SupertetrahedraBox(QWidget):
             items = ", ".join(
                 f"<a href='{row.kind.size}:{row.every}:{row.index}:"
                 f"{s.candidate.name}'>{s.candidate.name}</a>"
-                f"{'*' if s.candidate.source == 'series' else ''} "
-                f"({s.miss:+.2f})" for s in found)
+                f"{linkers.mark(s)} ({s.miss:+.2f})" for s in found)
             lines.append(f"{row.sentence}.  Closest: {items}.")
-        if any("*" in line for line in lines[1:]):
-            lines.append("Click one to fill its window; * is generated.")
-        else:
-            lines.append("Click one to fill its window.")
+        said = linkers.legend(marked)
+        lines.append(f"Click one to fill its window"
+                     f"{'; ' + said if said else ''}.")
         self.suggestions.setText("<br>".join(lines))
 
     def _clicked(self, href: str) -> None:

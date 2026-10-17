@@ -1118,6 +1118,12 @@ class Catalog:
             return None
         source = self._topologies.get(spelled[0], spelled[0])
         try:
+            if spelled[1]:
+                # Filled from the decoration this catalogue already
+                # holds, so its windows and fills are worked out once
+                # (a second on fau) rather than once a name.
+                source = decorate.made_from(
+                    self.topology(spelled[0] + decorate.SUFFIX))
             made = decorate.derived(name, source)
         except decorate.DecorationError as exc:
             raise CatalogError(str(exc)) from None

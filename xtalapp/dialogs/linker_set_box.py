@@ -272,18 +272,17 @@ class LinkerSetBox(QWidget):
         self.suggestions.setText("<br>".join(lines))
 
     def _asks(self, slot: int, other: int, need) -> str:
-        found = linkers.suggest(need, self._catalog, n=SUGGESTIONS)
+        found = linkers.suggest(need, self._catalog, n=SUGGESTIONS,
+                                invent=True)
         head = (f"{self._chosen[slot]} asks node {other + 1} for "
                 f"{need.sentence()}")
         if not found:
             return head + ": nothing in the catalogue or the series."
         items = ", ".join(
             f"<a href='{other}:{s.candidate.name}'>{s.candidate.name}"
-            f"</a>{'*' if s.candidate.source == 'series' else ''} "
-            f"({s.miss:+.2f})" for s in found)
-        generated = any(s.candidate.source == "series" for s in found)
-        return (f"{head}: {items}"
-                f"{' -- * is generated' if generated else ''}.")
+            f"</a>{linkers.mark(s)} ({s.miss:+.2f})" for s in found)
+        said = linkers.legend(found)
+        return f"{head}: {items}{' -- ' + said if said else ''}."
 
     def _clicked(self, href: str) -> None:
         if href.startswith("set:"):

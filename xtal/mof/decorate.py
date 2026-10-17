@@ -278,8 +278,9 @@ def decoration(net) -> Decoration:
     lattice = np.asarray(Lattice.from_parameters(*entry.cell).matrix)
     trimers, incident = _midpoints(parent, frac)
     best = None
+    frames = _face_frames(trimers, incident, lattice)
     for lift in LIFTS:
-        faces = _faces(frac, trimers, incident, lattice, lift)
+        faces = _faces(frac, trimers, incident, lattice, lift, frames)
         bonded, free = _reach(_graph(trimers, faces), lattice)
         margin = free / bonded
         if best is None or margin > best[0] + 1e-9:
@@ -405,9 +406,25 @@ def _midpoints(parent, frac):
     return trimers, incident
 
 
-def _faces(frac, trimers, incident, lattice, lift) -> tuple[Face, ...]:
+def _faces(frac, trimers, incident, lattice, lift,
+           frames=None) -> tuple[Face, ...]:
+    """Every face lifted ``lift`` circumradii off its three trimers.
+    ``frames`` is :func:`_face_frames`, which does not depend on the
+    lift and so is worked out once for all of :data:`LIFTS`."""
+    if frames is None:
+        frames = _face_frames(trimers, incident, lattice)
     inverse = np.linalg.inv(lattice)
-    faces = []
+    return tuple(
+        Face(vertex, triple,
+             tuple(float(v) for v in
+                   (middle + lift * radius * normal) @ inverse))
+        for vertex, triple, middle, normal, radius in frames)
+
+
+def _face_frames(trimers, incident, lattice) -> list:
+    """``(vertex, triple, circumcentre, outward normal, radius)`` for
+    each triple of a vertex's edges."""
+    frames = []
     for vertex, edges in enumerate(incident):
         for triple in itertools.combinations(edges, 3):
             corners = [(trimers[k] + np.asarray(s)) @ lattice
@@ -421,10 +438,9 @@ def _faces(frac, trimers, incident, lattice, lift) -> tuple[Face, ...]:
             if np.dot(middle - fourth, normal) < 0:
                 normal = -normal
             radius = np.linalg.norm(corners[0] - middle)
-            at = (middle + lift * radius * normal) @ inverse
-            faces.append(Face(vertex, tuple(triple),
-                              tuple(float(v) for v in at)))
-    return tuple(faces)
+            frames.append((vertex, tuple(triple), middle, normal,
+                           radius))
+    return frames
 
 
 def _circumcentre(a, b, c):
@@ -589,12 +605,39 @@ class WindowKind:
         return f"{self.size}-ring"
 
 
+def _memo(decorated, key, make):
+    """``make()``, worked out once for ``decorated``: a frozen
+    decoration is the same net for as long as it lives, so what is
+    asked of it is too.  A refusal is kept and raised again.  This is
+    what makes clicking through the supertetrahedra builder's nets
+    cheap the second time, and a tick there instant after the
+    choices were tried."""
+    memo = decorated.__dict__.get("_memo")
+    if memo is None:
+        memo = {}
+        object.__setattr__(decorated, "_memo", memo)
+    if key not in memo:
+        try:
+            memo[key] = (True, make())
+        except DecorationError as exc:
+            memo[key] = (False, exc)
+    ok, value = memo[key]
+    if not ok:
+        raise value
+    return value
+
+
 def windows(decorated: Decoration,
             max_size: int = WINDOW_MAX) -> list[WindowKind]:
     """The windows of a decorated net: the parent's primitive rings
     (:mod:`xtal.core.rings`), one :class:`WindowKind` per symmetry
     class, smallest first.  Asked of the parent because a window *is*
     a ring of it -- its trimers are the parent's edges round it."""
+    return list(_memo(decorated, ("windows", max_size),
+                      lambda: _windows(decorated, max_size)))
+
+
+def _windows(decorated: Decoration, max_size: int) -> list[WindowKind]:
     from xtal.analysis.rcsr import space_group_operations
     from xtal.core import rings
 
@@ -1294,12 +1337,16 @@ def parse(name: str):
 def derived(name: str, source=None):
     """The topology a decorated net's name spells, or ``None`` if the
     name is not one.  ``source`` is the parent net when the caller
-    has it (the catalogue's own); the RCSR's otherwise."""
+    has it (the catalogue's own), or for a filled name the
+    :class:`Decoration` it is filled from; the RCSR's otherwise."""
     spelled = parse(name)
     if spelled is None:
         return None
     parent, spec = spelled
-    decorated = decoration(source if source is not None else parent)
+    if spec and isinstance(source, Decoration):
+        decorated = source
+    else:
+        decorated = decoration(source if source is not None else parent)
     if not spec:
         return decorated.topology()
     return filled(decorated, spec).topology()
@@ -1308,6 +1355,12 @@ def derived(name: str, source=None):
 def filled(decorated: Decoration, spec) -> Filled:
     """``decorated`` with every window of each ``(size, every)``
     filled: all kinds of that size, as lta's two kinds of 4-ring."""
+    spec = tuple((int(size), int(every)) for size, every in spec)
+    return _memo(decorated, ("filled", spec),
+                 lambda: _filled_by_spec(decorated, spec))
+
+
+def _filled_by_spec(decorated: Decoration, spec) -> Filled:
     largest = max([WINDOW_MAX] + [size for size, _ in spec])
     kinds = windows(decorated, largest)
     fills = []
@@ -1340,19 +1393,32 @@ def choices(decorated: Decoration) -> dict[int, dict[int, str]]:
     because whether a choice of sites survives the window's symmetry,
     or a long filler edge lets PORMAKE read the file by distance, is
     only known by writing it.  Two sizes allowed alone can still be
-    refused together (a trimer has three open sites)."""
+    refused together (a trimer has three open sites).  The builder
+    asks :func:`offered` and then :func:`choice` one at a time, so a
+    click on a net is not three seconds of fills on fau."""
     out: dict[int, dict[int, str]] = {}
-    for size in sorted({k.size for k in windows(decorated)}):
-        out[size] = {}
-        for every in range(1, size // 2 + 1):
-            if size % every:
-                continue
-            try:
-                filled(decorated, [(size, every)])
-                out[size][every] = ""
-            except DecorationError as exc:
-                out[size][every] = str(exc)
+    for size, everies in offered(decorated).items():
+        out[size] = {every: choice(decorated, size, every)
+                     for every in everies}
     return out
+
+
+def offered(decorated: Decoration) -> dict[int, tuple[int, ...]]:
+    """size -> the ``every`` a window of that size could be filled
+    with, untried: what :func:`choices` tries."""
+    return {size: tuple(every for every in range(1, size // 2 + 1)
+                        if not size % every)
+            for size in sorted({k.size for k in windows(decorated)})}
+
+
+def choice(decorated: Decoration, size: int, every: int) -> str:
+    """Why filling every ``every``-th site of the ``size``-rings
+    alone is refused, or ``""``: the fill, tried (and kept)."""
+    try:
+        filled(decorated, [(size, every)])
+    except DecorationError as exc:
+        return str(exc)
+    return ""
 
 
 def made_from(topology):
@@ -1491,17 +1557,19 @@ def prepared(request, catalog, folder):
 
 def _write_series(name: str, folder: Path) -> None:
     from xtal.build import chem
-    from xtal.mof import linkers
+    from xtal.mof import invent, linkers
     from xtal.mof.build import MofError
 
-    found = [c for c in linkers.stored() if c.name == name]
-    if not found:
-        raise MofError(f"no building block called {name!r}, and no "
-                       f"generated linker either")
-    if not chem.installed():
+    found = linkers.generated(name)
+    # A new molecule's name is known without RDKit; making it is not.
+    spelled = found is not None or invent.by_name_is_one(name)
+    if spelled and not chem.installed():
         raise MofError(f"building {name} from its SMILES needs the "
                        f"'build' extra (RDKit)")
-    linkers.write_block(found[0], folder)
+    if found is None:
+        raise MofError(f"no building block called {name!r}, and no "
+                       f"generated linker either")
+    linkers.write_block(found, folder)
 
 
 def _refuse_misfits(made: Filled, nodes, catalog) -> None:
@@ -1555,8 +1623,7 @@ def _candidate(name, catalog, linkers):
         return linkers.profile(catalog.building_block(name))
     except CatalogError:
         pass
-    found = [c for c in linkers.stored() if c.name == name]
-    return found[0] if found else None
+    return linkers.generated(name)
 
 
 #: How far a built metal-nitrogen bond may be from the dative length

@@ -1112,10 +1112,40 @@ def test_the_partition_box_is_live_only_for_an_open_trimer(pacs, dialog):
     assert pacs.values()["partition"] == "tpt"
     assert "Predicted" in box.status.text()
 
-    pacs._rows[0].set_block("N86")
+    # N86 is not offered in the row any more; a drawn one like it is.
+    assert not pacs._rows[0].set_block("N86")
+    box.set_framework(pacs.catalog, "acs", "N86", "E14")
     assert not box.choice.isEnabled()
     assert "no open site" in box.status.text()
-    assert pacs.values()["partition"] == ""
+    assert box.value() == ""
+
+
+@needs_database
+def test_the_pacs_trimer_row_offers_only_trimers_it_can_partition(
+        pacs, tmp_path):
+    """The nine open M3O trimers, not the two hundred six-connected
+    blocks Build would refuse -- and a block drawn on the row is
+    offered whatever it is."""
+    from pathlib import Path
+
+    from xtal.mof import partition
+
+    pacs._select("acs")
+    row = pacs._rows[0]
+    offered = {row.combo.itemData(i) for i in range(row.combo.count())}
+    assert offered == {n.name for n in
+                       partition.compatible_nodes(pacs.catalog)}
+    assert "N589" in offered and "N86" not in offered
+    edge = next(r for r in pacs._rows if r.slot.is_edge)
+    assert edge.combo.count() > 100
+
+    drawn = Path(row.folder) / "my-node.xyz"
+    drawn.parent.mkdir(parents=True, exist_ok=True)
+    drawn.write_text(Path(pacs.catalog.building_block("N86").path)
+                     .read_text())
+    pacs._on_block_drawn("my-node")
+    row = pacs._rows[0]
+    assert row.set_block("my-node")
 
 
 @needs_database
@@ -1245,6 +1275,7 @@ def _sod(st):
     assert st._select("sod")
     box = st.supertetrahedra
     box.decorate.setChecked(True)
+    box.settle()
     return box
 
 
@@ -1368,6 +1399,44 @@ def test_the_same_trimer_goes_in_every_trimer_slot(st):
     box.same.setChecked(False)
     rows[1].set_block("N536")
     assert rows[0].block() == "N92"
+
+
+@needs_database
+def test_the_supertetrahedra_builder_opens_on_a_nickel_trimer_and_btc(st):
+    """N589 (Ni3O) and N10 (BTC) on sod-st, unless something else was
+    picked last time."""
+    assert st._topology.name == "sod-st"
+    assert [r.block() for r in _rows_by_key(st).values()] == [
+        "N589", "N10"]
+
+
+@needs_database
+def test_a_net_clicked_leaves_no_row_of_the_last_one_on_screen(st):
+    """The rows a net replaces are unparented at once: a deferred
+    delete posted before the modal loop starts is not delivered inside
+    it, and the old row's picture stayed as a white box behind "Node
+    1, 6-connected"."""
+    from xtalapp.dialogs.mof_build import _SlotRow
+
+    assert st._select("lta")
+    assert st._select("sod")
+    left = [w for w in st.slots_box.findChildren(_SlotRow)
+            if w.parent() is st.slots_box]
+    assert left == st._rows
+
+
+@needs_database
+def test_a_net_clicked_lists_its_fills_and_tries_them_afterwards(st):
+    """Trying every fill was three seconds of a click on fau; the
+    rows are there at once and greyed as each is tried."""
+    assert st._select("lta")
+    assert st._select("sod")
+    box = st.supertetrahedra
+    _tick, every = box._rows[4]
+    assert every.findData(2) >= 0 and box._untried
+    box.settle()
+    assert not box._untried
+    assert not every.model().item(every.findData(2)).isEnabled()
 
 
 @needs_database

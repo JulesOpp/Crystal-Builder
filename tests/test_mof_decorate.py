@@ -309,6 +309,36 @@ def test_the_catalogue_finds_a_filled_net_by_name():
     assert decorate.parse("nia-d") is None
 
 
+def test_a_fill_and_its_refusal_are_worked_out_once_per_decoration(
+        monkeypatch):
+    """The supertetrahedra builder tries every fill once and then
+    builds on one of them by name; a second fill of the same windows
+    was a quarter of a second on fau, every time."""
+    decorated = decorate.decoration("sod")
+    first = decorate.filled(decorated, [(6, 1)])
+    calls = []
+    real = decorate.fill
+    monkeypatch.setattr(decorate, "fill",
+                        lambda *a, **k: calls.append(1) or real(*a, **k))
+    assert decorate.filled(decorated, [(6, 1)]) is first
+    assert decorate.choice(decorated, 4, 2) == decorate.choice(
+        decorated, 4, 2) != ""
+    assert len(calls) == 1
+    assert decorate.choices(decorated)[4] == {1: "", 2: decorate.choice(
+        decorated, 4, 2)}
+
+
+@pytest.mark.skipif(database_root() is None,
+                    reason="the vendored PORMAKE database is missing")
+def test_the_catalogue_fills_from_the_decoration_it_already_holds():
+    """``sod-st-f6`` is ``sod-st``'s own decoration filled, not a new
+    decoration of sod made for every name."""
+    catalog = Catalog.default()
+    held = decorate.made_from(catalog.topology("sod-st"))
+    made = decorate.made_from(catalog.topology("sod-st-f6"))
+    assert made is decorate.filled(held, [(6, 1)])
+
+
 @pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
 def test_a_filler_that_cannot_span_a_window_is_refused(tmp_path):
     """Tetra(4-pyridyl)ethylene is three times what sod's 4-ring asks

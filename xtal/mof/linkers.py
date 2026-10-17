@@ -17,7 +17,10 @@ answers it from two places:
   ``data/linker_series.json``.  Stored, like the partitioners' radii,
   so asking costs no RDKit and no seconds; only *using* a generated
   linker embeds it (:func:`write_block`), and a slow test re-embeds the
-  table to hold it to its SMILES.
+  table to hold it to its SMILES;
+* **new molecules made for the asking** (:mod:`xtal.mof.invent`, with
+  ``invent=True``): a wider C/H/N/O series, estimated by the sum of
+  its units' lengths and only the nearest few embedded.
 
 Two numbers describe a block here.  A two-connected one has a
 **span**, point to point, which is what an edge's length is made of.
@@ -83,8 +86,10 @@ class Requirement:
 class Candidate:
     """A molecule that might meet a :class:`Requirement`.
 
-    ``source`` is ``"catalogue"`` (``name`` is a block) or
-    ``"series"`` (``smiles`` builds it).
+    ``source`` is ``"catalogue"`` (``name`` is a block),
+    ``"series"`` (stored; ``smiles`` builds it) or ``"invented"``
+    (made for a requirement by :mod:`xtal.mof.invent`; ``smiles``
+    builds it and the name spells it).
     """
 
     name: str
@@ -103,7 +108,8 @@ class Suggestion:
 
     def sentence(self, requirement: Requirement) -> str:
         c = self.candidate
-        where = "catalogue" if c.source == "catalogue" else "generated"
+        where = {"catalogue": "catalogue",
+                 "invented": "new"}.get(c.source, "generated")
         return (f"{c.name} ({where}): {requirement.measure} "
                 f"{c.value:.2f} A, {self.miss:+.2f} from "
                 f"{requirement.value:.2f}")
@@ -309,15 +315,53 @@ def candidates(catalog=None) -> list[Candidate]:
 
 
 def suggest(requirement: Requirement, catalog=None, n: int = 8,
-            pool=None) -> list[Suggestion]:
+            pool=None, invent: bool = False) -> list[Suggestion]:
     """The ``n`` candidates nearest ``requirement``, inside its range,
-    nearest first.  ``pool`` overrides where they come from."""
-    pool = candidates(catalog) if pool is None else pool
+    nearest first.  ``pool`` overrides where they come from.
+
+    ``invent`` adds molecules made for this requirement
+    (:func:`xtal.mof.invent.invent`), and keeps room for them: up to
+    a third of the ``n``, so the catalogue's near misses do not crowd
+    out the one new molecule that fits, and a catalogue block that
+    fits is still never pushed off by a dozen new ones."""
+    pool = candidates(catalog) if pool is None else list(pool)
+    if invent:
+        from xtal.mof import invent as inventing
+
+        made = inventing.invent(
+            requirement, exclude={c.smiles for c in pool if c.smiles})
+        room = max(1, n // 3)
+        made = [Suggestion(c, c.value - requirement.value)
+                for c in made[:room]]
+        rest = suggest(requirement, n=n - len(made), pool=pool)
+        both = rest + made
+        both.sort(key=lambda s: abs(s.miss))
+        return both
     fits = [Suggestion(c, c.value - requirement.value)
             for c in pool if requirement.admits(c)]
     fits.sort(key=lambda s: (abs(s.miss), s.candidate.source != "catalogue",
                              s.candidate.name))
     return fits[:n]
+
+
+#: How a dialog marks a suggestion that is not yet a block.
+MARKS = {"series": "*", "invented": "+"}
+
+
+def mark(suggestion: Suggestion) -> str:
+    return MARKS.get(suggestion.candidate.source, "")
+
+
+def legend(found) -> str:
+    """What the marks on ``found`` mean, or ``""``: "* is generated,
+    + is new, made for this"."""
+    sources = {s.candidate.source for s in found}
+    parts = []
+    if "series" in sources:
+        parts.append("* is generated")
+    if "invented" in sources:
+        parts.append("+ is a new molecule, made for this")
+    return ", ".join(parts)
 
 
 def nearest_misses(requirement: Requirement, catalog=None, n: int = 3,
@@ -332,10 +376,24 @@ def nearest_misses(requirement: Requirement, catalog=None, n: int = 3,
     return near[:n]
 
 
+def generated(name: str) -> Candidate | None:
+    """The generated linker called ``name`` -- the stored series', or
+    one :mod:`xtal.mof.invent` made, whose name spells it -- or
+    ``None``.  What a build asked for by a name no block has looks up,
+    so a new molecule clicked in a dialog builds from its name
+    alone."""
+    for c in stored():
+        if c.name == name:
+            return c
+    from xtal.mof import invent
+
+    return invent.by_name(name)
+
+
 def write_block(candidate: Candidate, folder) -> Path:
     """Write a series candidate as a building block named after it.
     Needs RDKit.  A catalogue candidate is already a block."""
-    if candidate.source != "series":
+    if candidate.source not in ("series", "invented"):
         raise ValueError(f"{candidate.name} is already a block")
     from xtal.build.molecule import from_smiles
     from xtal.io.atomic import write_text

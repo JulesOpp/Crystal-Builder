@@ -32,12 +32,16 @@ exists to check, and :func:`xtal.mof.block.write_building_block`
 still runs :func:`~xtal.mof.block.problems` underneath as the last
 word.
 
-**A rod linker may be drawn whole** (a slot with ``donors`` set, from
-:mod:`xtalapp.dialogs.rod_build`): its carboxylates and phenols drawn
-as they are, each counted as the connection point it becomes
-(:mod:`xtal.mof.donors`), and saved with no ``X`` so the file says
-which donor each point is.  Drawn with stars it is saved as any block
-is, and its points pair with any of the rod's.
+**A linker may be drawn whole**, its carboxylic acids and hydroxyls
+drawn as they are instead of ending each arm in ``X``: each donor is
+counted as the connection point it becomes (:mod:`xtal.mof.donors`).
+For a rod linker (a slot with ``donors`` set, from
+:mod:`xtalapp.dialogs.rod_build`) it is saved with no ``X``, so the
+file says which donor each point is; for any other slot the donors
+are taken off and an ``X`` written where each joined, which is what
+PORMAKE's own blocks are -- BDC is E14, a benzene with an ``X`` at
+each carboxylate's carbon, because the cluster carries the
+carboxylates.  Drawn with stars it is saved as any block is.
 """
 
 from __future__ import annotations
@@ -77,8 +81,10 @@ class DrawBlockDialog(QDialog):
     def __init__(self, slot, folder: str, parent=None):
         super().__init__(parent)
         self.slot = slot
-        #: Whether a drawing with no stars counts its donors as points.
-        self.donors = bool(getattr(slot, "donors", False))
+        #: Whether a drawing with no stars is saved whole, donors and
+        #: all (a rod linker), or with each donor made an ``X``.  Its
+        #: donors count as its points either way.
+        self.whole = bool(getattr(slot, "donors", False))
         self.folder = str(folder or "").strip()
         self.molecule = None
         self.path: Path | None = None
@@ -98,6 +104,9 @@ class DrawBlockDialog(QDialog):
         self.where = QLabel(self._where(), self)
         set_tone(self.where, HINT)
         self.where.setWordWrap(True)
+        self.note = QLabel(self._note(), self)
+        set_tone(self.note, HINT)
+        self.note.setWordWrap(True)
 
         self._quiet = QTimer(self)
         self._quiet.setSingleShot(True)
@@ -127,6 +136,7 @@ class DrawBlockDialog(QDialog):
         layout.addWidget(self.form)
         layout.addWidget(self.sketch, 1)
         layout.addWidget(self.footer)
+        layout.addWidget(self.note)
         layout.addWidget(self.where)
         layout.addWidget(buttons)
         self.resize(520, 620)
@@ -173,9 +183,9 @@ class DrawBlockDialog(QDialog):
                   ok=fits)
 
     def _points(self, molecule) -> tuple[int, tuple[str, ...]]:
-        """The points ``molecule`` makes: its stars, or, drawn whole
-        for a slot that counts donors, one per donor."""
-        if molecule.n_connections or not self.donors:
+        """The points ``molecule`` makes: its stars, or, drawn whole,
+        one per donor."""
+        if molecule.n_connections:
             return molecule.n_connections, ()
         return donors.points(donors.whole(molecule))
 
@@ -187,15 +197,29 @@ class DrawBlockDialog(QDialog):
                      f"point(s)")
         else:
             base += f"{have} connection point(s)"
-            if have and self.donors:
+            if have and self.whole:
                 base += " drawn bare, which pair with any of the rod's"
         if fits:
             return f"{base} -- fits {self.slot.label.lower()}"
-        if self.donors and not have:
-            return (f"{base} -- draw its carboxylates and phenols, or "
-                    f"mark its {need} points")
+        if not have:
+            what = ("carboxylates and phenols" if self.whole else
+                       "carboxylic acids or hydroxyls")
+            return (f"{base} -- draw its {what}, or mark its "
+                    f"{need} points")
         return (f"{base} -- {self.slot.label} needs {need}, "
                 f"not {have}")
+
+    def _note(self) -> str:
+        if self.whole:
+            return ("No need to end each arm in X (*): draw the "
+                    "linker's carboxylic acids (C(=O)O) and hydroxyls "
+                    "as they are, and each is the rod point of its "
+                    "kind.")
+        return ("No need to end each arm in X (*): draw the "
+                "carboxylic acids (C(=O)O) or hydroxyls as they are, "
+                "and each becomes a connection point where it joins "
+                "the molecule -- BDC drawn as terephthalic acid is "
+                "saved as E14 is.")
 
     def _where(self) -> str:
         if not self.folder:
@@ -255,16 +279,19 @@ class DrawBlockDialog(QDialog):
             return
         path = Path(self.folder) / f"{stem}.xyz"
         try:
-            if self.donors and not final.n_connections:
+            if not final.n_connections:
                 from xtal.io.atomic import write_text
 
+                drawn = donors.whole(final)
+                if not self.whole:
+                    drawn = donors.as_linker(drawn)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                write_text(path, donors.whole(final).text())
+                write_text(path, drawn.text())
                 self.path = path
             else:
                 self.path = write_building_block(
                     final.to_structure(), path)
-        except (BlockError, OSError) as exc:
+        except (BlockError, donors.DonorError, OSError) as exc:
             self._say(str(exc), ok=False)
             return
         super().accept()

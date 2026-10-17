@@ -25,7 +25,7 @@ print(s.inspect())
 | `orientation` | `consistent` (default) or `as-found` (PORMAKE's own) |
 | `spacing`, `offset` | layer nets only: sheet spacing in Å (default 3.4) and stacking offset |
 | `interpenetration` | copies threaded through each other, where the most room is |
-| `partition` | `acs` with a trimer node only: a pyridyl partitioner on every channel (`tpt`, `tpb`, `tripp`, `tppb`, or `auto`) |
+| `partition` | `acs` with a trimer node only: a pyridyl partitioner on every channel (`tpt`, `tpb`, `tripp`, `tppb`, `tppm`, `tpa`, `tpvb`, `tpeb`, `tppa`, `tppt`, or `auto`) |
 
 ## Choosing blocks
 
@@ -131,6 +131,10 @@ s = Session.build("mof.build", workspace,
 
 A generated linker (`H-benzene-PP-ar`) is a block once
 `linkers.write_block` has written it into the workspace's `blocks/`.
+`linkers.suggest(need, catalog, invent=True)` also makes new C/H/N/O
+molecules for the requirement (`G-L-P_Pn_P-aryl`, source
+`"invented"`), each embedded and measured; the name spells the
+molecule, so `linkers.generated(name)` gives it back in any session.
 
 A refused set names the ratio it makes and the range the net allows,
 or how much longer every linker must be for the clusters not to

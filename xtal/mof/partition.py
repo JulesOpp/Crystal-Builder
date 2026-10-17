@@ -89,7 +89,11 @@ _PY = "c1cc[n+](*)cc1"
 
 #: The tritopic partitioners of the pacs literature, and the extended
 #: one a larger linker asks for, in the order a tie is broken: the
-#: most used first.
+#: most used first.  After the four the literature built on come the
+#: same idea at other sizes -- an amine core (4.2 A, a smaller cell),
+#: a pyrimidine, the ethynyl and vinyl arms (8.0-8.2 A) between tpb
+#: and tppb, and tppb's amine and triazine cousins -- so a trimer and
+#: linker that none of the four fit can still be offered one.
 PARTITIONERS = (
     Partitioner("tpt", "2,4,6-tri(4-pyridyl)-1,3,5-triazine",
                 f"*[n+]1ccc(cc1)-c1nc(nc(n1)-{_PY})-{_PY}", 5.58),
@@ -100,6 +104,21 @@ PARTITIONERS = (
     Partitioner("tppb", "1,3,5-tris(4'-(4-pyridyl)phenyl)benzene",
                 "*[n+]1ccc(cc1)-c1ccc(cc1)-c1cc(cc(c1)-c1ccc(cc1)"
                 f"-{_PY})-c1ccc(cc1)-{_PY}", 9.98),
+    Partitioner("tppm", "2,4,6-tri(4-pyridyl)pyrimidine",
+                f"c2(-{_PY})cc(-{_PY})nc(-{_PY})n2", 5.62),
+    Partitioner("tpa", "tri(4-pyridyl)amine",
+                f"N(-{_PY})(-{_PY})-{_PY}", 4.22),
+    Partitioner("tpvb", "1,3,5-tris(2-(4-pyridyl)vinyl)benzene",
+                f"c2(/C=C/{_PY})cc(/C=C/{_PY})cc(/C=C/{_PY})c2", 7.97),
+    Partitioner("tpeb", "1,3,5-tris(4-pyridylethynyl)benzene",
+                f"c2(C#C{_PY})cc(C#C{_PY})cc(C#C{_PY})c2", 8.21),
+    Partitioner("tppa", "tris(4'-(4-pyridyl)phenyl)amine",
+                f"N(-c2ccc(cc2)-{_PY})(-c2ccc(cc2)-{_PY})"
+                f"-c2ccc(cc2)-{_PY}", 8.54),
+    Partitioner("tppt",
+                "2,4,6-tris(4'-(4-pyridyl)phenyl)-1,3,5-triazine",
+                f"c3(-c2ccc(cc2)-{_PY})nc(-c2ccc(cc2)-{_PY})"
+                f"nc(-c2ccc(cc2)-{_PY})n3", 9.89),
 )
 
 

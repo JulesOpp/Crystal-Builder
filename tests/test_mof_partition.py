@@ -54,7 +54,7 @@ def test_a_partitioner_too_large_for_the_linker_is_refused_by_name(
     tppb = next(f for f in fits if f.partitioner == "tppb")
     assert not tppb.ok
     assert "E14" in tppb.reason
-    assert fits[-1] is tppb
+    assert all(not f.ok for f in fits[fits.index(tppb):])
     assert math.isinf(tppb.strain)
 
 
@@ -84,6 +84,19 @@ def test_ranking_linkers_finds_bdc_and_leaves_metal_blocks_out(
     assert "E14" in names
     assert not any(catalog.building_block(n).has_metal for n in names)
     assert all(f.ok for f in fits[:10])
+
+
+def test_a_short_linker_none_of_the_classic_four_fit_is_offered_tpa(
+        catalog):
+    """E19 on a nickel trimer is too short for tpt, tpb, tripp and
+    tppb alike; tri(4-pyridyl)amine's 4.2 A donor radius closes the
+    cell, so a partitioner is still offered."""
+    node = partition.node_geometry(catalog.building_block("N589"))
+    span = partition.linker_span(catalog.building_block("E19"))
+    fits = partition.rank(node, "E19", span)
+    ok = [f.partitioner for f in fits if f.ok]
+    assert ok == ["tpa"]
+    assert {"tpt", "tpb", "tripp", "tppb"}.isdisjoint(ok)
 
 
 @pytest.mark.skipif(not chem.installed(), reason="needs the build extra")

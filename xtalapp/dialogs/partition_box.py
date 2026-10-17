@@ -245,18 +245,17 @@ class PartitionBox(QWidget):
         name = fit.partitioner if fit else "tpt"
         need = partition.linker_requirement(self._node,
                                             partition.partitioner(name))
-        found = linkers.suggest(need, self._catalog, n=SUGGESTIONS)
+        found = linkers.suggest(need, self._catalog, n=SUGGESTIONS,
+                                invent=True)
         lines = []
         if found:
             items = ", ".join(
                 f"<a href='{s.candidate.name}'>{s.candidate.name}</a>"
-                f"{'*' if s.candidate.source == 'series' else ''} "
-                f"({s.miss:+.2f})" for s in found)
-            generated = any(s.candidate.source == "series"
-                            for s in found)
+                f"{linkers.mark(s)} ({s.miss:+.2f})" for s in found)
+            said = linkers.legend(found)
             lines.append(f"{name} asks for {need.sentence()}.  "
                          f"Closest: {items} -- click one to use it"
-                         f"{'; * is generated' if generated else ''}.")
+                         f"{'; ' + said if said else ''}.")
         else:
             lines.append(f"Nothing fits {name}: it asks for "
                          f"{need.sentence()}.")
