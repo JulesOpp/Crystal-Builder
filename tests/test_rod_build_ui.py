@@ -129,3 +129,39 @@ def test_a_rod_framework_offers_no_interpenetration(dialog):
     assert "interpenetration" not in dialog.values()
     with pytest.raises(TypeError):
         RodRequest.parse("MIL-53_Cr", "sql", interpenetration=2)
+
+
+def test_the_rod_and_linker_are_drawn_as_the_mof_builder_draws_a_block(
+        dialog):
+    """The MOF builder's own picture beside each row: the rod as two
+    repeats with every connection point a ring, its formula one
+    repeat's, and the linker the one a build would take."""
+    from xtal.mof import rod as rods
+    from xtalapp.dialogs.mof_preview import BlockPreview
+
+    assert isinstance(dialog.rod_preview, BlockPreview)
+    assert isinstance(dialog.linker_preview, BlockPreview)
+    shipped = rods.Rod.read(rods.shipped()["MIL-53_Cr"])
+    drawn = dialog.rod_preview._block
+    assert len(drawn.connections) == 2 * len(shipped.connections)
+    assert drawn.formula == "C4Cr2H2O10"
+    assert dialog.rod_preview._caption.startswith("Cr(OH)(O2CR)2-trans")
+    assert dialog.linker_preview._caption == "BDC  ·  C6H4"
+
+    dialog.linker.setCurrentIndex(dialog.linker.findData("pzdc"))
+    assert dialog.linker_preview._caption.startswith("pzdc")
+    dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
+    assert dialog.rod_preview._caption.startswith("MOF-74 SBU (Zn)")
+
+
+def test_build_is_greyed_for_what_cannot_be_built(qtbot, dialog):
+    """MOF-74's rod has three faces a repeat and sql four neighbours:
+    said under the form, and Build is not offered."""
+    dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
+    qtbot.waitUntil(lambda: "cannot be built" in dialog.summary.text(),
+                    timeout=60000)
+    assert not dialog.build_button.isEnabled()
+    dialog.pattern.setCurrentIndex(dialog.pattern.findData("hcb"))
+    qtbot.waitUntil(lambda: "Predicted cell" in dialog.summary.text(),
+                    timeout=60000)
+    assert dialog.build_button.isEnabled()

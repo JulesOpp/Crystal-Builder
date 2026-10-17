@@ -13,6 +13,11 @@ grey, the angle a build would use: the placement is worked out on a
 thread whenever the rod, the linker or the pattern changes, which is
 0.5 to 3.6 s, and its cell is said under the form.
 
+The rod and the linker are drawn beside their rows with the MOF
+builder's own :class:`~xtalapp.dialogs.mof_preview.BlockPreview`, the
+connection points as open rings; the rod as two repeats, so it reads
+as the chain it is.
+
 Everything handed back is the generated form's ``values``, so
 :func:`xtal.modules.mof.build_rod_framework` never learns which
 asked.  There is no interpenetration: rods joined on every side fill
@@ -21,8 +26,11 @@ the plane across them.
 
 from __future__ import annotations
 
+from collections import Counter
+from dataclasses import dataclass
 from types import SimpleNamespace
 
+import numpy as np
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
@@ -40,6 +48,7 @@ from PySide6.QtWidgets import (
 from xtal.mof import rod as rods
 from xtal.mof.rodnet import PATTERNS
 from xtalapp.dialogs.answered import answered
+from xtalapp.dialogs.mof_preview import BlockPreview
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: Shown in the angle box while the placement is being worked out.
@@ -54,6 +63,69 @@ PATTERN_LABELS = {"sql": "sql -- square or rhombic",
 #: The hands, as a person reads them.
 HAND_LABELS = (("auto", "As in the crystal"), ("same", "All one hand"),
                ("alternating", "Alternating"))
+
+
+#: How large a block's picture is, as a MOF builder slot row's; a rod's
+#: is wider, being two repeats of a chain.
+PREVIEW = (190, 140)
+ROD_PREVIEW = (300, 140)
+
+#: How many repeats of a rod are drawn: two, so a bond to the next
+#: repeat is drawn as a bond and not left hanging.
+REPEATS = 2
+
+
+@dataclass
+class _Drawn:
+    """What :class:`BlockPreview` draws: a rod or a linker, as a
+    catalogue block would give it."""
+
+    name: str
+    symbols: list
+    positions: np.ndarray
+    connections: tuple
+    pairs: list
+    #: How many copies of the block are drawn: a rod's formula is one
+    #: repeat's.
+    copies: int = 1
+
+    @property
+    def formula(self) -> str:
+        counts = Counter(s for s in self.symbols[:len(self.symbols)
+                                                 // self.copies]
+                         if s != "X")
+        return "".join(f"{s}{n if n > 1 else ''}"
+                       for s, n in sorted(counts.items()))
+
+    def bond_pairs(self) -> list:
+        return self.pairs
+
+
+def drawn_rod(rod, name: str = "") -> _Drawn:
+    """``rod`` as :data:`REPEATS` repeats up its axis, bonded across
+    the cut where both ends are drawn."""
+    n = len(rod.symbols)
+    symbols, positions = [], []
+    for k in range(REPEATS):
+        symbols += list(rod.symbols)
+        positions.append(rod.positions + [0.0, 0.0, k * rod.repeat])
+    pairs = []
+    for i, j, _letter, shift in rod.bonds:
+        for k in range(REPEATS):
+            if 0 <= k + shift < REPEATS:
+                pairs.append((k * n + i, (k + shift) * n + j))
+    connections = tuple(k * n + x for k in range(REPEATS)
+                        for x in rod.connections)
+    return _Drawn(name or rod.name, symbols, np.vstack(positions),
+                  connections, pairs, REPEATS)
+
+
+def drawn_linker(block, name: str) -> _Drawn:
+    """A linker as :func:`xtal.mof.rodbuild.load_linker` reads it."""
+    return _Drawn(name, list(block.symbols),
+                  np.asarray(block.positions, float),
+                  tuple(block.connections),
+                  [(min(i, j), max(i, j)) for i, j, *_ in block.bonds])
 
 
 class _Fit(QObject):
@@ -131,11 +203,21 @@ class RodBuildDialog(QDialog):
         self.draw.setToolTip("Draw a two-ended linker; it is saved in "
                              "this workspace's blocks and chosen here")
         self.draw.clicked.connect(self._draw)
-        linker_row = QWidget(self)
-        row = QHBoxLayout(linker_row)
+        self.rod_preview = BlockPreview(self, minimum=ROD_PREVIEW)
+        self.rod_preview.setFixedSize(*ROD_PREVIEW)
+        self.rod_preview.empty_text = "no rod"
+        self.linker_preview = BlockPreview(self, minimum=PREVIEW)
+        self.linker_preview.setFixedSize(*PREVIEW)
+        self.linker_preview.empty_text = "no linker"
+
+        rod_row = _beside(self, [self.rod], self.rod_preview)
+        choice = QWidget(self)
+        row = QHBoxLayout(choice)
         row.setContentsMargins(0, 0, 0, 0)
         row.addWidget(self.linker, 1)
         row.addWidget(self.draw)
+        linker_row = _beside(self, [self.linker_search, choice],
+                             self.linker_preview)
 
         self.hands = QComboBox(self)
         for value, text in HAND_LABELS:
@@ -155,9 +237,8 @@ class RodBuildDialog(QDialog):
         self.summary.setTextFormat(Qt.RichText)
 
         form = QFormLayout()
-        form.addRow("Rod", self.rod)
+        form.addRow("Rod", rod_row)
         form.addRow("Rod pattern", self.pattern)
-        form.addRow("", self.linker_search)
         form.addRow("Linker", linker_row)
         form.addRow("Hands", self.hands)
         form.addRow("Rhombus angle", self.angle)
@@ -172,7 +253,7 @@ class RodBuildDialog(QDialog):
         layout.addLayout(form)
         layout.addWidget(self.summary)
         layout.addWidget(buttons)
-        self.resize(560, 360)
+        self.resize(760, 560)
 
         self._restore(given)
         self.rod.currentIndexChanged.connect(self._rod_changed)
@@ -253,10 +334,30 @@ class RodBuildDialog(QDialog):
     # -- what follows from what ----------------------------------------
 
     def _rod_changed(self, *_args) -> None:
+        from xtal.mof.rodbuild import load_rod
+
+        try:
+            rod = load_rod(self.rod_name(), self.folders)
+            self.rod_preview.set_block(drawn_rod(
+                rod, self.rod.currentText()))
+        except Exception:                           # noqa: BLE001
+            self.rod_preview.set_block(None)
         self._fill_linkers(keep=self.linker_name())
+
+    def _show_linker(self) -> None:
+        from xtal.mof.rodbuild import load_linker
+
+        name = self.linker_name() or self._own_linker()
+        try:
+            block = load_linker(name, self.folders)
+        except Exception:                           # noqa: BLE001
+            self.linker_preview.set_block(None)
+            return
+        self.linker_preview.set_block(drawn_linker(block, name))
 
     def _changed(self, *_args) -> None:
         """Grey what does not apply, then ask for the placement."""
+        self._show_linker()
         pattern = str(self.pattern.currentData())
         self.angle.setEnabled(pattern == "sql")
         if pattern != "sql":
@@ -319,6 +420,7 @@ class RodBuildDialog(QDialog):
             self._show(key, placed)
 
     def _show(self, key, placed) -> None:
+        self.build_button.setEnabled(not isinstance(placed, str))
         if isinstance(placed, str):
             self.angle.setPlaceholderText("")
             self.summary.setText(f"This cannot be built: {placed}")
@@ -367,3 +469,19 @@ class RodBuildDialog(QDialog):
             if dialog.exec() != QDialog.Accepted:
                 return None
             return dialog.values()
+
+
+def _beside(parent, widgets, preview) -> QWidget:
+    """``widgets`` stacked, with ``preview`` to their right: a MOF
+    builder slot row's shape."""
+    row = QWidget(parent)
+    grid = QHBoxLayout(row)
+    grid.setContentsMargins(0, 0, 0, 0)
+    column = QVBoxLayout()
+    column.setContentsMargins(0, 0, 0, 0)
+    for widget in widgets:
+        column.addWidget(widget)
+    column.addStretch(1)
+    grid.addLayout(column, 1)
+    grid.addWidget(preview, 0, Qt.AlignTop)
+    return row
