@@ -407,3 +407,48 @@ def test_rods_of_one_hand_leave_a_linkers_twist_free():
     found = symmetry.detect(outcome.structure, symprec=0.5)
     assert found.international == "P3_121"
 
+
+def carboxylate_tilts(structure):
+    """Each carboxylate's angle out of the plane of the ring it is on,
+    in degrees."""
+    cell = p1.expand(structure)
+    rows = np.asarray(cell.lattice.matrix)
+    xyz = cell.frac @ rows
+    near = defaultdict(list)
+    for b in bonding.graph(structure).bonds:
+        image = np.asarray(b.image, float)
+        near[b.i].append((b.j, image))
+        near[b.j].append((b.i, -image))
+
+    def at(i, image):
+        return xyz[i] + image @ rows
+
+    def normal(a, b, c):
+        n = np.cross(b - a, c - a)
+        return n / np.linalg.norm(n)
+
+    tilts = []
+    for i, symbol in enumerate(cell.elements):
+        oxygens = [(j, s) for j, s in near[i] if cell.elements[j] == "O"]
+        if symbol != "C" or len(oxygens) != 2:
+            continue
+        (r, rs), = [(j, s) for j, s in near[i] if cell.elements[j] == "C"]
+        ring = [(k, s + rs) for k, s in near[r]
+                if cell.elements[k] == "C" and k != i][:2]
+        here = at(i, np.zeros(3))
+        a = normal(here, *(at(j, s) for j, s in oxygens))
+        b = normal(at(r, rs), *(at(k, s) for k, s in ring))
+        tilts.append(np.degrees(np.arccos(min(1.0, abs(a @ b)))))
+    return tilts
+
+
+def test_a_two_point_linker_is_turned_so_each_end_lies_in_its_rods_group():
+    """BPDC as drawn has its rings 35 degrees apart, and one turn of the
+    whole linker cannot put both into MIL-53's coplanar carboxylates:
+    each was left 27 degrees off its ring.  Turned about the biaryl
+    bond, each lies in its ring as BDC's do."""
+    outcome = built("MIL-53_Cr", "sql",
+                    linker=str(ROOT / "tests" / "data"
+                               / "rod_bpdc_whole.xyz"))
+    assert outcome.net_name == "sra"
+    assert max(carboxylate_tilts(outcome.structure)) < 5

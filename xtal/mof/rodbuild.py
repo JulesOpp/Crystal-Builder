@@ -567,7 +567,11 @@ def _assemble(placed: Placement, linker) -> _Atoms:
         return sum(found[pairing][0] for _t, found in fits), pairing, fits
 
     best = fitted(linker)
-    turns = list(conformers(linker, ends)) if ends.size > 1 else []
+    # A two-point linker is turned as a whole into its rods' planes
+    # (_turn_into_plane), which one turn does for both ends only when
+    # its rings are as far apart as the rods' groups: BPDC as drawn
+    # left each carboxylate 27 degrees off its ring on MIL-53.
+    turns = list(conformers(linker, ends))
     if turns:
         rods_at = np.array(atoms.cart)
 
@@ -579,6 +583,9 @@ def _assemble(placed: Placement, linker) -> _Atoms:
                 _crowding(linker, chosen, rows, rods_at)
                 + _stretch(linker, chosen, targets, placed, index,
                            atoms))
+            if ends.size == 1:
+                score += PLANE_WEIGHT * _tilt(linker, chosen, targets,
+                                              placed, index, atoms)
             return score
 
         score = scored(linker, best)
@@ -678,6 +685,29 @@ CLASH_WEIGHT = 10.0
 #: A joint bond longer than this, A, is stretched when a linker's turn
 #: is chosen: a C-C between rings is 1.48, a C-O 1.36.
 STRETCHED = 1.6
+
+#: What an end of a two-point linker whose ring stands square to its
+#: rod's group costs, A^2, against a joint's miss: sin^2 of the angle
+#: between the planes, so BPDC drawn with its rings 35 degrees apart
+#: costs 0.2 an end where it is left as drawn.
+PLANE_WEIGHT = 1.0
+
+
+def _tilt(linker, chosen, targets, placed, index, atoms) -> float:
+    """How far the linker's ends at ``chosen`` stand out of their rods'
+    groups: sin^2 of the angle between the ring at each linker ``X``
+    and the group at the rod's, summed."""
+    total = 0.0
+    for (_miss, order, rotation, _origin), joint in zip(
+            chosen, targets, strict=True):
+        for x_linker, (n, x, s, _at) in zip(order, joint, strict=True):
+            ours = _linker_plane(linker, x_linker)
+            theirs = _rod_plane(placed, n, x, s, index, atoms)
+            if ours is None or theirs is None:
+                continue
+            cos = float((ours @ rotation.T) @ theirs)
+            total += 1.0 - min(1.0, cos * cos)
+    return total
 
 
 def _stretch(linker, chosen, targets, placed, index, atoms) -> float:
