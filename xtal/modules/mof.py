@@ -595,8 +595,9 @@ def _rod_report(outcome) -> Report:
             Row("Pattern", request.pattern, "",
                 f"{placed.net.nodes} rod(s) a cell"),
             Row("Hands", placed.net.hands, "",
-                "every other rod turned over" if placed.turned_over
-                else ""),
+                "; ".join(note for note in (
+                    "every other rod turned over" if placed.turned_over
+                    else "", outcome.other_hands) if note)),
             Row.number("Pattern angle", placed.gamma, "deg",
                        placed.angle_from, "", decimals=1),
             Row.number("Rod spacing", placed.spacing, "A",

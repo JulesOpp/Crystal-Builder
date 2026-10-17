@@ -459,7 +459,10 @@ class RodBuildDialog(QDialog):
         self.hands.setToolTip(
             "Which hand each helical rod is.  It decides the net: "
             "three-fold helices are etb when neighbours alternate and "
-            "eta when all are one hand." if chiral else
+            "eta when all are one hand.  As in the crystal alternates "
+            "them where the pattern allows, as the rod's own crystal "
+            "does, whatever the linker; Zn2(dobpdc)'s rods are all one "
+            "hand, so choose All one hand for it." if chiral else
             "This rod has no hand -- an improper operation maps it "
             "onto itself -- so there is none to choose.")
         alternating = self.hands.model().item(2)

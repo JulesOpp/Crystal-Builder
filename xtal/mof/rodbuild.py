@@ -239,6 +239,22 @@ class RodOutcome:
                         f"overlapping")
         return head + " -- " + ", ".join(said)
 
+    @property
+    def other_hands(self) -> str:
+        """What ``auto`` did not build, when it chose: the rods' other
+        arrangement, said rather than tried.  Built both ways and the
+        lower score kept, MOF-74 (dobdc) and pc-dobpdc alternate and
+        dobpdc is one hand, as their crystals are -- but dobpdc only by
+        0.02 against 0.15, BTDD ties, and IRMOF-74-II's own rod picks
+        one hand where its crystal alternates; and the second build
+        doubles the time."""
+        if self.request.hands != "auto" \
+                or self.placement.net.hands != "alternating":
+            return ""
+        return ("auto alternated the rods' hands, as MOF-74's are; rods "
+                "all of one hand are a framework too -- Zn2(dobpdc) is "
+                "built so, in P3_121 -- and hands=same builds it")
+
     def warning(self) -> str:
         if not self.overlaps:
             return ""
@@ -296,6 +312,8 @@ def build(request: RodRequest, directory=None, log=None,
             safe_name(request.title(), "rods") + ".cif")
         write_cif(outcome.structure, outcome.cif, perception=True)
     _say(log, outcome.verdict())
+    if outcome.other_hands:
+        _say(log, outcome.other_hands)
     return outcome
 
 

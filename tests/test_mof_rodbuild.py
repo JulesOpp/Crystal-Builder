@@ -452,3 +452,16 @@ def test_a_two_point_linker_is_turned_so_each_end_lies_in_its_rods_group():
                                / "rod_bpdc_whole.xyz"))
     assert outcome.net_name == "sra"
     assert max(carboxylate_tilts(outcome.structure)) < 5
+
+
+def test_auto_hands_say_the_one_handed_arrangement_it_did_not_build(
+        mof_74):
+    """Auto alternates a chiral rod's hands, which is MOF-74's
+    arrangement but not Zn2(dobpdc)'s; no score tells them apart
+    reliably (dobpdc by 0.02), so the report says the other exists
+    rather than auto guessing.  Asked for by name, or for a rod with no
+    hand, there is nothing to say."""
+    assert "hands=same" in mof_74.other_hands
+    assert built("MOF-74_Zn", "hcb", hands="alternating").other_hands \
+        == ""
+    assert built("MIL-53_Cr", "sql").other_hands == ""
