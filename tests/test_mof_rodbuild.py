@@ -1,6 +1,7 @@
 """Rod MOFs built: rods on a pattern, a linker on every joint, the
 bonds stated, and the net of the points of extension read back."""
 
+from collections import defaultdict, deque
 from pathlib import Path
 
 import numpy as np
@@ -245,3 +246,66 @@ def test_a_linker_with_one_point_an_end_on_mof_74_is_refused_by_name():
         built("MOF-74_Zn", "hcb", linker="BDC")
     with pytest.raises(RodBuildError, match="dobdc has 2 at each end"):
         built("MIL-53_Cr", "sql", linker="dobdc")
+
+
+#: A biphenyl with an X on C3 and C4 of each ring, as RDKit embeds it
+#: (32 degrees between the rings): dobpdc and pc-dobpdc both, until
+#: something says which X is the carboxylate.
+BIPHENYL_CORE = ROOT / "tests" / "data" / "rod_biphenyl_core.xyz"
+
+
+def carboxylates_by_place(structure):
+    """``(para, meta)``: how many carboxylate carbons hang off a ring
+    carbon para to the biaryl bond, and how many off one meta."""
+    el = list(p1.expand(structure).elements)
+    near = defaultdict(set)
+    for bond in bonding.perceive(structure):
+        i, j = bond.key()[:2]
+        near[i].add(j)
+        near[j].add(i)
+
+    def carbon(a):
+        return el[a] == "C"
+
+    aryl = {a for a in range(len(el)) if carbon(a)
+            and all(el[n] != "O" for n in near[a])
+            and sum(carbon(n) for n in near[a]) == 3}
+    biaryl = {a for a in aryl if near[a] & aryl}
+
+    def steps(a):
+        seen, queue = {a: 0}, deque([a])
+        while queue:
+            x = queue.popleft()
+            if x in biaryl:
+                return seen[x]
+            for n in near[x]:
+                if carbon(n) and n not in seen:
+                    seen[n] = seen[x] + 1
+                    queue.append(n)
+        return None
+
+    found = [0, 0]
+    for c in range(len(el)):
+        if carbon(c) and sum(el[n] == "O" for n in near[c]) == 2:
+            ring = next(n for n in near[c] if carbon(n))
+            found[steps(ring) == 2] += 1
+    return tuple(found)
+
+
+def test_every_joint_pairs_a_linkers_points_the_same_way():
+    """A biphenyl core's C4 X is the carboxylate at every joint or at
+    none: one isomer a framework.  Paired joint by joint, half the
+    ends came out dobpdc and half pc-dobpdc, 1.27 A apart where they
+    met."""
+    outcome = built("MOF-74_Mg", "hcb", linker=str(BIPHENYL_CORE))
+    assert carboxylates_by_place(outcome.structure) in ((6, 0), (0, 6))
+    assert outcome.closest > 1.7
+    assert outcome.net_name == "msg"
+
+
+def test_mof_74_with_dobdc_builds_as_it_did(mof_74):
+    """dobdc's carboxylate and phenolate X were already paired the
+    same way at every joint; one choice for the whole build keeps it,
+    joints at the crystal's 1.48 A."""
+    assert mof_74.longest_joint == pytest.approx(1.479, abs=0.002)
+    assert mof_74.closest == pytest.approx(2.054, abs=0.002)

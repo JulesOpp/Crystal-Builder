@@ -37,7 +37,7 @@ Numpy and scipy; no Qt, no PORMAKE.
 from __future__ import annotations
 
 import math
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass, field, replace
 from itertools import permutations
 from pathlib import Path
@@ -483,8 +483,9 @@ def _assemble(placed: Placement, linker) -> _Atoms:
             f"-- the placement left joints {placed.worst:.2f} A off")
 
     skeleton = _skeleton(linker)
-    longest, count = 0.0, 0
-    for k, (u, f, v, g, shift) in enumerate(sorted(joints)):
+    places = _places(linker, ends)
+    fits = []
+    for u, f, v, g, shift in sorted(joints):
         sides = []
         for node, face, lattice in ((u, f, (0, 0, 0)), (v, g, shift)):
             colour = placed.net.colours[node]
@@ -493,8 +494,15 @@ def _assemble(placed: Placement, linker) -> _Atoms:
                 for x, up in rod_faces[colour][face].members])
         targets = [(n, x, s, xyz[n][x] + np.asarray(s, float) @ rows)
                    for side in sides for n, x, s in side]
-        order, rotation, origin = _fit(linker, ends, sides, targets,
-                                       placed, index, atoms)
+        kinds = [_point_kind(placed.rods[placed.net.colours[n]], x)
+                 for n, x, _s, _at in targets]
+        fits.append((targets, _fits(linker, ends, targets, placed,
+                                    index, atoms, places, kinds)))
+    pairing = _one_pairing([found for _targets, found in fits])
+
+    longest, count = 0.0, 0
+    for k, (targets, found) in enumerate(fits):
+        _miss, order, rotation, origin = found[pairing]
         owner = f"linker {k + 1}"
         placed_at = (linker.positions - linker.positions[
             list(linker.connections)].mean(axis=0)) @ rotation.T + origin
@@ -533,14 +541,87 @@ def _turned(m, turn) -> np.ndarray:
     return out
 
 
-def _fit(linker, ends, sides, targets, placed, index, atoms):
-    """Which linker ``X`` goes on which target, and the rotation and
-    origin that put it there: ``(order, rotation, origin)``."""
+def _places(linker, ends) -> dict[int, int]:
+    """Each linker ``X``, numbered by where it sits in the linker's
+    graph: how many bonds it is from each other ``X``.
+
+    A biphenyl core's C4 point is 9 bonds from the far C4 one and its
+    C3 point 7 from the far C3, which is all that tells dobpdc from
+    pc-dobpdc when nothing names the donors.  Read off the bonds, not
+    the geometry: both sit the same distance off the line through
+    the ends' middles, and dobdc's two points, related by the ring's
+    mirror, are rightly one place.
+    """
+    near = defaultdict(set)
+    for i, j, _letter in linker.bonds:
+        near[i].add(j)
+        near[j].add(i)
+    points = (*ends.ends[0], *ends.ends[1])
+
+    def steps(x):
+        seen, queue = {x: 0}, deque([x])
+        while queue:
+            a = queue.popleft()
+            for n in near[a]:
+                if n not in seen:
+                    seen[n] = seen[a] + 1
+                    queue.append(n)
+        return tuple(sorted(seen.get(y, -1) for y in points if y != x))
+
+    signatures = {x: steps(x) for x in points}
+    numbered = {sig: k for k, sig in enumerate(sorted(set(
+        signatures.values())))}
+    return {x: numbered[signatures[x]] for x in points}
+
+
+def _point_kind(rod, point) -> str:
+    """What a rod's point is, by the atoms it hangs off: ``C`` for a
+    carboxylate's carbon, ``O`` for a phenolate, ``CC`` for a
+    triazolate's two carbons."""
+    return "".join(sorted(rod.symbols[m] for m, _ in rod.members(point)))
+
+
+def _one_pairing(fits):
+    """The pairing every joint takes: the one whose misses, each joint
+    at its best within it, sum least.
+
+    A pairing is which place in the linker meets which kind of rod
+    point, and only those with the fewest such pairs are considered:
+    each place one kind wherever the linker has places enough.
+    Chosen joint by joint, a biphenyl core went on as dobpdc at some
+    joints and pc-dobpdc at others in one cell, and the two clashed
+    where they met; left free within a joint, its two ends went on
+    as one of each, which fits a twisted biphenyl better and is
+    neither linker.
+    """
+    shared = set.intersection(*(set(found) for found in fits))
+    fewest = min(len(key) for key in shared)
+    return min((key for key in shared if len(key) == fewest),
+               key=lambda key: (sum(f[key][0] for f in fits), key))
+
+
+def _fits(linker, ends, targets, placed, index, atoms, places, kinds):
+    """For each pairing, the joint's best ``(miss, order, rotation,
+    origin)`` under it."""
+    best = {}
+    for miss, order, rotation, origin in _candidates(
+            linker, ends, targets, placed, index, atoms):
+        key = tuple(sorted({(places[x], kind)
+                            for x, kind in zip(order, kinds,
+                                               strict=True)}))
+        if key not in best or miss < best[key][0] - 1e-9:
+            best[key] = (miss, order, rotation, origin)
+    return best
+
+
+def _candidates(linker, ends, targets, placed, index, atoms):
+    """Every way the linker's ``X`` can go on ``targets``, with the
+    rotation and origin that put them there and how far they miss:
+    ``(miss, order, rotation, origin)``."""
     points = np.array([t[3] for t in targets])
     origin = points.mean(axis=0)
     xs = np.asarray(linker.positions, float)
     centre = xs[list(linker.connections)].mean(axis=0)
-    best = None
     for first, second in (ends.ends, ends.ends[::-1]):
         for a in permutations(first):
             for b in permutations(second):
@@ -564,9 +645,7 @@ def _fit(linker, ends, sides, targets, placed, index, atoms):
                     miss += _reach_miss(linker, order, rotation, centre,
                                         origin, targets, placed, index,
                                         atoms)
-                    if best is None or miss < best[0] - 1e-9:
-                        best = (miss, order, rotation)
-    return best[1], best[2], origin
+                    yield miss, order, rotation, origin
 
 
 def _reach_miss(linker, order, rotation, centre, origin, targets,
