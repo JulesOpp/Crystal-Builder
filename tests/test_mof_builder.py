@@ -509,6 +509,41 @@ def test_the_cif_is_written_where_the_run_folder_is(tmp_path, catalog):
 
 
 @needs_builder
+def test_a_bond_past_the_neighbour_cutoff_is_still_written(tmp_path):
+    """sny with a six-connected node and no linker joins the nodes
+    directly, and the longest of those joints is 7.02 A -- past the
+    6 A the neighbour list asked for, so the bond had no entry in the
+    image map and the writer raised ``KeyError`` instead of writing
+    it: a build that succeeded and then could not be saved.
+
+    The cutoff is the longest bond now, and the file has to carry the
+    line.
+    """
+    from ase import Atoms
+
+    from xtal.mof.pormake.framework import Framework
+
+    atoms = Atoms("CC", positions=[[0.0, 0.0, 0.0], [7.02, 0.0, 0.0]],
+                  cell=[20.0, 20.0, 20.0], pbc=True)
+    info = {
+        "topology": SimpleNamespace(node_indices=(), edge_indices=()),
+        "located_bbs": [],
+        "relax_obj": 0.0,
+        "max_rmsd": 0.0,
+        "mean_rmsd": 0.0,
+    }
+    framework = Framework(atoms, np.array([[0, 1]]), ["S"], info)
+
+    path = tmp_path / "long.cif"
+    framework.write_cif(str(path))
+
+    assert path.is_file()
+    # 7.018 and not 7.020: `wrap` nudges the atom on the origin off
+    # the cell boundary by 0.0001 of a cell edge, which is 0.002 A.
+    assert "C0 C1 7.018 . S" in path.read_text()
+
+
+@needs_builder
 @pytest.mark.slow
 def test_a_net_with_two_node_types_builds_on_both(tmp_path, catalog):
     """tbo is 3-c and 4-c, and putting the wrong block on either slot

@@ -240,9 +240,25 @@ class Framework:
             for (i, j), t in zip(self.bonds, self.bond_types):
                 bond_type_dict[(i, j)] = t
 
-            # Get images and distances.
+            # Get images and distances.  The cutoff has to cover the
+            # longest bond and not the usual ones only: a build with
+            # no linker joins the nodes directly, and a direct bond
+            # between two large nodes can be longer than the 6 A this
+            # used to ask for -- sny's is 7.02 A -- and a bond the
+            # list does not return is the KeyError below rather than
+            # a missing line in the file.  The minimum-image lengths
+            # are computed here and not through ase's get_distance,
+            # whose NumPy 2.5 deprecation the suite raises as an
+            # error -- see the filterwarnings entry in pyproject.toml.
+            longest = 0.0
+            if len(self.bonds):
+                frac = self.atoms.get_scaled_positions()
+                delta = frac[self.bonds[:, 0]] - frac[self.bonds[:, 1]]
+                delta -= np.round(delta)
+                cartesian = delta @ np.asarray(self.atoms.cell)
+                longest = float(np.linalg.norm(cartesian, axis=1).max())
             I, J, S, D = ase.neighborlist.neighbor_list(
-                "ijSd", self.atoms, cutoff=6.0
+                "ijSd", self.atoms, cutoff=max(6.0, longest + 0.5)
             )
             image_dict = {}
             distance_dict = defaultdict(lambda: 1e30)
