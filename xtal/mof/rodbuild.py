@@ -87,14 +87,17 @@ class RodRequest:
     hands: str = "auto"
     angle: float | None = None
     repeat: tuple[int, int, int] = (1, 1, 1)
-    interpenetration: int = 1
 
     @classmethod
     def parse(cls, rod: str, pattern: str, linker: str = "",
-              hands: str = "", angle="", repeat: str = "",
-              interpenetration=1) -> RodRequest:
-        """The strings a parameter form and a command line hand over."""
-        from xtal.mof.build import MofError, _interpenetration, _repeat
+              hands: str = "", angle="", repeat: str = ""
+              ) -> RodRequest:
+        """The strings a parameter form and a command line hand over.
+
+        No interpenetration: parallel rods joined on every side fill
+        the plane across them, and no second framework threads
+        through a rod MOF's channels."""
+        from xtal.mof.build import MofError, _repeat
 
         rod, pattern = str(rod or "").strip(), str(pattern or "").strip()
         if not rod:
@@ -116,11 +119,10 @@ class RodRequest:
                                 f"{text}") from None
         try:
             tiles = _repeat(str(repeat or ""))
-            copies = _interpenetration(str(interpenetration or ""))
         except MofError as exc:
             raise RodBuildError(str(exc)) from None
         return cls(rod, pattern, str(linker or "").strip(), hands, value,
-                   tiles, copies)
+                   tiles)
 
     @property
     def linker_name(self) -> str:
@@ -280,8 +282,6 @@ def build(request: RodRequest, directory=None, log=None,
             outcome.warning())
     drawn = atoms.draw_net(structure)
     _say(log, f"drew {drawn} net edge(s); identifying what came out")
-    if request.interpenetration > 1:
-        _interpenetrate(outcome, request.interpenetration, log)
     outcome.identified = check_net(outcome.structure)
     if directory is not None:
         from xtal.io.cif_writer import write_cif
@@ -292,27 +292,6 @@ def build(request: RodRequest, directory=None, log=None,
         write_cif(outcome.structure, outcome.cif, perception=True)
     _say(log, outcome.verdict())
     return outcome
-
-
-def _interpenetrate(outcome: RodOutcome, n: int, log) -> None:
-    from xtal.analysis import interpenetrate
-    from xtal.mof.build import closest_contact
-
-    try:
-        chosen = interpenetrate.best(outcome.structure, n)
-        array, chosen = interpenetrate.build(outcome.structure, chosen)
-    except interpenetrate.InterpenetrationError as exc:
-        raise RodBuildError(
-            f"the framework was built and cannot be interpenetrated "
-            f"{n}-fold: {exc}") from None
-    array.meta.update(outcome.structure.meta)
-    _say(log, f"interpenetrated {n}-fold by {chosen.name} "
-              f"({chosen.relation}); closest contact between copies "
-              f"{chosen.contact_text()}")
-    outcome.structure = array
-    outcome.n_atoms = array.n_sites
-    outcome.joints *= n
-    outcome.closest = closest_contact(array)
 
 
 # =============================================================== assembly

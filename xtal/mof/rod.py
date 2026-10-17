@@ -897,6 +897,26 @@ LIBRARY = Path(__file__).parent / "library" / "rods"
 LINKERS = LIBRARY / "linkers"
 
 
+#: What a shipped rod is called where a person reads it, by family, the
+#: metal put in for ``{M}``: the rod's own chemistry, which is what
+#: tells MIL-53's trans hydroxides from MOF-303's cis ones.  The file
+#: names stay the keys, so a command line and a saved form keep working.
+LABELS = {
+    "MIL-53": "{M}(OH)(O2CR)2-trans",
+    "MOF-303": "{M}(OH)(O2CR)2-cis",
+    "Ni2Cl2BTDD": "{M}2Cl2(bta)2",
+    "MOF-74": "MOF-74 SBU ({M})",
+}
+
+
+def label(name: str) -> str:
+    """What the rod called ``name`` is shown as: its :data:`LABELS`
+    entry with its metal, or the name itself (a saved rod)."""
+    family, _, metal = str(name).rpartition("_")
+    form = LABELS.get(family)
+    return form.format(M=metal) if form and metal else str(name)
+
+
 def shipped() -> dict[str, Path]:
     """Every rod in the library, by name."""
     return {p.stem: p for p in sorted(LIBRARY.glob("*.xyz"))}
@@ -908,6 +928,6 @@ def shipped_linkers() -> dict[str, Path]:
 
 
 __all__ = ["LIBRARY", "LINKERS", "MATCH", "SAVED", "Rod", "RodError",
-           "Saved", "default_name", "from_structure",
+           "LABELS", "Saved", "default_name", "from_structure", "label",
            "linker_from_structure", "save_block", "saved", "shipped",
            "shipped_linkers"]

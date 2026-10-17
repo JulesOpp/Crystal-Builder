@@ -50,9 +50,11 @@ from __future__ import annotations
 
 import dataclasses
 import itertools
+import json
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 
@@ -89,6 +91,23 @@ _SAME = 1e-4
 class SetError(ValueError):
     """A set of linkers the net cannot take, or a net with no set to
     work out, named."""
+
+
+#: Which nets take a set, and on which node slots a cluster can stand:
+#: :func:`plan`'s answer for every net of the catalogue, written by
+#: ``scripts/linker_set_nets.py`` because asking it is an expansion a
+#: net and the mixed-linker builder's list needs it of 2000 of them.
+SET_NETS = Path(__file__).parent / "data" / "linker_set_nets.json"
+
+
+@lru_cache(maxsize=1)
+def set_nets() -> dict[str, tuple[int, ...]]:
+    """``{net: cluster slots}`` for every net a set can be worked out
+    on, as :data:`SET_NETS` records it (``{}`` if it is missing)."""
+    if not SET_NETS.is_file():
+        return {}
+    data = json.loads(SET_NETS.read_text(encoding="utf-8"))
+    return {name: tuple(slots) for name, slots in data.items()}
 
 
 # ----------------------------------------------------------------------

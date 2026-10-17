@@ -88,6 +88,7 @@ from xtalapp.dialogs.mof_preview import (
     reset_view_row,
 )
 from xtalapp.dialogs.partition_box import PartitionBox
+from xtalapp.dialogs.supertetrahedra_box import OFFERED as ST_FIRST
 from xtalapp.dialogs.supertetrahedra_box import SupertetrahedraBox
 from xtalapp.docks.columns import Collapsible
 from xtalapp.widgets.links import SourceLinks
@@ -127,7 +128,25 @@ TOPOLOGY_HEIGHT = 280
 
 
 class MofBuildDialog(QDialog):
-    """A topology, a block per node slot, a linker per edge type."""
+    """A topology, a block per node slot, a linker per edge type.
+
+    One class for every MOF builder entry, each a subclass naming its
+    :attr:`MODE`: the general builder, and one each for pore
+    partitioning, supertetrahedra and linker sets.  A mode decides the
+    nets the list offers and the one section shown under the rows; the
+    rows, the folders and the values handed back are the same, so
+    every entry builds through :func:`xtal.modules.mof.build_framework`.
+    The sections were folds of the one dialog, where nobody found them
+    and a section left set on one net followed the user to the next.
+    """
+
+    #: ``"general"``, ``"pacs"``, ``"st"`` or ``"sets"``.
+    MODE = "general"
+    #: The net shown when nothing was picked before.
+    FIRST = "pcu"
+    #: And the blocks on it, as ``BuildRequest`` spells them: ones its
+    #: section is for, so it is live the moment the dialog opens.
+    FIRST_BLOCKS = ("", "")
 
     def __init__(self, module, action, parent=None, initial=None):
         super().__init__(parent)
@@ -156,6 +175,9 @@ class MofBuildDialog(QDialog):
         self._propagating = False
 
         given = dict(action.coerce(initial or {}))
+        #: Whether a net was asked for, before the defaults filled one
+        #: in: with none, the mode's own net and blocks are shown.
+        self._fresh = not (initial or {}).get("topology")
         self.topology_dir = _FolderEdit(
             "Extra topologies", self,
             given.get("topology_dir") or self._remembered(
@@ -197,7 +219,7 @@ class MofBuildDialog(QDialog):
         # net of somebody's own has a page there.
         self.net_links = SourceLinks((), self)
 
-        left = QWidget(self)
+        left = self.net_list = QWidget(self)
         column = QVBoxLayout(left)
         column.setContentsMargins(0, 0, 0, 0)
         column.addWidget(self.search)
@@ -338,12 +360,26 @@ class MofBuildDialog(QDialog):
         self.folders_fold.set_open(bool(self.topology_dir.text()
                                         or self.bb_dir.text()))
 
+        feature = {"pacs": self.partition_fold, "st": self.st_fold,
+                   "sets": self.sets_fold}.get(self.MODE)
+        for fold in (self.partition_fold, self.st_fold, self.sets_fold):
+            if fold is not feature:
+                fold.hide()
+        if feature is not None:
+            feature.set_open(True)
+        if self.MODE == "pacs":
+            # One net: its picture and what it is, and no list.
+            self.net_list.hide()
+        if self.MODE == "st":
+            # Every net here is built of supertetrahedra.
+            self.supertetrahedra.decorate.hide()
+
         body = QWidget(self)
         sections = QVBoxLayout(body)
-        for fold in (self.topology_fold, self.blocks_fold,
-                     self.how_fold, self.partition_fold,
-                     self.sets_fold, self.st_fold, self.folders_fold):
-            sections.addWidget(fold)
+        for fold in (self.topology_fold, self.blocks_fold, feature,
+                     self.how_fold, self.folders_fold):
+            if fold is not None:
+                sections.addWidget(fold)
         # The net list takes whatever height is spare while it is
         # open, and gives it back when it is folded away.
         sections.setStretchFactor(self.topology_fold, 1)
@@ -471,9 +507,28 @@ class MofBuildDialog(QDialog):
 
     # -- the topology list ---------------------------------------------
 
+    def _offers(self, topology) -> bool:
+        """Whether this builder lists ``topology``: pacs is acs alone,
+        supertetrahedra stand on a 4-connected 3-periodic net, and a
+        linker set is worked out on the nets
+        :func:`xtal.mof.merged.set_nets` records."""
+        if self.MODE == "pacs":
+            return topology.name == "acs"
+        if self.MODE == "st":
+            return (set(topology.coordinations) == {4}
+                    and not topology.is_layer)
+        if self.MODE == "sets":
+            return topology.name in merged.set_nets()
+        return True
+
     def _fill_topologies(self) -> None:
         self.topologies.clear()
-        for topology in self.catalog.topologies():
+        offered = [t for t in self.catalog.topologies()
+                   if self._offers(t)]
+        if self.MODE == "st":
+            # The zeolites the decoration was measured on, first.
+            offered.sort(key=lambda t: t.name not in ST_FIRST)
+        for topology in offered:
             add_row(self.topologies,
                     f"{topology.name}    {topology.summary()}",
                     topology.facts(), topology.is_layer)
@@ -498,6 +553,8 @@ class MofBuildDialog(QDialog):
         self.net_links.set_references(_rcsr_page(self._listed))
         self.supertetrahedra.set_net(self.catalog, self._listed)
         self._show(self._listed)
+        if self.MODE == "st":
+            self.supertetrahedra.decorate.setChecked(True)
 
     def _on_decoration(self, name: str) -> None:
         """The supertetrahedra section changed the net built on: its
@@ -744,35 +801,41 @@ class MofBuildDialog(QDialog):
                  self.spacing.text() or self.offset.text())
             or fold > 1
             or self.orientation.currentData() != _ORIENTATIONS.default)
-        wanted = str(given.get("topology") or "pcu")
+        wanted = str((not self._fresh and given.get("topology"))
+                     or self.FIRST)
         # A net re-embedded for a linker set is listed as its parent,
         # and so is a net decorated with supertetrahedra.
         moved = merged.parse(wanted)
         spelled = decorate.parse(wanted)
         listed = (moved[0] if moved else
                   spelled[0] if spelled else wanted)
-        if not self._select(listed) and not self._select("pcu"):
+        if not self._select(listed) and not self._select(self.FIRST):
             self.topologies.setCurrentRow(0)
         built_on = listed
-        if spelled and self.supertetrahedra.set_value(wanted):
+        if (spelled and self.MODE == "st"
+                and self.supertetrahedra.set_value(wanted)):
             built_on = wanted
             self.st_fold.set_open(True)
+        elif self.MODE == "st" and self._topology is not None:
+            # Decorated as it was picked: the rows are its own.
+            built_on = self._topology.name
+        nodes, edges = given.get("nodes", ""), given.get("edges", "")
+        if self._fresh and not nodes and not edges:
+            nodes, edges = self.FIRST_BLOCKS
         try:
-            request = BuildRequest.parse(built_on,
-                                         given.get("nodes", ""),
-                                         given.get("edges", ""))
+            request = BuildRequest.parse(built_on, nodes, edges)
         except Exception:                           # noqa: BLE001
             return
         if self._topology is None or self._topology.name != built_on:
             return
         for row in self._rows:
             row.set_block(request.block_for(row.slot))
-        if moved:
+        if moved and self.MODE == "sets":
             self.linker_sets.adopt(wanted, self._node_blocks())
             self.sets_fold.set_open(True)
             self._update_partition()
-        if self.partition.set_value(str(given.get("partition") or "")):
-            self.partition_fold.set_open(True)
+        if self.MODE == "pacs":
+            self.partition.set_value(str(given.get("partition") or ""))
 
     def values(self) -> dict:
         nodes, edges = [], []
@@ -783,15 +846,18 @@ class MofBuildDialog(QDialog):
             (edges if row.slot.is_edge else nodes).append(
                 f"{row.slot.token}={chosen}")
         name = self._topology.name if self._topology else ""
+        if self.MODE == "sets":
+            name = (self.linker_sets.embedded(name, self._node_blocks())
+                    or name)
         return self.action.coerce({
-            "topology": (self.linker_sets.embedded(
-                name, self._node_blocks()) or name),
+            "topology": name,
             "nodes": ",".join(nodes),
             "edges": ",".join(edges),
             "repeat": self.repeat.text().strip() or "1x1x1",
             "orientation": self.orientation.currentData(),
             "interpenetration": self.interpenetration.value(),
-            "partition": self.partition.value(),
+            "partition": (self.partition.value()
+                          if self.MODE == "pacs" else ""),
             # Only for a layer net, so that a spacing typed while hcb
             # was selected does not follow the user to pcu and get
             # the build refused for a box they can no longer edit.
@@ -828,6 +894,34 @@ class MofBuildDialog(QDialog):
             if dialog.exec() != QDialog.Accepted:
                 return None
             return dialog.values()
+
+
+class PacsBuildDialog(MofBuildDialog):
+    """A pore-partitioned MOF: an M3O trimer and a linker on acs, and a
+    pyridyl partitioner in its channels (nia-d)."""
+
+    MODE = "pacs"
+    FIRST = "acs"
+    FIRST_BLOCKS = ("N589", "E14")
+
+
+class SupertetrahedraBuildDialog(MofBuildDialog):
+    """A zeolitic MOF: any 4-connected net built of supertetrahedra,
+    its windows filled or left open."""
+
+    MODE = "st"
+    FIRST = "sod"
+    FIRST_BLOCKS = ("0=N92,1=N10", "")
+
+
+class LinkerSetBuildDialog(MofBuildDialog):
+    """A mixed-linker MOF: a net with more than one kind of edge round
+    one cluster (sph, a merged net), and a set of linkers that closes
+    every edge at one scale."""
+
+    MODE = "sets"
+    FIRST = "sph"
+    FIRST_BLOCKS = ("0=N573,1=N10,2=N419", "")
 
 
 # ======================================================================

@@ -1,7 +1,7 @@
 """
 xtalapp.dialogs.net_explorer
 ============================
-Modules ▸ MOF ▸ Merged-net explorer: the 352 merged nets of Jiang et
+Modules ▸ Net builder ▸ Merged-net explorer: the 352 merged nets of Jiang et
 al. (Science 2024) as a table to sort and narrow, each with the two
 nets it merges.
 
@@ -10,10 +10,12 @@ Choosing a row says "spn + hxg → sph", each name a link that draws
 that net.  *Open net* draws the merged net through the Net builder --
 so it is a document with an entry like any other -- with each parent
 an atom group in a colour of its own: unticking one in the Atom
-groups panel leaves the other.  *Build on this net* opens the MOF
-builder with the net picked.  *Components of the tab in front* breaks
-whatever net is drawn there into the nets its kinds of edge span
-(:mod:`xtal.analysis.components`), a built framework included.
+groups panel leaves the other.  *Build on this net* opens the
+mixed-linker builder with the net picked, or the general MOF builder
+for a net no linker set can be worked out on.  *Parent nets of the
+structure in front* breaks whatever net is drawn there into the nets
+its kinds of edge span (:mod:`xtal.analysis.components`), a built
+framework included: on sph, spn + hxg.
 
 A window of its own and not a modal: a person compares rows while
 nets open behind it.
@@ -44,7 +46,7 @@ from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The columns, in order.
 COLUMNS = ("Net", "Parents", "Type", "Coordination", "Merged CN",
-           "Edge ratio", "Proposed", "Made")
+           "Edge ratio", "Proposed", "Example MOF")
 
 #: Every choice of the type and cluster boxes.
 ANY = "Any"
@@ -89,7 +91,7 @@ class NetExplorer(QMainWindow):
         self.cluster.setToolTip("The coordination of the vertex the "
                                 "parents share -- the cluster's")
         self.cluster.currentIndexChanged.connect(self._narrow)
-        self.made = QCheckBox("Made", self)
+        self.made = QCheckBox("Has an example MOF", self)
         self.made.setToolTip("Only nets a MOF has been made on")
         self.made.toggled.connect(self._narrow)
         self.count = QLabel(self)
@@ -132,15 +134,18 @@ class NetExplorer(QMainWindow):
         self.open_button.clicked.connect(
             lambda: self.open_net(self.chosen_name()))
         self.build_button = QPushButton("Build on this net...", self)
-        self.build_button.setToolTip("Open the MOF builder with this "
-                                     "net picked")
+        self.build_button.setToolTip(
+            "Open the mixed-linker builder with this net picked -- "
+            "the general MOF builder for a net no linker set can be "
+            "worked out on")
         self.build_button.clicked.connect(self.build_on)
-        self.parts_button = QPushButton("Components of the tab in front",
-                                        self)
+        self.parts_button = QPushButton(
+            "Parent nets of the structure in front", self)
         self.parts_button.setToolTip(
-            "Break the net drawn in the tab in front -- a drawn net "
-            "or a built framework -- into the nets its kinds of edge "
-            "span")
+            "Which nets the net drawn in the tab in front is made of: "
+            "it is broken into the net each kind of edge spans on its "
+            "own -- sph into spn and hxg.  Works on a net drawn here "
+            "or on a built framework's net.")
         self.parts_button.clicked.connect(self.components_in_front)
         self.parts = QLabel(self)
         self.parts.setWordWrap(True)
@@ -291,7 +296,10 @@ class NetExplorer(QMainWindow):
     def build_on(self) -> None:
         name = self.chosen_name()
         if name and self.window_ is not None:
-            self.window_.run_module_action("mof", "build",
+            from xtal.mof import merged
+
+            entry = "sets" if name in merged.set_nets() else "build"
+            self.window_.run_module_action("mof", entry,
                                            initial={"topology": name})
 
     def components_in_front(self) -> None:

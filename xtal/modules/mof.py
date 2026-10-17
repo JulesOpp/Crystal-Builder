@@ -488,10 +488,9 @@ def offer_saved_rods(blocks) -> None:
 
 
 def _rod_choices() -> tuple:
-    from xtal.mof.rod import saved, shipped
+    from xtal.mof.rod import label, saved, shipped
 
-    choices = [(name, name.replace("_", " (") + ")")
-               for name in shipped()]
+    choices = [(name, label(name)) for name in shipped()]
     for folder in _SAVED_RODS:
         choices += [(name, f"{name} (this workspace)")
                     for name in saved(folder)]
@@ -536,10 +535,6 @@ ROD_PARAMS = (
                "so."),
     Param("repeat", "Repeat", kind="text", default="1x1x1",
           help="How many cells, '1x1x2' for two along the rods."),
-    Param("interpenetration", "Interpenetration", kind="int",
-          default=1, minimum=1, maximum=MAX_FOLD,
-          help="How many copies of the framework, threaded through "
-               "one another."),
 )
 
 
@@ -555,8 +550,7 @@ def build_rod_framework(job) -> JobResult:
                                    job.param("linker", ""),
                                    job.param("hands", ""),
                                    job.param("angle", ""),
-                                   job.param("repeat", ""),
-                                   job.param("interpenetration", 1))
+                                   job.param("repeat", ""))
         folders = ()
         if job.folder is not None:
             from xtal.workspace import Workspace
@@ -610,9 +604,6 @@ def _rod_report(outcome) -> Report:
                        f"and the linker's span of "
                        f"{placed.linker.span:.2f} A", "", decimals=3),
             Row("Repeat", "x".join(str(n) for n in request.repeat)),
-            Row("Interpenetration",
-                f"{request.interpenetration}-fold"
-                if request.interpenetration > 1 else "none"),
             Row("Atoms", str(outcome.n_atoms)),
             Row("Cell", f"{a:.3f} x {b:.3f} x {c:.3f} A", "",
                 f"{alpha:.2f}, {beta:.2f}, {gamma:.2f} deg"),
@@ -672,20 +663,46 @@ PORMAKE = Module(
                dialog="mof-build",
                params=PARAMS,
                run=build_framework),
+        Action(name="pacs",
+               label="Build a pore-partitioned MOF (pacs)...",
+               tip="An M3O trimer and a linker on acs, with a pyridyl "
+                   "partitioner across its channels: the pacs MOFs, "
+                   "nia-d",
+               kind="build",
+               needs_structure=False,
+               dialog="mof-pacs",
+               params=PARAMS,
+               run=build_framework),
+        Action(name="supertetrahedra",
+               label="Build a supertetrahedral MOF...",
+               tip="Any 4-connected net built of supertetrahedra -- "
+                   "four trimers and a tritopic face each, as MIL-100 "
+                   "and the sod-ZMOFs -- with its windows filled or "
+                   "left open",
+               kind="build",
+               needs_structure=False,
+               dialog="mof-st",
+               params=PARAMS,
+               run=build_framework),
+        Action(name="sets",
+               label="Build a mixed-linker MOF (merged net)...",
+               tip="A net with more than one kind of edge round one "
+                   "cluster -- sph, a merged net -- and a set of "
+                   "linkers that closes every edge at one scale",
+               kind="build",
+               needs_structure=False,
+               dialog="mof-sets",
+               params=PARAMS,
+               run=build_framework),
         Action(name="rod", label="Build a rod framework...",
                tip="Parallel rods (MIL-53, MOF-74, Ni2Cl2BTDD, MOF-303) "
                    "on a pattern, joined by a linker; the net of the "
                    "points of extension is read back",
                kind="build",
                needs_structure=False,
+               dialog="mof-rod",
                params=ROD_PARAMS,
                run=build_rod_framework),
-        Action(name="explore", label="Merged-net explorer...",
-               tip="The merged nets of Jiang et al. (Science 2024): "
-                   "parents, coordination and edge ratio, each net "
-                   "drawn with its parents as groups",
-               shell="net_explorer", needs_structure=False,
-               writes_run_folder=False),
     ),
 )
 

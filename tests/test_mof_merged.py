@@ -210,3 +210,40 @@ def test_an_sph_build_on_a_hexanuclear_cluster_closes_both_edges(
     a = np.mean(outcome.structure.lattice.parameters[:3])
     assert a == pytest.approx(46.10, rel=0.05)
     assert a == pytest.approx(found.scale * 3.0267, rel=0.02)
+
+
+@needs_database
+def test_sph_is_recorded_as_taking_a_set_round_its_twelve_c_cluster():
+    """The mixed-linker builder lists what the file records; sph's
+    cluster is node 3, and pcu, with one kind of edge, takes none."""
+    nets = merged.set_nets()
+    assert nets["sph"] == (2,)
+    assert "pcu" not in nets
+    assert len(nets) > 300
+
+
+@pytest.mark.slow
+@needs_database
+def test_a_recorded_linker_set_net_is_one():
+    """The record is ``plan``'s answer, which the builder cannot ask
+    of 2000 nets as it fills: re-derived on a sample, and on a sample
+    of the nets it leaves out."""
+    import random
+
+    catalog = Catalog.default()
+    nets = merged.set_nets()
+    rng = random.Random(7)
+    taken = rng.sample(sorted(nets), 12)
+    left = rng.sample([t.name for t in catalog.topologies()
+                       if t.name not in nets and not t.is_layer
+                       and t.n_node_types >= 2 and t.edge_lines >= 2], 12)
+    for name in taken + left:
+        topology = catalog.topology(name)
+        found = []
+        for slot in range(topology.n_node_types):
+            try:
+                merged.plan(topology, slot)
+            except Exception:                       # noqa: BLE001
+                continue
+            found.append(slot)
+        assert tuple(found) == nets.get(name, ()), name
