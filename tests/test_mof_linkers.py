@@ -107,9 +107,7 @@ def test_every_stored_series_value_is_what_its_smiles_embeds():
     for c in linkers.stored():
         assert generated[c.name] == c.smiles
         value, formula = linkers.measure_smiles(c.smiles)
-        # A stale table is a unit out, 2-4 A.  RDKit's own spread is
-        # far less but not nothing: 0.1 A on a 37 A chain from
-        # 2026.03 to 2026.09, 0.25 A on 43 A under OpenBLAS (macOS
-        # Intel), so 1 %.
-        assert value == pytest.approx(c.value, rel=0.01), c.name
+        # Relaxed to convergence the table is the same to 0.007 A
+        # under RDKit 2026.03 and 2026.09; unconverged, it was 2 A.
+        assert value == pytest.approx(c.value, abs=0.05), c.name
         assert formula == c.formula

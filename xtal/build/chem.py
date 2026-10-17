@@ -1033,6 +1033,11 @@ def _away(mol, cart, member: int, points) -> np.ndarray:
     return direction / np.linalg.norm(direction)
 
 
+#: Enough for any molecule the builders draw to converge; a step is
+#: microseconds on one that has.
+RELAX_STEPS = 20000
+
+
 def _relax(AllChem, mol) -> None:
     """MMFF where it has the parameters, UFF where it does not, and
     the ETKDG geometry where neither does.
@@ -1040,12 +1045,18 @@ def _relax(AllChem, mol) -> None:
     Failing to relax is not failing to build: what ETKDG produces is
     already a chemically sensible molecule, and the user has a force
     field in the application to take it further.
+
+    Run to convergence, not RDKit's 200 steps: a hundred-atom linker
+    is not relaxed in 200, and ETKDG's bent arms were kept -- the
+    three arms of T-benzene-PPP-py 12-21 A apart from seed to seed
+    and RDKit version to version, against 18.62 A every time once
+    converged.
     """
     try:
         if AllChem.MMFFHasAllMoleculeParams(mol):
-            AllChem.MMFFOptimizeMolecule(mol)
+            AllChem.MMFFOptimizeMolecule(mol, maxIters=RELAX_STEPS)
         elif AllChem.UFFHasAllMoleculeParams(mol):
-            AllChem.UFFOptimizeMolecule(mol)
+            AllChem.UFFOptimizeMolecule(mol, maxIters=RELAX_STEPS)
     except (ValueError, RuntimeError):          # pragma: no cover
         pass
 

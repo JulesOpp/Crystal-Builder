@@ -285,20 +285,56 @@ def stored() -> tuple[Candidate, ...]:
                  for r in rows)
 
 
-def measure_smiles(smiles: str) -> tuple[float, str]:
-    """``(value, formula)`` for one starred SMILES: its span when it
-    has two points, its donor radius otherwise.  Needs RDKit."""
-    from xtal.build.molecule import from_smiles
+#: The seeds a generated linker may be embedded from, the first
+#: being :func:`~xtal.build.molecule.from_smiles`' own.
+SEEDS = (0xf00d, 1, 2, 3, 4)
 
-    molecule = from_smiles(smiles)
+
+def _extent(molecule) -> tuple[float, float]:
+    """``(how extended, value)``: a two-point linker's span both
+    times; with more points the shortest arm, then the mean radius."""
     cart = np.asarray(molecule.cart, dtype=float)
     points = list(molecule.connections)
     if len(points) == 2:
-        value = float(np.linalg.norm(cart[points[0]] - cart[points[1]]))
-    else:
-        donors = [_partner(molecule.bonds, x) for x in points]
-        value = _radius(cart[donors])
-    return value, molecule.formula
+        span = float(np.linalg.norm(cart[points[0]] - cart[points[1]]))
+        return span, span
+    donors = cart[[_partner(molecule.bonds, x) for x in points]]
+    arms = np.linalg.norm(donors - donors.mean(axis=0), axis=1)
+    return float(arms.min()), _radius(donors)
+
+
+def embed_extended(smiles: str, name: str = ""):
+    """The generated linker as a framework holds it, arms out.
+
+    One embedding can be broken past what relaxing mends: RDKit
+    2026.03 put one arm of Q-porphyrin-E-py 3.8 A from the centre and
+    the other three at 8-11 from its default seed, and at 10.33 from
+    every other seed and version.  Seeds are tried in turn and the one
+    whose shortest arm is longest (the longest span, with two points)
+    is kept, stopping once a second embedding agrees with it -- two
+    embeddings for nearly every linker.  Needs RDKit."""
+    from xtal.build.molecule import from_smiles
+
+    best = None
+    agreed = False
+    for seed in SEEDS:
+        molecule = from_smiles(smiles, name=name, seed=seed)
+        key = _extent(molecule)[0]
+        if best is not None and abs(key - best[0]) < 0.01:
+            agreed = True
+        elif best is None or key > best[0]:
+            best, agreed = (key, molecule), False
+        if agreed:
+            break
+    return best[1]
+
+
+def measure_smiles(smiles: str) -> tuple[float, str]:
+    """``(value, formula)`` for one starred SMILES: its span when it
+    has two points, its donor radius otherwise, of the extended
+    embedding (:func:`embed_extended`).  Needs RDKit."""
+    molecule = embed_extended(smiles)
+    return _extent(molecule)[1], molecule.formula
 
 
 # ------------------------------------------------------------- asking
@@ -395,11 +431,10 @@ def write_block(candidate: Candidate, folder) -> Path:
     Needs RDKit.  A catalogue candidate is already a block."""
     if candidate.source not in ("series", "invented"):
         raise ValueError(f"{candidate.name} is already a block")
-    from xtal.build.molecule import from_smiles
     from xtal.io.atomic import write_text
     from xtal.mof.block import block_string
 
-    molecule = from_smiles(candidate.smiles, name=candidate.name)
+    molecule = embed_extended(candidate.smiles, name=candidate.name)
     path = Path(folder) / f"{candidate.name}.xyz"
     path.parent.mkdir(parents=True, exist_ok=True)
     write_text(path, block_string(molecule.to_structure()))

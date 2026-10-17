@@ -34,9 +34,7 @@ def test_every_unit_adds_the_length_it_is_stored_with():
         chain = ("P", unit, "P")
         measured = linkers.measure_smiles(
             invent._linear_smiles(chain, "aryl"))[0] - pp
-        # A whole unit is 2-4 A; Windows' embedding bends P-V-P
-        # 0.09 A shorter than macOS's, which is no unit at all.
-        assert measured == pytest.approx(length, abs=0.15), unit
+        assert measured == pytest.approx(length, abs=0.05), unit
 
 
 def test_an_invented_name_spells_its_molecule():
