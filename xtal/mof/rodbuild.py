@@ -308,20 +308,46 @@ def best_placement(net, rod, linker, angle=None) -> Placement:
 def _best(net, rod, linker, angle):
     """``(placement, atoms)``: each of the linker's poses placed and
     assembled (:data:`xtal.mof.rodnet.POSES`, none for a linker that
-    cannot turn), the one whose joints miss and crowd least kept."""
-    from xtal.mof.rodnet import POSES
+    cannot turn), the one whose joints miss and crowd least kept.
+
+    Where the rods leave the twist free (one hand, a two-fold across
+    the linker), the poses are spread over it instead
+    (:data:`~xtal.mof.rodnet.FREE_TWISTS`), and the best refined
+    :data:`~xtal.mof.rodnet.FREE_REFINE` either side."""
+    from xtal.mof.rodnet import (
+        FREE_REFINE,
+        FREE_TWISTS,
+        POSES,
+        can_turn,
+        wanted_twist,
+    )
 
     best = None
+
+    def keep(placed, twist=None):
+        nonlocal best
+        atoms = _assemble(placed, linker)
+        if best is None or atoms.score < best[1].score - 1e-6:
+            best = (placed, atoms, twist)
+
+    if wanted_twist(net, rod) is None and can_turn(linker):
+        for degrees in FREE_TWISTS:
+            keep(placement(net, rod, linker, angle=angle,
+                           twist=math.radians(degrees)), degrees)
+        centre = best[2]
+        for degrees in (centre - FREE_REFINE, centre + FREE_REFINE):
+            if FREE_TWISTS[0] <= degrees <= FREE_TWISTS[-1]:
+                keep(placement(net, rod, linker, angle=angle,
+                               twist=math.radians(degrees)), degrees)
+        return best[:2]
     for pose in range(POSES):
         placed = placement(net, rod, linker, angle=angle, pose=pose)
         if pose and placed.posed is None:
             break
-        atoms = _assemble(placed, linker)
-        if best is None or atoms.score < best[1].score - 1e-6:
-            best = (placed, atoms)
+        keep(placed)
         if placed.posed is None:
             break
-    return best
+    return best[:2]
 
 
 # =============================================================== assembly
@@ -548,10 +574,12 @@ def _assemble(placed: Placement, linker) -> _Atoms:
         def scored(linker, tried):
             total, pairing, fits = tried
             chosen = [found[pairing] for _t, found in fits]
-            return total + CLASH_WEIGHT * (
+            targets = [t for t, _f in fits]
+            score = total + CLASH_WEIGHT * (
                 _crowding(linker, chosen, rows, rods_at)
-                + _stretch(linker, chosen, [t for t, _f in fits],
-                           placed, index, atoms))
+                + _stretch(linker, chosen, targets, placed, index,
+                           atoms))
+            return score
 
         score = scored(linker, best)
         for turned in turns:

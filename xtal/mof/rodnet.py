@@ -598,6 +598,13 @@ POSE_STEP = 5
 #: 178.7 built with joints of 1.47 A.
 POSES = 3
 
+#: The twists, degrees, tried first where the rods' symmetry leaves a
+#: linker's twist free (:func:`wanted_twist` is ``None``), then
+#: :data:`FREE_REFINE` either side of the best.  Zn2(dobpdc)'s twist
+#: is 128 degrees, and a twist of 0 built it 6 % small.
+FREE_TWISTS = (0, 45, 90, 135, 180)
+FREE_REFINE = 15
+
 #: Two atoms of a turned linker three or more bonds apart may come no
 #: closer than this, A; a planar biphenyl's ortho hydrogens are 2.0.
 TURN_CLEAR = 1.5
@@ -639,6 +646,15 @@ def _turning_bonds(linker, ends) -> list[tuple[int, int]]:
         if goal <= side and not (side & set(ends.ends[0])):
             found.append((a, b))
     return found
+
+
+def can_turn(linker) -> bool:
+    """Whether :func:`poses` can turn ``linker``: points at each end
+    more than one, and a bond between the ends to turn about."""
+    if not hasattr(linker, "bonds"):
+        return False
+    ends = ends_of(linker)
+    return ends.size > 1 and bool(_turning_bonds(linker, ends))
 
 
 def _side(near, start, cut) -> set[int]:
@@ -727,14 +743,22 @@ def poses(linker, ends: Ends, twist: float) -> list:
     return [(turned, its) for _gap_, _k, turned, its in found[:POSES]]
 
 
-def wanted_twist(net, rod: Rod) -> float:
+def wanted_twist(net, rod: Rod) -> float | None:
     """The twist between a linker's ends that the rods it joins ask
-    for: it sits on what relates them -- an inversion centre where
-    neighbours alternate hands (MOF-74, R-3), its ends a half turn
-    apart; a two-fold axis where they are one hand, the same way
-    round."""
-    same = net.hands == "same" and rod.hand is not None
-    return 0.0 if same else math.pi
+    for, or ``None`` where they leave it free.
+
+    The linker sits on what relates them.  An inversion centre, where
+    neighbours alternate hands (MOF-74, R-3), takes each end's bond
+    onto the other's reversed: the ends a half turn apart, exactly.  A
+    two-fold axis across the line between the ends, where they are one
+    hand (Zn2(dobpdc), P3_121), takes it onto the other's turned about
+    that axis, and the axis may point any way round the line: any
+    twist.  It was 0 here, which built Zn2(dobpdc) with a 20.35 A cell
+    for the crystal's 21.66; its linker's twist is 128 degrees.
+    """
+    if net.hands == "same" and rod.hand is not None:
+        return None
+    return math.pi
 
 
 def _gap(a: float, b: float) -> float:
@@ -743,7 +767,8 @@ def _gap(a: float, b: float) -> float:
 
 
 def placement(net: RodNet, rod: Rod, linker, *,
-              angle: float | None = None, pose: int = 0) -> Placement:
+              angle: float | None = None, pose: int = 0,
+              twist: float | None = None) -> Placement:
     """Solve the cell, and each rod's turn and rise, for ``rod`` on
     ``net`` joined by ``linker`` (a block, or :class:`Ends`).
 
@@ -753,14 +778,21 @@ def placement(net: RodNet, rod: Rod, linker, *,
     one is refused.  ``pose`` is which of :func:`poses` a linker that
     can turn about the bonds between its ends is placed in, the
     nearest the rods' symmetry first; :func:`xtal.mof.rodbuild.
-    best_placement` tries each.
+    best_placement` tries each.  ``twist`` (radians) is the twist the
+    poses are nearest instead of the symmetry's -- needed where
+    :func:`wanted_twist` leaves it free, which is otherwise taken as
+    the first of :data:`FREE_TWISTS`.
     """
     ends = linker if isinstance(linker, Ends) else ends_of(linker)
     if ends.size != rod.face:
         raise RodNetError(mismatch(rod, linker, ends.size))
     posed = None
     if not isinstance(linker, Ends) and ends.size > 1:
-        found = poses(linker, ends, wanted_twist(net, rod))
+        if twist is None:
+            twist = wanted_twist(net, rod)
+        if twist is None:
+            twist = math.radians(FREE_TWISTS[0])
+        found = poses(linker, ends, twist)
         if pose < len(found) and found[pose][0] is not linker:
             posed, ends = found[pose]
     p = net.pattern

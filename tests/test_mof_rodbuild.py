@@ -386,3 +386,24 @@ def test_a_linker_with_donors_the_rod_lacks_is_refused_by_name():
                              "phenolate to each end, where MIL-53_Cr "
                              "has a carboxylate"):
         built("MIL-53_Cr", "sql", linker=linker)
+
+
+@pytest.mark.slow
+def test_rods_of_one_hand_leave_a_linkers_twist_free():
+    """Zn2(dobpdc) (P3_121) has every rod one hand, a two-fold across
+    each linker, and the linker's ends 128 degrees apart.  The twist
+    was held at 0 for one hand, which built dobpdc on MOF-74's rod with
+    a 19.99 A cell; spread over the twists and the best kept, it
+    closes within 1 % of the crystal's 21.657 A, in the crystal's
+    group."""
+    from xtal.core import symmetry
+
+    outcome = built("MOF-74_Mg", "hcb", hands="same",
+                    linker=str(ROOT / "tests" / "data"
+                               / "rod_dobpdc_whole.xyz"))
+    assert outcome.net_name == "msi"
+    assert outcome.placement.cell[0] == pytest.approx(21.657, rel=0.01)
+    assert outcome.longest_joint < 1.55 and not outcome.overlaps
+    found = symmetry.detect(outcome.structure, symprec=0.5)
+    assert found.international == "P3_121"
+
