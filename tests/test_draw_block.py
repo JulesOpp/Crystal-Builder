@@ -47,6 +47,90 @@ def typed(dialog, qtbot, text):
 
 # ------------------------------------------------- the dialog alone
 
+def rod_slot(points):
+    """What the rod builder's Draw asks for: donors count as points."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(label="Linker", coordination=points,
+                           donors=True)
+
+
+@needs_rdkit
+def test_the_draw_footer_names_the_donors_it_found(qtbot, tmp_path):
+    """dobpdc drawn whole for MOF-74's rod: two carboxylates and two
+    phenols, four points, and it fits; the same drawing with no
+    donor counting would be a molecule with no points at all."""
+    dialog = DrawBlockDialog(rod_slot(4), str(tmp_path))
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "OC(=O)c1cc(-c2ccc(O)c(C(O)=O)c2)ccc1O")
+    footer = dialog.footer.text()
+    assert "2 carboxylates and 2 phenolates: 4 connection" in footer
+    assert "fits" in footer
+    assert dialog.save_button.isEnabled()
+
+
+@needs_rdkit
+def test_only_a_rod_linker_is_told_it_may_be_drawn_as_its_acid(
+        qtbot, tmp_path):
+    rod = DrawBlockDialog(rod_slot(2), str(tmp_path))
+    plain = DrawBlockDialog(Slot("edge", (0, 0), 2), str(tmp_path))
+    qtbot.addWidget(rod)
+    qtbot.addWidget(plain)
+    assert "carboxylic acids" in rod.note.text()
+    assert not rod.note.isHidden()
+    assert plain.note.isHidden() and not plain.note.text()
+
+
+@needs_rdkit
+def test_draw_starts_from_the_smiles_it_is_given(qtbot, tmp_path):
+    """The row's block, so Draw edits what the preview showed."""
+    dialog = DrawBlockDialog(Slot("edge", (0, 0), 2), str(tmp_path),
+                             smiles="c1cc([*:2])ccc1[*:1]")
+    qtbot.addWidget(dialog)
+    assert dialog.form.widgets["smiles"].text() == "c1cc([*:2])ccc1[*:1]"
+    assert "2 connection point(s)" in dialog.footer.text()
+
+
+@needs_rdkit
+def test_a_linker_drawn_whole_is_saved_with_its_donors_and_no_x(
+        qtbot, tmp_path):
+    """Written as drawn, so the file says which donor each point is;
+    the rod builder makes the points when it reads it."""
+    from xtal.mof import donors
+    from xtal.mof.trimer import Block
+
+    dialog = DrawBlockDialog(rod_slot(4), str(tmp_path))
+    qtbot.addWidget(dialog)
+    dialog.form.set_values({"name": "pc-dobpdc", "optimise": False})
+    typed(dialog, qtbot, "Oc1cc(-c2ccc(C(O)=O)c(O)c2)ccc1C(O)=O")
+    dialog.accept()
+    block = Block.read(tmp_path / "pc-dobpdc.xyz")
+    assert dialog.path == tmp_path / "pc-dobpdc.xyz"
+    assert "X" not in block.symbols
+    assert donors.as_linker(block).kinds == (
+        "phenolate", "carboxylate") * 2
+
+
+@needs_rdkit
+def test_a_rod_linker_drawn_with_stars_is_said_to_pair_freely(
+        qtbot, tmp_path):
+    dialog = DrawBlockDialog(rod_slot(2), str(tmp_path))
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "[*:1]c1ccc([*:2])cc1")
+    assert "drawn bare" in dialog.footer.text()
+    assert dialog.save_button.isEnabled()
+
+
+@needs_rdkit
+def test_a_rod_linker_with_no_donors_and_no_stars_says_what_to_draw(
+        qtbot, tmp_path):
+    dialog = DrawBlockDialog(rod_slot(2), str(tmp_path))
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "c1ccccc1")
+    assert "draw its carboxylates and phenols" in dialog.footer.text()
+    assert not dialog.save_button.isEnabled()
+
+
 @needs_rdkit
 def test_a_molecule_that_fits_the_slot_enables_save(qtbot, tmp_path):
     slot = Slot("edge", (0, 0), 2)
@@ -87,6 +171,39 @@ def test_saving_writes_a_block_the_catalog_can_read_back(qtbot,
     written = tmp_path / "my-linker.xyz"
     assert dialog.path == written
     assert read_building_block(written).n_connections == 2
+
+
+@needs_rdkit
+def test_a_linker_drawn_as_its_acid_is_saved_as_pormake_draws_it(
+        qtbot, tmp_path):
+    """Terephthalic acid on an edge slot: two carboxylic acids are its
+    two points, and the block written is E14's -- a benzene with an
+    X where each carboxylate joined, 0.75 A out -- since the cluster
+    carries the carboxylates.  The note saying so is the rod's alone."""
+    import numpy as np
+
+    from xtal.mof.trimer import Block
+
+    slot = Slot("edge", (0, 0), 2)
+    dialog = DrawBlockDialog(slot, str(tmp_path))
+    qtbot.addWidget(dialog)
+    assert dialog.note.isHidden()
+    dialog.form.set_values({"name": "bdc"})
+    typed(dialog, qtbot, "OC(=O)c1ccc(C(O)=O)cc1")
+    assert "2 carboxylates: 2 connection" in dialog.footer.text()
+    assert dialog.save_button.isEnabled()
+    dialog.accept()
+
+    written = tmp_path / "bdc.xyz"
+    assert read_building_block(written).n_connections == 2
+    block = Block.read(written)
+    assert sorted(block.symbols) == sorted("C" * 6 + "H" * 4 + "XX")
+    xyz = block.positions
+    for x in block.connections:
+        (ring,) = block.neighbours(x)
+        assert block.symbols[ring] == "C"
+        assert np.linalg.norm(xyz[x] - xyz[ring]) == pytest.approx(
+            0.75, abs=0.05)
 
 
 @needs_rdkit
@@ -191,7 +308,7 @@ def test_a_row_asks_the_sketcher_for_its_own_slot(built, tmp_path,
     check against -- the dialog is asked for it, not told afterwards."""
     seen = {}
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         seen["slot"] = slot
         seen["folder"] = folder
         return None
@@ -202,6 +319,23 @@ def test_a_row_asks_the_sketcher_for_its_own_slot(built, tmp_path,
 
     assert seen["slot"] is edge.slot
     assert seen["folder"] == str(built._blocks)
+
+
+@needs_database
+@needs_rdkit
+def test_draw_on_a_row_starts_from_the_block_it_shows(built,
+                                                      monkeypatch):
+    """E14 in the picture, so the sketch opens as E14: a benzene with a
+    point at each end, not a blank page."""
+    seen = {}
+    monkeypatch.setattr(
+        DrawBlockDialog, "ask",
+        classmethod(lambda cls, slot, folder, parent=None, smiles="":
+                    seen.update(smiles=smiles)))
+    edge = built._rows[-1]
+    assert edge.set_block("E14")
+    edge.draw_button.click()
+    assert seen["smiles"] == "c1cc([*:2])ccc1[*:1]"
 
 
 @needs_database
@@ -218,7 +352,7 @@ def test_a_block_is_drawn_into_the_workspace_and_read_back_from_it(
     assert built._blocks == blocks
     assert blocks not in [e.path for e in window.workspace.entries()]
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         path = Path(folder) / "U-drawn.xyz"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("4\n\nX 2 0 0\nC 0.7 0 0\n"
@@ -262,7 +396,7 @@ def test_drawing_a_block_selects_it_with_nothing_further_clicked(
     assert edge.slot.is_edge and edge.slot.coordination == 2
     written = tmp_path / "U-drawn.xyz"
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         written.write_text("4\n\nX 2 0 0\nC 0.7 0 0\n"
                            "C -0.7 0 0\nX -2 0 0\n")
         return written
@@ -286,7 +420,7 @@ def test_drawing_a_block_rereads_every_rows_catalogue(built,
     written = tmp_path / "U-drawn.xyz"
     old_catalog = built.catalog
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         written.write_text("4\n\nX 2 0 0\nC 0.7 0 0\n"
                            "C -0.7 0 0\nX -2 0 0\n")
         return written
@@ -308,7 +442,49 @@ def test_a_cancelled_draw_changes_nothing(built, monkeypatch):
 
     monkeypatch.setattr(
         DrawBlockDialog, "ask",
-        classmethod(lambda cls, slot, folder, parent=None: None))
+        classmethod(lambda cls, slot, folder, parent=None, smiles="": None))
     edge.draw_button.click()
 
     assert edge.block() == before
+
+
+def partitioner_slot():
+    """What the pacs builder's Partitioner row asks for."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(label="Partitioner", coordination=3,
+                           nitrogen=True)
+
+
+@needs_rdkit
+def test_a_partitioner_drawn_as_its_pyridines_is_saved_with_dative_points(
+        qtbot, tmp_path):
+    """tpt drawn as it is, with no X: its three free pyridyl nitrogens
+    are its points, and each is saved with an X on its lone pair -- the
+    point a person drawing pyridines does not think to draw."""
+    from xtal.mof.trimer import Block
+
+    dialog = DrawBlockDialog(partitioner_slot(), str(tmp_path))
+    qtbot.addWidget(dialog)
+    dialog.form.set_values({"name": "tpt-drawn"})
+    typed(dialog, qtbot, "c1cnccc1-c1nc(nc(n1)-c1ccncc1)-c1ccncc1")
+    assert "3 pyridyl nitrogens: 3 connection" in dialog.footer.text()
+    assert dialog.save_button.isEnabled()
+    dialog.accept()
+
+    block = Block.read(tmp_path / "tpt-drawn.xyz")
+    assert len(block.connections) == 3
+    assert {block.symbols[block.neighbours(x)[0]]
+            for x in block.connections} == {"N"}
+
+
+@needs_rdkit
+def test_a_partitioner_with_its_points_on_carbon_is_refused(qtbot,
+                                                            tmp_path):
+    """Three stars on a benzene fit the count and not the slot: a
+    partitioner meets each metal through a nitrogen."""
+    dialog = DrawBlockDialog(partitioner_slot(), str(tmp_path))
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "*c1cc(*)cc(*)c1")
+    assert "pyridyl nitrogen" in dialog.footer.text()
+    assert not dialog.save_button.isEnabled()

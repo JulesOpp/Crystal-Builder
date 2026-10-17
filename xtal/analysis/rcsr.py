@@ -278,6 +278,32 @@ def as_layer(entry: CgdEntry) -> CgdEntry:
                    cell=(a, b, LAYER_C, 90.0, 90.0, gamma))
 
 
+def as_net(entry: CgdEntry) -> CgdEntry:
+    """A 3-periodic entry written so PORMAKE expands it as this module
+    does: the group's setting named (``Fd-3m:2``), since PORMAKE takes
+    the symbol as it is written and retries nothing.  A 2-periodic one
+    is :func:`as_layer`'s."""
+    if entry.dimension != 3:
+        return as_layer(entry)
+    if ":" in entry.group or not _two_origins(entry.group):
+        # One setting to be in, so nothing to resolve: 306 of the 330
+        # nets the catalogue adds, and an expansion each spared.
+        return entry
+    _net, _frac, symbol = resolved(entry)
+    return entry if symbol == entry.group else replace(entry,
+                                                       group=symbol)
+
+
+@lru_cache(maxsize=256)
+def _two_origins(symbol: str) -> bool:
+    """Whether the group is tabulated with two origin choices."""
+    try:
+        gemmi.SpaceGroup(f"{symbol}:2")
+    except (RuntimeError, ValueError):
+        return False
+    return True
+
+
 def _signature(operation) -> tuple:
     rot, trans = operation
     return (tuple(np.round(rot).astype(int).ravel()),
@@ -347,10 +373,21 @@ def expand(entry: CgdEntry) -> Net:
 
 
 def _placed(entry: CgdEntry) -> tuple[Net, np.ndarray]:
+    net, frac, _symbol = resolved(entry)
+    return net, frac
+
+
+def resolved(entry: CgdEntry) -> tuple[Net, np.ndarray, str]:
+    """:func:`placement`, and the setting that resolved it.
+
+    A net derived from this one and written back in its group has to
+    name the setting, ``Fd-3m:2`` rather than ``Fd-3m``: PORMAKE
+    expands what the file says and does not retry.
+    """
     problems = []
     for symbol in _settings(entry):
         try:
-            return _expand_with(entry, symbol)
+            return (*_expand_with(entry, symbol), symbol)
         except RcsrError as exc:
             problems.append(str(exc))
     raise RcsrError(problems[0])
@@ -922,7 +959,7 @@ def _known(given: Catalogue | None) -> Catalogue:
 
 
 def identify(net: Net, catalogue_: Catalogue | None = None,
-             depth: int = DEPTH) -> Identification:
+             depth: int = DEPTH, keyed: bool = True) -> Identification:
     """Name one connected net.
 
     **Both layers run.**  The invariants are a filter with a measured
@@ -935,11 +972,16 @@ def identify(net: Net, catalogue_: Catalogue | None = None,
     drawn net into its components first, and identifying a
     disconnected one would compute the invariants of two nets at once
     and match neither.
+
+    ``keyed=False`` is the filter alone, for a caller holding the net
+    to invariants it already has: a supertetrahedral net's key is
+    twenty seconds or more and would decide nothing there.
     """
     known = _known(catalogue_)
     fingerprint = net.fingerprint(depth)
     names = known.lookup(fingerprint)
-    key = _key(net) if fingerprint.periodicity >= 2 else ""
+    key = (_key(net) if keyed and fingerprint.periodicity >= 2
+           else "")
     matched = known.lookup_key(key)
     decided = bool(key) and (bool(matched) or known.keyed)
     looks_like = ()
@@ -983,7 +1025,7 @@ def _key(net: Net) -> str:
 
 
 def describe(net: Net, catalogue_: Catalogue | None = None,
-             depth: int = DEPTH) -> NetReport:
+             depth: int = DEPTH, keyed: bool = True) -> NetReport:
     """Name the whole of what a user drew.
 
     Split into components first, because a framework that carries two
@@ -994,7 +1036,7 @@ def describe(net: Net, catalogue_: Catalogue | None = None,
     if net.is_empty():
         return NetReport()
     known = _known(catalogue_)
-    return NetReport(tuple(identify(part, known, depth)
+    return NetReport(tuple(identify(part, known, depth, keyed)
                            for part in net.components()))
 
 

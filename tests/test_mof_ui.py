@@ -19,6 +19,8 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from PySide6.QtCore import Qt  # noqa: E402
+
 from tests.test_app_shell import StubViewport  # noqa: E402
 from xtal.core.lattice import Lattice  # noqa: E402
 from xtal.core.structure import (  # noqa: E402
@@ -36,6 +38,7 @@ from xtal.modules.registry import (  # noqa: E402
     Module,
 )
 from xtal.mof import database_root  # noqa: E402
+from xtal.mof.catalog import installed  # noqa: E402
 from xtalapp.dialogs import module_dialog  # noqa: E402
 from xtalapp.dialogs.module_form import ModuleDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
@@ -448,6 +451,32 @@ def dialog(qtbot, window):
                             "edges": "E32"})
     qtbot.addWidget(built)
     return built
+
+
+def _builder(qtbot, window, entry, initial=None):
+    """The dialog of one MOF builder entry, as the menu opens it."""
+    from xtalapp.dialogs import module_dialog
+
+    _module, action = MODULES.find(f"mof.{entry}")
+    built = module_dialog(action.dialog)(MODULES.get("mof"), action,
+                                         window, initial or {})
+    qtbot.addWidget(built)
+    return built
+
+
+@pytest.fixture
+def pacs(qtbot, window):
+    return _builder(qtbot, window, "pacs")
+
+
+@pytest.fixture
+def sets(qtbot, window):
+    return _builder(qtbot, window, "sets")
+
+
+@pytest.fixture
+def st(qtbot, window):
+    return _builder(qtbot, window, "supertetrahedra")
 
 
 @needs_database
@@ -1057,3 +1086,635 @@ def test_an_answered_build_dialog_is_deleted_on_the_gui_thread(
 
     assert values["topology"] == "pcu"
     assert not shiboken6.isValid(made[0])
+
+
+def _acs(pacs, node="N589", linker="E14"):
+    assert pacs._select("acs")
+    pacs._rows[0].set_block(node)
+    next(r for r in pacs._rows if r.slot.is_edge).set_block(linker)
+    return pacs.partition
+
+
+@needs_database
+def test_the_partition_box_is_live_only_for_an_open_trimer(pacs, dialog):
+    """Only the pacs builder has the section, and it builds on acs
+    alone: live there with an open M3O trimer, and greyed for a trimer
+    whose own carboxylate sits on the site."""
+    assert dialog.partition_fold.isHidden()
+    assert dialog.values()["partition"] == ""
+    assert pacs.topologies.count() == 1
+    assert pacs._topology.name == "acs"
+
+    box = _acs(pacs)
+    assert box.choice.isEnabled()
+    assert pacs.values()["partition"] == ""
+    assert box.set_value("tpt")
+    assert pacs.values()["partition"] == "tpt"
+    assert "Predicted" in box.status.text()
+
+    # N86 is not offered in the row any more; a drawn one like it is.
+    assert not pacs._rows[0].set_block("N86")
+    box.set_framework(pacs.catalog, "acs", "N86", "E14")
+    assert not box.choice.isEnabled()
+    assert "no open site" in box.status.text()
+    assert box.value() == ""
+
+
+@needs_database
+def test_the_pacs_trimer_row_offers_only_trimers_it_can_partition(
+        pacs, tmp_path):
+    """The nine open M3O trimers, not the two hundred six-connected
+    blocks Build would refuse -- and a block drawn on the row is
+    offered whatever it is."""
+    from pathlib import Path
+
+    from xtal.mof import partition
+
+    pacs._select("acs")
+    row = pacs._rows[0]
+    offered = {row.combo.itemData(i) for i in range(row.combo.count())}
+    assert offered == {n.name for n in
+                       partition.compatible_nodes(pacs.catalog)}
+    assert "N589" in offered and "N86" not in offered
+    edge = next(r for r in pacs._rows if r.slot.is_edge)
+    assert edge.combo.count() > 100
+
+    drawn = Path(row.folder) / "my-node.xyz"
+    drawn.parent.mkdir(parents=True, exist_ok=True)
+    drawn.write_text(Path(pacs.catalog.building_block("N86").path)
+                     .read_text())
+    pacs._on_block_drawn("my-node")
+    row = pacs._rows[0]
+    assert row.set_block("my-node")
+
+
+@needs_database
+def test_a_refused_partitioner_shows_its_reason_and_cannot_be_chosen(
+        pacs):
+    """tppb on BDC cannot close the cell: listed, greyed, with the
+    reason as its tooltip and in the status line."""
+    box = _acs(pacs)
+    at = box.choice.findData("tppb")
+    assert at >= 0
+    assert not box._enabled(at)
+    assert "too wide for E14" in box.choice.itemData(at, Qt.ToolTipRole)
+    assert not box.set_value("tppb")
+    assert "Cannot close the cell" in box.status.text()
+
+
+@needs_database
+def test_a_suggested_linker_goes_on_the_edge_row(pacs):
+    box = _acs(pacs)
+    box.set_value("tpt")
+    box._suggest()
+    assert "asks for a 2-connected aryl linker" in box.suggestions.text()
+    box.use_linker.emit("E16")
+    edge = next(r for r in pacs._rows if r.slot.is_edge)
+    assert edge.block() == "E16"
+
+
+@needs_database
+def test_a_partitioner_picked_last_time_is_offered_again(qtbot, window):
+    again = _builder(qtbot, window, "pacs",
+                     {"topology": "acs", "nodes": "N589",
+                      "edges": "E14", "partition": "tpt"})
+    assert again.values()["partition"] == "tpt"
+    assert again.partition_fold.is_open()
+
+
+@needs_database
+def test_the_note_names_the_compatible_nodes_and_a_click_uses_one(
+        pacs):
+    """A click on a trimer in the note puts it in the node row."""
+    note = pacs.partition.nodes.text()
+    assert "Nodes that can be partitioned" in note
+    assert "N589" in note and "N590" not in note
+    pacs.partition.use_node.emit("N92")
+    assert pacs._topology.name == "acs"
+    assert pacs._rows[0].block() == "N92"
+    assert pacs.partition.choice.isEnabled()
+
+
+def _sph(sets, hexa="N573", tri="N10", cluster="N419"):
+    assert sets._select("sph")
+    rows = {r.slot.key: r for r in sets._rows if not r.slot.is_edge}
+    rows[2].set_block(cluster)
+    if hexa:
+        rows[0].set_block(hexa)
+    if tri:
+        rows[1].set_block(tri)
+    return sets.linker_sets
+
+
+@needs_database
+def test_the_linker_set_box_is_live_only_for_a_cluster_on_a_merged_net(
+        sets, dialog):
+    """Only the mixed-linker builder has the section, and it lists the
+    nets a set can be worked out on -- sph, never pcu, which has one
+    kind of edge; live once a metal cluster is in sph's 12-c slot."""
+    assert dialog.sets_fold.isHidden()
+    assert not sets._select("pcu")
+    box = _sph(sets)
+    assert box.check.isEnabled() and box.suggest.isEnabled()
+    assert "2 kinds of linker" in box.status.text()
+
+
+@pytest.mark.slow
+@needs_database
+def test_a_set_that_checks_is_built_on_the_net_where_it_fits(sets):
+    """The topology handed to the build is the re-embedded sph while
+    the rows hold the set that checked, and sph again once one
+    changes."""
+    box = _sph(sets)
+    assert sets.values()["topology"] == "sph"
+    box._check()
+    assert "This set fits" in box.status.text()
+    assert sets.values()["topology"].startswith("sph@")
+    next(r for r in sets._rows
+         if r.slot.key == 1 and not r.slot.is_edge).set_block("N19")
+    assert sets.values()["topology"] == "sph"
+
+
+@pytest.mark.slow
+@needs_database
+def test_a_set_that_cannot_close_both_edges_says_why(sets):
+    box = _sph(sets, hexa="N5", tri="N10")
+    box._check()
+    assert "does not fit" in box.status.text()
+    assert "allows" in box.status.text()
+    assert sets.values()["topology"] == "sph"
+
+
+@pytest.mark.slow
+@needs_database
+def test_a_suggested_set_clicked_fills_both_linker_rows(sets):
+    box = _sph(sets, hexa="N5", tri="N110")
+    box._suggest()
+    text = box.suggestions.text()
+    assert "Sets from the catalogue" in text
+    assert "N110 asks node 1 for a 6-connected" in text
+    box._clicked("set:0=N573,1=N10")
+    held = sets._node_blocks()
+    assert held[0] == "N573" and held[1] == "N10"
+
+
+@needs_database
+def test_a_reembedded_net_picked_last_time_is_built_there_again(
+        qtbot, window):
+    again = _builder(qtbot, window, "sets",
+                     {"topology": "sph@-0.1250",
+                      "nodes": "0=N573,1=N10,2=N419"})
+    assert again._topology.name == "sph"
+    assert again.values()["topology"] == "sph@-0.1250"
+    assert again.sets_fold.is_open()
+
+
+# -- the supertetrahedra section ---------------------------------------
+
+def _sod(st):
+    assert st._select("sod")
+    box = st.supertetrahedra
+    box.decorate.setChecked(True)
+    box.settle()
+    return box
+
+
+def _rows_by_key(st):
+    return {r.slot.key: r for r in st._rows if not r.slot.is_edge}
+
+
+@needs_database
+def test_the_supertetrahedra_builder_lists_only_nets_it_can_decorate(
+        st, dialog):
+    """Only the supertetrahedra builder has the section; it lists the
+    4-connected nets alone, the six zeolites first, and every net it
+    shows is built of supertetrahedra -- there is no tick."""
+    assert dialog.st_fold.isHidden()
+    assert not st._select("pcu")
+    first = [st.topologies.item(i).data(Qt.UserRole) for i in range(6)]
+    assert set(first) == {"sod", "mtn", "lta", "rho", "cha", "fau"}
+    assert all(set(st.catalog.topology(
+        st.topologies.item(i).data(Qt.UserRole)).coordinations) == {4}
+        for i in range(st.topologies.count()))
+    assert st.supertetrahedra.decorate.isHidden()
+    assert st.values()["topology"] == "sod-st"
+
+
+@needs_database
+def test_decorating_sod_asks_for_a_trimer_and_a_face(st):
+    """The build is on sod-st and the rows are its trimer and its
+    face."""
+    _sod(st)
+    assert st._topology.name == "sod-st"
+    assert st.values()["topology"] == "sod-st"
+    assert [r.slot.coordination for r in _rows_by_key(st).values()
+            ] == [6, 3]
+    assert "M3O trimer" in st.details.text()
+
+
+@needs_database
+def test_filling_four_rings_keeps_the_blocks_and_adds_a_filler_row(
+        st):
+    """sod-st-f4: the trimer slot is seven-connected and still offers
+    the six-connected trimer the build makes its twin from, so N92 and
+    BTC stay where they were put."""
+    box = _sod(st)
+    rows = _rows_by_key(st)
+    rows[0].set_block("N92")
+    rows[1].set_block("N10")
+    tick, _every = box._rows[4]
+    tick.setChecked(True)
+    assert st._topology.name == "sod-st-f4"
+    rows = _rows_by_key(st)
+    assert rows[0].slot.coordination == 7
+    assert rows[0].block() == "N92" and rows[1].block() == "N10"
+    assert rows[2].slot.coordination == 4
+    assert "fills the 4-rings" in st.details.text()
+    values = st.values()
+    assert values["topology"] == "sod-st-f4"
+    assert "N92" in values["nodes"] and "N10" in values["nodes"]
+
+
+@needs_database
+def test_a_refused_fill_is_greyed_with_its_reason(st):
+    """Every other site of sod's 4-ring is turned onto the others by
+    its fourfold axis: listed, greyed, the reason its tooltip."""
+    box = _sod(st)
+    _tick, every = box._rows[4]
+    at = every.findData(2)
+    assert at >= 0
+    assert not every.model().item(at).isEnabled()
+    assert "symmetry" in every.itemData(at, Qt.ToolTipRole)
+
+
+@needs_database
+def test_half_a_six_ring_is_offered_and_says_the_group_it_is_written_in(
+        st):
+    """Every other site of sod's 6-ring is the I-43m sod-ZMOFs': it is
+    no longer greyed, and the section says why the group dropped."""
+    box = _sod(st)
+    tick, every = box._rows[6]
+    at = every.findData(2)
+    assert every.model().item(at).isEnabled()
+    every.setCurrentIndex(at)
+    tick.setChecked(True)
+    assert st._topology.name == "sod-st-f6e2"
+    assert "Written in I-43m" in box.status.text()
+    assert "fills the 6-rings" in st.details.text()
+
+
+@needs_database
+def test_two_fills_refused_together_put_the_tick_back_and_say_why(
+        st, monkeypatch):
+    from xtal.mof.catalog import CatalogError
+
+    box = _sod(st)
+    box._rows[4][0].setChecked(True)
+    real = st.catalog.topology
+
+    def refuse(name):
+        if name == "sod-st-f4-f6":
+            raise CatalogError("asks four open sites of a trimer")
+        return real(name)
+
+    monkeypatch.setattr(st.catalog, "topology", refuse)
+    box._rows[6][0].setChecked(True)
+    assert not box._rows[6][0].isChecked()
+    assert "four open sites" in box.status.text()
+    assert st._topology.name == "sod-st-f4"
+
+
+@needs_database
+def test_the_same_trimer_goes_in_every_trimer_slot(st):
+    """lta has three kinds of edge, so three trimer slots and three
+    face slots; one pick fills all three, unless asked otherwise."""
+    assert st._select("lta")
+    box = st.supertetrahedra
+    box.decorate.setChecked(True)
+    rows = _rows_by_key(st)
+    rows[0].set_block("N92")
+    rows[3].set_block("N10")
+    assert [rows[k].block() for k in range(6)] == ["N92"] * 3 + [
+        "N10"] * 3
+    box.same.setChecked(False)
+    rows[1].set_block("N536")
+    assert rows[0].block() == "N92"
+
+
+@needs_database
+def test_the_supertetrahedra_builder_opens_on_a_nickel_trimer_and_btc(st):
+    """N589 (Ni3O) and N10 (BTC) on sod-st, unless something else was
+    picked last time."""
+    assert st._topology.name == "sod-st"
+    assert [r.block() for r in _rows_by_key(st).values()] == [
+        "N589", "N10"]
+
+
+@needs_database
+def test_a_net_clicked_leaves_no_row_of_the_last_one_on_screen(st):
+    """The rows a net replaces are hidden at once: a deferred delete
+    posted before the modal loop starts is not delivered inside it,
+    and the old row's picture stayed as a white box behind "Node 1,
+    6-connected"."""
+    from xtalapp.dialogs.mof_build import _SlotRow
+
+    assert st._select("lta")
+    assert st._select("sod")
+    shown = [w for w in st.slots_box.findChildren(_SlotRow)
+             if not w.isHidden()]
+    assert shown == st._rows
+
+
+@needs_database
+def test_a_net_clicked_lists_its_fills_and_tries_them_afterwards(st):
+    """Trying every fill was three seconds of a click on fau; the
+    rows are there at once and greyed as each is tried."""
+    assert st._select("lta")
+    assert st._select("sod")
+    box = st.supertetrahedra
+    _tick, every = box._rows[4]
+    assert every.findData(2) >= 0 and box._untried
+    box.settle()
+    assert not box._untried
+    assert not every.model().item(every.findData(2)).isEnabled()
+
+
+@needs_database
+def test_a_decorated_net_picked_last_time_is_offered_again(qtbot,
+                                                          window):
+    again = _builder(qtbot, window, "supertetrahedra",
+                     {"topology": "sod-st-f4",
+                      "nodes": "0=N92,1=N10"})
+    assert again._listed.name == "sod"
+    assert again._topology.name == "sod-st-f4"
+    assert again.supertetrahedra._rows[4][0].isChecked()
+    assert _rows_by_key(again)[0].block() == "N92"
+    assert again.st_fold.is_open()
+    assert again.values()["topology"] == "sod-st-f4"
+
+
+@pytest.mark.slow
+@needs_database
+@pytest.mark.skipif(not installed(), reason="PORMAKE needs ase")
+def test_a_suggested_filler_clicked_fills_its_window(st):
+    """TPyP is In-sod-ZMOF-320's 4-ring filler on TATB; on BTC the
+    4-ring asks for less, but a click on any suggestion fills the
+    window and puts the filler in the row it made."""
+    box = _sod(st)
+    rows = _rows_by_key(st)
+    rows[0].set_block("N92")
+    rows[1].set_block("N10")
+    assert box.suggest.isEnabled()
+    box._suggest()
+    text = box.suggestions.text()
+    assert "T-O-T" in text
+    assert "4-ring, 4 sites" in text and "6-ring, 6 sites" in text
+    href = next(h for h in text.split("href='")[1:]
+                if h.startswith("6:1:0:")).split("'")[0]
+    name = href.split(":", 3)[3]
+    box._clicked(href)
+    assert st._topology.name == "sod-st-f6"
+    assert _rows_by_key(st)[2].block() == name
+    assert "6-ring" in box.suggestions.text()
+
+
+needs_merged = pytest.mark.skipif(
+    not __import__("xtal.mof.merged_nets", fromlist=["table"]).table(),
+    reason="the merged-net table is missing")
+
+
+@needs_merged
+def test_the_explorer_opens_from_the_menu_and_filters_by_cluster(window):
+    explorer = window.open_net_explorer()
+    assert window.open_net_explorer() is explorer
+    total = len(explorer.visible_names())
+    explorer.cluster.setCurrentText("12")
+    twelve = explorer.visible_names()
+    assert "sph" in twelve and len(twelve) < total
+    explorer.kind.setCurrentText("3p-0p")
+    assert "sph" not in explorer.visible_names()
+    assert explorer.count.text().endswith(f"of {total}")
+    assert explorer.table.horizontalHeaderItem(7).text() == \
+        "Example MOF"
+
+
+@needs_merged
+def test_choosing_a_row_says_its_parents_and_opens_the_net_with_groups(
+        window, monkeypatch):
+    asked = []
+    monkeypatch.setattr(window, "run_module_action",
+                        lambda *a, **k: asked.append((a, k)))
+    explorer = window.open_net_explorer()
+    assert explorer.choose("sph")
+    text = explorer.diagram.text()
+    assert "spn" in text and "hxg" in text and "sph" in text
+    explorer.open_button.click()
+    assert asked[-1][0] == ("net", "draw", {"net": "sph"})
+    explorer.build_button.click()
+    assert asked[-1] == (("mof", "sets"), {"initial": {"topology": "sph"}})
+
+
+@needs_merged
+def test_build_on_a_net_with_no_linker_set_opens_the_general_builder(
+        window, monkeypatch):
+    """The mixed-linker builder lists only the nets a set can be
+    worked out on, so a merged net it does not list goes to the
+    general one rather than to a dialog that cannot show it."""
+    from xtal.mof import merged, merged_nets
+
+    asked = []
+    monkeypatch.setattr(window, "run_module_action",
+                        lambda *a, **k: asked.append(a))
+    explorer = window.open_net_explorer()
+    name = next(r.name for r in merged_nets.table()
+                if r.name not in merged.set_nets()
+                and explorer.choose(r.name))
+    explorer.build_button.click()
+    assert asked[-1] == ("mof", "build")
+    assert name
+
+
+def test_each_builder_has_its_own_entry_and_the_explorer_is_a_net_one(
+        window):
+    """Modules > MOF builder holds the five builders and Modules > Net
+    builder the explorer; each entry opens its own dialog."""
+    from xtalapp.dialogs import module_dialog
+
+    labels = [a.text() for a in
+              window._module_submenus["mof"].actions()]
+    assert labels == ["Build a framework (MOF)...",
+                      "Build a pore-partitioned MOF (pacs)...",
+                      "Build a supertetrahedral MOF...",
+                      "Build a mixed-linker MOF (merged net)...",
+                      "Build a rod framework..."]
+    net = [a.text() for a in window._module_submenus["net"].actions()]
+    assert "Merged-net explorer..." in net
+    dialogs = {MODULES.find(f"mof.{name}")[1].dialog for name in
+               ("build", "pacs", "supertetrahedra", "sets", "rod")}
+    assert len(dialogs) == 5
+    assert all(module_dialog(name) is not None for name in dialogs)
+
+
+@needs_merged
+def test_a_merged_net_drawn_by_the_net_builder_opens_with_its_groups(
+        window, qtbot):
+    from xtal.modules.job import Job
+    from xtalapp.document import Document
+
+    _module, action = MODULES.find("net.draw")
+    result = action.run(Job(params={"net": "sph"}))
+    assert result.structure is not None
+    document = Document(result.structure)
+    assert [g.name for g in document.atom_groups] == ["spn", "hxg"]
+    assert all(g.color is not None for g in document.atom_groups)
+
+
+@needs_database
+@pytest.mark.parametrize("entry",
+                         ["build", "pacs", "supertetrahedra", "sets"])
+def test_no_builder_needs_scrolling_sideways(qtbot, window, entry):
+    """The rows' combo boxes sized to their longest block held every
+    builder at 715 px, and one net with a dozen vertex kinds gave the
+    net list a scroll bar of its own; a laptop's dialog scrolled
+    sideways for both."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QWidget
+
+    built = _builder(qtbot, window, entry)
+    # 560 px with macOS's 13 pt system font, where this label is
+    # 125 px; held to the same text, not the same pixels, elsewhere.
+    label = QFontMetrics(built.font()).horizontalAdvance(
+        "Node 1, 6-connected")
+    limit = 560 * max(1.0, label / 125)
+    root = built.scroll.widget()
+    widest = sorted(((w.minimumSizeHint().width(), type(w).__name__,
+                      getattr(w, "text", lambda: "")()[:40]
+                      if callable(getattr(w, "text", None)) else "")
+                     for w in root.findChildren(QWidget)),
+                    reverse=True)[:8]
+    assert root.minimumSizeHint().width() <= limit, (label, widest)
+    assert (built.topologies.horizontalScrollBarPolicy()
+            == Qt.ScrollBarAlwaysOff)
+    assert built.topologies.textElideMode() == Qt.ElideRight
+
+
+@needs_database
+@pytest.mark.skipif(not __import__("xtal.build", fromlist=["installed"])
+                    .installed(), reason="needs the build extra")
+def test_the_chosen_partitioner_is_drawn(pacs):
+    """tpt picked: its molecule in the column of the node's and the
+    linker's pictures, three points on its nitrogens; None picked: the
+    same box, empty."""
+    box = _acs(pacs)
+    assert not box.picture.isHidden() and box.picture._block is None
+    assert box.set_value("tpt")
+    drawn = box.picture._block
+    assert drawn.name == "tpt" and len(drawn.connections) == 3
+    assert drawn.formula == "C18H12N6"
+    from PySide6.QtWidgets import QApplication
+
+    pacs.show()
+    QApplication.processEvents()
+    edge = next(r for r in pacs._rows if r.slot.is_edge)
+    right = box.picture.mapTo(pacs, box.picture.rect().topRight()).x()
+    assert right == edge.preview.mapTo(
+        pacs, edge.preview.rect().topRight()).x()
+    assert "close the cell" in box.count.text()
+    box.set_value("")
+    assert box.picture._block is None and not box.picture.isHidden()
+
+
+@needs_database
+def test_each_window_says_its_rough_size_on_the_blocks_chosen(st):
+    """sod on N589 and BTC: the 6-ring's trimers about 10 A out and a
+    hexatopic filler of about 5.6 A donor radius, said as rough; a
+    face with no trimer to measure says only the count."""
+    box = _sod(st)
+    six = box._notes[6][0].text()
+    assert "A from its middle" in six and "(rough)" in six
+    assert "6-topic filler of ~5." in six
+    box.set_blocks(st._topology, {})
+    assert "rough" not in box._notes[6][0].text()
+
+
+@needs_database
+def test_a_partitioner_drawn_from_the_row_is_listed_and_chosen(
+        pacs, monkeypatch):
+    """Draw writes into the workspace's blocks/partitioners, never
+    blocks/ itself, and the drawing is then a row of the list,
+    ranked like the rest and selected."""
+    from pathlib import Path
+
+    from xtal.mof import partition
+    from xtalapp.dialogs.draw_block import DrawBlockDialog
+
+    box = _acs(pacs)
+    asked = {}
+
+    def ask(slot, folder, parent=None, smiles=""):
+        asked.update(slot=slot, folder=folder, smiles=smiles)
+        path = Path(folder) / "my-tpt.xyz"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_tpt_block_text())
+        return path
+
+    monkeypatch.setattr(DrawBlockDialog, "ask", staticmethod(ask))
+    box.set_value("tpt")
+    box.draw.click()
+    assert asked["slot"].coordination == 3 and asked["slot"].nitrogen
+    assert Path(asked["folder"]).name == partition.DRAWN
+    assert asked["smiles"] == partition.partitioner("tpt").smiles
+    assert box.value() == "my-tpt"
+    assert pacs.values()["partition"] == "my-tpt"
+    assert "my-tpt" in box.choice.currentText()
+
+
+def _tpt_block_text():
+    pytest.importorskip("rdkit")
+    from xtal.mof import partition
+
+    return partition.drawn("tpt").text()
+
+
+@needs_database
+def test_a_six_connected_slot_starts_on_n589_never_a_polydentate_block(
+        qtbot, window):
+    """Nothing named, a node row took the top of its list, and the top
+    of the six-connected list is MFU4l_Kuratowski, a chelating node:
+    every net an entry opened without blocks of its own started on
+    it.  Six-connected starts on N589, any other count on its first
+    monodentate block."""
+    built = _builder(qtbot, window, "build")
+    assert built._select("acs")
+    assert built._rows[0].block() == "N589"
+    assert built._select("tbo")
+    nodes = [r for r in built._rows if not r.slot.is_edge]
+    for row in nodes:
+        block = built.catalog.building_block(row.block())
+        assert not block.is_polydentate
+
+
+@needs_database
+@pytest.mark.parametrize("entry, doi", [
+    ("build", "10.1021/acsami.1c02471"),
+    ("pacs", "10.1021/ja512137t"),
+    ("pacs", "10.1021/acs.accounts.6b00526"),
+    ("supertetrahedra", "10.1038/s44160-023-00401-8"),
+    ("sets", "10.1021/jacs.8b04745"),
+    ("sets", "10.1126/science.ads7866"),
+])
+def test_each_builder_cites_the_papers_its_feature_comes_from(
+        qtbot, window, entry, doi):
+    """Each entry cites its own feature's papers above PORMAKE and the
+    RCSR, which every entry cites."""
+    urls = _builder(qtbot, window, entry).sources.urls()
+    assert f"https://doi.org/{doi}" in urls
+    assert "https://doi.org/10.1021/ar800124u" in urls
+
+
+@needs_merged
+def test_the_net_explorer_cites_the_merged_nets_papers(window):
+    urls = window.open_net_explorer().sources.urls()
+    assert "https://doi.org/10.1126/science.ads7866" in urls
+    assert "https://doi.org/10.1021/jacs.8b04745" in urls

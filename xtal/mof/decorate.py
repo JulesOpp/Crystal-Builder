@@ -1,0 +1,1708 @@
+"""
+xtal.mof.decorate
+=================
+Supertetrahedral decoration: any 4-connected net as an ST-MOF net.
+
+MIL-100 and the sod-ZMOFs are built of supertetrahedra: four M3O
+trimers at the corners of a tetrahedron, a tritopic linker on each of
+its four faces, and every trimer a corner of two supertetrahedra.  A
+supertetrahedron is a 4-connected vertex of the net it is built on --
+``mtn`` for MIL-100, ``sod`` for the ZMOFs -- so any 4-c net gives an
+ST net by one transform (:func:`supertetrahedral`):
+
+* a **6-c trimer at each edge midpoint**, shared by the two
+  supertetrahedra the edge joins;
+* a **3-c face node on each triple of a vertex's four edges**, the
+  face of the tetrahedron those three midpoints span.
+
+Each trimer meets three faces at either end, so the result is a
+(3,6)-c net with *E* trimers and *4V* faces; ``mtn`` gives ``moo``,
+the RCSR's name for MIL-100's net.
+
+**Where a face node goes is the whole difficulty.**  PORMAKE reads a
+net by distance (its ``distance_based_build``): a node and an edge
+centre are joined when they are closer than a fixed cutoff, so every
+edge must be shorter than every non-edge.  At the centroid of its
+three midpoints a face is a third of the tetrahedron's edge from its
+neighbour faces and only a 1/sqrt(3) from its trimers -- the failure
+``nia-d`` had -- and on ``sod`` the two are exactly equal.  So a face
+goes on the **normal through the circumcentre** of its three
+midpoints, lifted away from the vertex by :data:`LIFTS` of the
+triangle's own radius: its three edges are then equal by
+construction, and the neighbour faces move apart as it rises.  Every
+RCSR zeolite clears :data:`MIN_MARGIN` there (sod 2.0, rho 1.7, fau
+1.6, lta 1.57 times the longest edge) where the centroid failed on
+nine of twelve.  The embedding is decoration -- the scaler moves the
+nodes to the blocks -- so it only has to read back as the right
+graph, and :func:`decoration` checks that it does.
+
+Written in the parent's own group and setting, so a decorated
+``mtn`` has the four trimer kinds and six face kinds MIL-100 has,
+rather than one slot per atom of a P1 cell.
+"""
+
+from __future__ import annotations
+
+import itertools
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+#: What a decorated net is called: ``sod`` becomes ``sod-st``.
+SUFFIX = "-st"
+
+#: How far each face is lifted off its midpoint triangle, in units of
+#: the triangle's circumradius; the one with the most room wins.
+#: 0.375-0.75 is where the zeolites' best lie (lta 0.375, sod 0.625,
+#: rho 0.75); outside it the faces meet the next supertetrahedron's.
+LIFTS = (0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0)
+
+#: How much shorter every edge must be than every non-edge, as the
+#: ratio of the nearest non-bonded node-to-edge-centre distance to the
+#: farthest bonded one.  PORMAKE's cutoff is put at their geometric
+#: mean, so this is the room either side of it.
+MIN_MARGIN = 1.15
+
+#: PORMAKE's node-to-edge-centre cutoff (``distance_based_build``),
+#: less its own epsilon.
+PORMAKE_CUTOFF = 0.5
+
+#: The IZA framework codes the bundled RCSR file names as 4-c nets --
+#: 63 of the 78 codes it holds; the other fifteen (``bct``, ``sos``,
+#: ``ton`` ...) are RCSR names for other nets that happen to share
+#: the letters.  A test holds every one to the file.
+ZEOLITES = (
+    "afi", "afx", "afy", "aht", "ana", "apc", "apd", "ast", "asv",
+    "atn", "ato", "att", "atv", "aww", "bik", "bsv", "can", "cas",
+    "cgs", "cha", "dft", "doh", "eab", "edi", "eri", "fau", "gis",
+    "gme", "itv", "jbw", "jst", "kfi", "lev", "los", "lta", "ltj",
+    "ltl", "maz", "mep", "mer", "mon", "mtn", "mvy", "nab", "nat",
+    "npo", "off", "oso", "phi", "ptt", "rho", "sas", "sat", "sgt",
+    "sod", "ssf", "tsc", "uos", "uov", "uoz", "vfi", "wei", "yug",
+)
+
+#: Fractional distance within which two points are one node.
+_SAME = 1e-4
+
+
+class DecorationError(ValueError):
+    """A net that cannot be decorated, said in a sentence."""
+
+
+class _Merged(DecorationError):
+    """The file a choice of sites was written to expands to more
+    bonds than were meant: its group does not keep the choice."""
+
+
+@dataclass(frozen=True)
+class Face:
+    """One face of one supertetrahedron: three of a vertex's edges."""
+
+    #: The parent vertex the supertetrahedron stands on.
+    vertex: int
+    #: ``(edge, shift)`` for each of its three trimers: parent edge
+    #: ``edge``'s midpoint, moved ``shift`` cells to sit beside it.
+    trimers: tuple[tuple[int, tuple[int, int, int]], ...]
+    #: Where it was put, fractional and unwrapped.
+    frac: tuple[float, float, float]
+
+
+@dataclass(frozen=True, eq=False)
+class Decoration:
+    """A 4-c net decorated with supertetrahedra, before it is a file.
+
+    Kept whole rather than handed back as a ``.cgd`` because what
+    comes after the decoration -- the windows to fill -- is asked of
+    the *parent*: a window is a ring of the parent net, and its
+    trimers are the parent's edges round it.  Trimer *k* is parent
+    edge *k*, in ``parent_net.edges`` order.
+    """
+
+    parent: str
+    #: The space group as PORMAKE has to be told it, setting included.
+    group: str
+    parent_net: object = field(repr=False)
+    parent_frac: np.ndarray = field(repr=False)
+    #: The decorated net's cell, scaled so PORMAKE's cutoff falls
+    #: between its edges and its non-edges.
+    cell: tuple[float, ...]
+    #: Fractional midpoint of each parent edge, unwrapped from its
+    #: first vertex.
+    trimers: np.ndarray = field(repr=False)
+    faces: tuple[Face, ...] = field(repr=False)
+    #: The lift the faces were put at, in circumradii.
+    lift: float
+    #: Nearest non-edge over farthest edge, node to edge centre.
+    margin: float
+
+    @property
+    def name(self) -> str:
+        return self.parent + SUFFIX
+
+    def graph(self) -> Graph:
+        """The decorated net in P1: trimers first, then faces."""
+        return _graph(self.trimers, self.faces)
+
+    def entry(self):
+        """The decorated net as one ``.cgd`` block, in the parent's
+        group: a node line per orbit of trimers (first) and of faces,
+        and an edge line per orbit of edges."""
+        if "_entry" not in self.__dict__:
+            object.__setattr__(self, "_entry", _write(
+                self.name, self.group, self.cell, self.graph()))
+        return self.__dict__["_entry"]
+
+    def topology(self):
+        """The decorated net as a :class:`~xtal.mof.catalog.Topology`,
+        held as text, as an RCSR layer is."""
+        topology = _topology(self.entry())
+        topology._cache["decorated"] = self
+        return topology
+
+
+@dataclass(frozen=True)
+class Graph:
+    """A net in P1, as this module builds one: each node unwrapped
+    with its coordination, each edge its two nodes and where each end
+    sits, so an edge through a cell face keeps its direction."""
+
+    nodes: np.ndarray
+    coordinations: tuple[int, ...]
+    #: ``(a, b, frac at a, frac at b)``.
+    edges: tuple
+
+
+def _graph(trimers, faces, extra=()) -> Graph:
+    """Trimers, faces and ``extra`` nodes ``(frac, [(edge, shift)])``
+    -- a window filler and the trimers it takes -- as one graph.  A
+    trimer's coordination is its six faces and every filler on it."""
+    n_trimers = len(trimers)
+    nodes = [np.asarray(t, dtype=float) for t in trimers]
+    nodes += [np.asarray(face.frac) for face in faces]
+    counts = [6] * n_trimers + [3] * len(faces)
+    edges = []
+    for f, face in enumerate(faces):
+        here = np.asarray(face.frac)
+        for edge, shift in face.trimers:
+            edges.append((n_trimers + f, edge, here,
+                          trimers[edge] + np.asarray(shift)))
+    for at, taken in extra:
+        index = len(nodes)
+        nodes.append(np.asarray(at, dtype=float))
+        counts.append(len(taken))
+        for edge, shift in taken:
+            counts[edge] += 1
+            edges.append((index, edge, nodes[index],
+                          trimers[edge] + np.asarray(shift)))
+    return Graph(np.array(nodes), tuple(counts), tuple(edges))
+
+
+def _write(name, group, cell, graph: Graph):
+    """One ``.cgd`` block in ``group``: a node line per orbit of nodes
+    in the graph's order, an edge line per orbit of edges."""
+    from xtal.analysis.rcsr import space_group_operations
+    from xtal.io.cgd import CgdEntry, CgdNode
+
+    ops = space_group_operations(group)
+    nodes = [CgdNode(str(n + 1), graph.coordinations[k],
+                     _wrap(graph.nodes[k]))
+             for n, k in enumerate(_representatives(graph.nodes, ops))]
+    centres = np.array([(here + there) / 2
+                        for _a, _b, here, there in graph.edges])
+    edges = []
+    for c in _representatives(centres, ops):
+        _a, _b, here, there = graph.edges[c]
+        home = np.floor(here + _SAME)
+        edges.append((tuple(here - home), tuple(there - home)))
+    return CgdEntry(name, group, tuple(nodes), tuple(edges), cell)
+
+
+def _topology(entry):
+    from xtal.io.cgd import write_cgd_string
+    from xtal.mof.catalog import Topology
+
+    # PORMAKE drops a file's last line unread, so END must be it.
+    text = write_cgd_string([entry]).rstrip() + "\n"
+    topology = Topology(
+        entry.name, None, entry.group,
+        tuple(node.coordination for node in entry.nodes), text,
+        len(entry.edges))
+    topology._cache["layer"] = False
+    return topology
+
+
+def supertetrahedral(net):
+    """``net`` with a supertetrahedron at every vertex, as a topology
+    the catalogue builds on.
+
+    ``net`` is a catalogue :class:`~xtal.mof.catalog.Topology`, a
+    :class:`~xtal.io.cgd.CgdEntry`, or a name the RCSR knows.
+    """
+    return decoration(net).topology()
+
+
+def decoration(net) -> Decoration:
+    """The supertetrahedral decoration of a 4-c net, worked out.
+
+    Raises :class:`DecorationError` for a net with a vertex of any
+    other degree, and for one whose faces cannot be placed with
+    :data:`MIN_MARGIN` to spare -- naming the room there was, rather
+    than writing a file PORMAKE would read as another graph.
+    """
+    from xtal.analysis import rcsr
+    from xtal.core.lattice import Lattice
+
+    entry = _entry_of(net)
+    name = entry.name
+    if entry.dimension != 3 or not entry.cell or len(entry.cell) != 6:
+        raise DecorationError(
+            f"{name} is not a 3-periodic net with a cell, and a "
+            f"supertetrahedral net is built on one")
+    parent, frac, group = rcsr.resolved(entry)
+    degrees = {parent.degree(v) for v in range(parent.n_vertices)}
+    if degrees != {4}:
+        raise DecorationError(
+            f"{name} has {_degrees(degrees)}-connected vertices; a "
+            f"supertetrahedron is a 4-connected vertex")
+
+    flat = _square_planar(parent, frac, group)
+    if flat is not None:
+        raise DecorationError(
+            f"{name}: node {parent.label(flat)} sits on "
+            f"{_FLAT_REASON[_flat_kind(parent, frac, group, flat)]}, "
+            f"which holds its four edges in a plane; a "
+            f"supertetrahedron is not flat, so it cannot stand there "
+            f"in {group}")
+    lattice = np.asarray(Lattice.from_parameters(*entry.cell).matrix)
+    trimers, incident = _midpoints(parent, frac)
+    best = None
+    frames = _face_frames(trimers, incident, lattice)
+    for lift in LIFTS:
+        faces = _faces(frac, trimers, incident, lattice, lift, frames)
+        bonded, free = _reach(_graph(trimers, faces), lattice)
+        margin = free / bonded
+        if best is None or margin > best[0] + 1e-9:
+            best = (margin, lift, faces, bonded, free)
+    margin, lift, faces, bonded, free = best
+    if margin < MIN_MARGIN:
+        flat = _drawn_flat(frac, trimers, incident, lattice)
+        why = (f"; node {parent.label(flat)} is drawn with its four "
+               f"edges in a plane, where its four faces meet"
+               if flat is not None else "")
+        raise DecorationError(
+            f"{name}: the faces of its supertetrahedra cannot be "
+            f"placed with every edge shorter than every non-edge (at "
+            f"best {margin:.2f} times as far, and PORMAKE needs "
+            f"{MIN_MARGIN}){why}")
+    scale = PORMAKE_CUTOFF / np.sqrt(bonded * free)
+    a, b, c, alpha, beta, gamma = entry.cell
+    decorated = Decoration(
+        parent=name, group=group, parent_net=parent, parent_frac=frac,
+        cell=(a * scale, b * scale, c * scale, alpha, beta, gamma),
+        trimers=trimers, faces=faces, lift=lift, margin=margin)
+    _check(decorated)
+    return decorated
+
+
+def zeolites() -> tuple:
+    """Every RCSR zeolite net, as the file's entries, in code order."""
+    from xtal.analysis import rcsr
+
+    nets = rcsr.nets()
+    return tuple(nets[code] for code in ZEOLITES)
+
+
+# ----------------------------------------------------------------------
+#  Geometry
+# ----------------------------------------------------------------------
+
+def _entry_of(net):
+    from xtal.analysis import rcsr
+    from xtal.io.cgd import CgdEntry
+
+    if isinstance(net, CgdEntry):
+        return net
+    if isinstance(net, str):
+        try:
+            return rcsr.nets()[net]
+        except KeyError:
+            raise DecorationError(
+                f"the RCSR has no net called {net!r}") from None
+    return net.entry()
+
+
+def _degrees(degrees) -> str:
+    return ", ".join(str(d) for d in sorted(degrees))
+
+
+_FLAT_REASON = {"inversion": "a centre of symmetry",
+                "fourfold": "a fourfold axis"}
+
+
+def _site_symmetry(frac, group, vertex):
+    from xtal.analysis.rcsr import space_group_operations
+
+    point = frac[vertex]
+    for rotation, translation in space_group_operations(group):
+        moved = rotation @ point + translation - point
+        if np.abs(moved - np.round(moved)).max() < _SAME:
+            yield rotation
+
+
+def _flat_kind(parent, frac, group, vertex) -> str | None:
+    """Why symmetry holds this vertex's four edges in a plane, if it
+    does: an inversion centre pairs them off end to end, and a proper
+    fourfold axis turns each into the next round one circle.  A
+    -4 axis does neither -- sod's vertices sit on one -- and is how a
+    tetrahedron is fourfold."""
+    for rotation in _site_symmetry(frac, group, vertex):
+        if np.allclose(rotation, -np.eye(3)):
+            return "inversion"
+        if (round(np.linalg.det(rotation)) == 1
+                and round(np.trace(rotation)) == 1):
+            return "fourfold"
+    return None
+
+
+def _square_planar(parent, frac, group) -> int | None:
+    """The first vertex the group makes square planar, or ``None``.
+
+    asv, ptt and ssf have one, and there the decoration's four faces
+    fall on one point: the four midpoints share a plane and a circle,
+    so every triangle of three has the same circumcentre and normal.
+    """
+    firsts = sorted({parent.orbits.index(o) for o in parent.orbits})
+    for vertex in firsts or range(parent.n_vertices):
+        if _flat_kind(parent, frac, group, vertex) is not None:
+            return vertex
+    return None
+
+
+def _drawn_flat(frac, trimers, incident, lattice) -> int | None:
+    """A vertex whose four edges the embedding drew in one plane
+    (ssf's, in its mirror), though the group would let them out."""
+    for vertex, edges in enumerate(incident):
+        arms = np.array([(trimers[k] + np.asarray(s) - frac[vertex])
+                         @ lattice for k, s in edges])
+        spread = np.linalg.svd(arms, compute_uv=False)
+        if spread[-1] < 0.05 * spread[0]:
+            return vertex
+    return None
+
+
+def _midpoints(parent, frac):
+    """Each edge's midpoint, and each vertex's four edges as
+    ``(edge, shift)`` -- the shift that brings the midpoint beside
+    that vertex rather than its first one."""
+    trimers = np.empty((len(parent.edges), 3))
+    incident = [[] for _ in range(parent.n_vertices)]
+    for k, edge in enumerate(parent.edges):
+        image = np.asarray(edge.image, dtype=float)
+        trimers[k] = (frac[edge.i] + frac[edge.j] + image) / 2
+        incident[edge.i].append((k, (0, 0, 0)))
+        incident[edge.j].append((k, tuple(-int(v) for v in edge.image)))
+    return trimers, incident
+
+
+def _faces(frac, trimers, incident, lattice, lift,
+           frames=None) -> tuple[Face, ...]:
+    """Every face lifted ``lift`` circumradii off its three trimers.
+    ``frames`` is :func:`_face_frames`, which does not depend on the
+    lift and so is worked out once for all of :data:`LIFTS`."""
+    if frames is None:
+        frames = _face_frames(trimers, incident, lattice)
+    inverse = np.linalg.inv(lattice)
+    return tuple(
+        Face(vertex, triple,
+             tuple(float(v) for v in
+                   (middle + lift * radius * normal) @ inverse))
+        for vertex, triple, middle, normal, radius in frames)
+
+
+def _face_frames(trimers, incident, lattice) -> list:
+    """``(vertex, triple, circumcentre, outward normal, radius)`` for
+    each triple of a vertex's edges."""
+    frames = []
+    for vertex, edges in enumerate(incident):
+        for triple in itertools.combinations(edges, 3):
+            corners = [(trimers[k] + np.asarray(s)) @ lattice
+                       for k, s in triple]
+            middle, normal = _circumcentre(*corners)
+            # Away from the fourth corner, never "away from the
+            # vertex": where two edges are collinear (asv, ptt, ssf)
+            # the vertex lies in the triangle's own plane.
+            (last, shift), = (e for e in edges if e not in triple)
+            fourth = (trimers[last] + np.asarray(shift)) @ lattice
+            if np.dot(middle - fourth, normal) < 0:
+                normal = -normal
+            radius = np.linalg.norm(corners[0] - middle)
+            frames.append((vertex, tuple(triple), middle, normal,
+                           radius))
+    return frames
+
+
+def _circumcentre(a, b, c):
+    """The centre of the circle through three points, and the unit
+    normal of their plane."""
+    ab, ac = b - a, c - a
+    normal = np.cross(ab, ac)
+    offset = (np.dot(ac, ac) * np.cross(normal, ab)
+              + np.dot(ab, ab) * np.cross(ac, normal))
+    offset /= 2 * np.dot(normal, normal)
+    return a + offset, normal / np.linalg.norm(normal)
+
+
+def _reach(graph: Graph, lattice) -> tuple[float, float]:
+    """``(farthest bonded, nearest non-bonded)`` node-to-edge-centre
+    distance -- the two numbers PORMAKE's cutoff has to fall
+    between."""
+    from xtal.core.lattice import Lattice
+    from xtal.core.neighbors import neighbor_pairs
+
+    centres = np.array([(here + there) / 2
+                        for _a, _b, here, there in graph.edges])
+    owners = [(a, b) for a, b, _h, _t in graph.edges]
+    bonded = max(np.linalg.norm((there - here) @ lattice) / 2
+                 for _a, _b, here, there in graph.edges)
+    points = np.mod(np.vstack([graph.nodes, centres]), 1.0)
+    n_nodes = len(graph.nodes)
+    pairs = neighbor_pairs(points, Lattice(lattice), 3.0 * bonded,
+                           min_distance=0.0)
+    free = 3.0 * bonded
+    for i, j, d in zip(pairs.i, pairs.j, pairs.distance,
+                       strict=True):
+        node, centre = (i, j) if i < n_nodes <= j else (j, i)
+        if not (node < n_nodes <= centre):
+            continue
+        if node in owners[centre - n_nodes] and d < bonded * 1.0001:
+            continue                # its own edge, at half its length
+        free = min(free, d)
+    return float(bonded), float(free)
+
+
+def _representatives(points, ops) -> list[int]:
+    """One index per symmetry orbit of ``points``, in first-seen
+    order."""
+    wrapped = np.mod(np.asarray(points, dtype=float), 1.0)
+    seen = np.zeros(len(wrapped), dtype=bool)
+    reps = []
+    for index, point in enumerate(wrapped):
+        if seen[index]:
+            continue
+        reps.append(index)
+        for rotation, translation in ops:
+            image = np.mod(rotation @ point + translation, 1.0)
+            delta = wrapped - image
+            delta -= np.round(delta)
+            seen |= (np.abs(delta) < _SAME).all(axis=1)
+    return reps
+
+
+def _wrap(point) -> tuple[float, ...]:
+    point = np.asarray(point, dtype=float)
+    return tuple(point - np.floor(point + _SAME))
+
+
+def _check(decorated: Decoration) -> None:
+    """The written file must expand to the graph that was meant.
+
+    E trimers of degree 6, 4V faces of degree 3, 12V edges: a face
+    lifted onto another's orbit, or a group setting that does not
+    resolve, would read back as some other net, and nothing
+    downstream would notice.
+    """
+    from xtal.analysis import rcsr
+
+    net = rcsr.expand(decorated.entry())
+    parent = decorated.parent_net
+    want = (len(parent.edges) + 4 * parent.n_vertices,
+            12 * parent.n_vertices)
+    got = (net.n_vertices, len(net.edges))
+    if got != want:
+        raise DecorationError(
+            f"{decorated.name} expands to {got[0]} nodes and {got[1]} "
+            f"edges where it should have {want[0]} and {want[1]}")
+
+
+# ----------------------------------------------------------------------
+#  Windows
+# ----------------------------------------------------------------------
+
+#: The largest window looked for unless asked otherwise.  Every ring
+#: of eight or fewer is milliseconds on a zeolite of 192 vertices
+#: (fau); twelve is seconds on sod and past the ring search's budget
+#: on fau.  Primitive is not the same as a window: fau's 8-rings are
+#: primitive and are no tile's face, and its 12-ring window is above
+#: this, so a person asking for fau's supercage windows asks for 12.
+WINDOW_MAX = 8
+
+#: How far a trimer's open site may turn out of its own plane to
+#: point at a window's centre, degrees.  A site lies in the M3 plane,
+#: which stands across the trimer's edge, so it reaches a centre
+#: within this of that plane and no other.
+SITE_REACH = 30.0
+
+#: How far from a window's donor radius a filler may be and still
+#: build, A: the cSDA paper's "close match" (SI section 3), and what
+#: sod-st-f6 needed -- hexa(4-pyridyl)benzene built 0.4 A over the
+#: estimate with every Cr-N within 0.1 A of 2.10.
+WINDOW_TOLERANCE = 0.5
+
+#: And the trial's own error, as a share of the window's radius: its
+#: cells came within 0.6 % (BTC) and 2.9 % (TATB) of the In-sod-ZMOFs'
+#: and a window grows with its cell, so TPyP (7.77 A), which
+#: In-sod-ZMOF-320 has in every 4-ring, sat 1.0 A over what the trial
+#: asked on TATB.
+WINDOW_SLACK = 0.05
+
+
+@dataclass(frozen=True)
+class Window:
+    """One ring of the parent net, as a decorated net sees it."""
+
+    #: The parent ring, ``(vertex, shift)`` in ring order.
+    ring: tuple
+    #: The trimers round it, ``(edge, shift)``, in the same order:
+    #: trimer *k* is the edge from ring vertex *k* to *k + 1*.
+    trimers: tuple
+    #: Its centre, fractional: the mean of its trimers.
+    centre: tuple[float, float, float]
+
+    @property
+    def size(self) -> int:
+        return len(self.ring)
+
+
+@dataclass(frozen=True)
+class WindowKind:
+    """One symmetry class of window, with the shape its trimers make.
+
+    Lengths are in the decorated net's own units: a framework's are
+    these times :func:`scale`, which depends on the blocks.
+    """
+
+    window: Window
+    #: How many of this kind one cell holds.
+    count: int
+    #: The trimers' distance from the centre, mean.
+    radius: float
+    #: Their distance from their best plane, root mean square, over
+    #: ``radius``: 0 is flat.
+    pucker: float
+    #: How many trimers have an open site that can point at the
+    #: centre (:data:`SITE_REACH`).
+    inward: int
+    #: Every window of the kind in one cell, the first ``window``.
+    members: tuple = field(default=(), repr=False, compare=False)
+
+    @property
+    def size(self) -> int:
+        return self.window.size
+
+    def label(self) -> str:
+        return f"{self.size}-ring"
+
+
+def _memo(decorated, key, make):
+    """``make()``, worked out once for ``decorated``: a frozen
+    decoration is the same net for as long as it lives, so what is
+    asked of it is too.  A refusal is kept and raised again.  This is
+    what makes clicking through the supertetrahedra builder's nets
+    cheap the second time, and a tick there instant after the
+    choices were tried."""
+    memo = decorated.__dict__.get("_memo")
+    if memo is None:
+        memo = {}
+        object.__setattr__(decorated, "_memo", memo)
+    if key not in memo:
+        try:
+            memo[key] = (True, make())
+        except DecorationError as exc:
+            memo[key] = (False, exc)
+    ok, value = memo[key]
+    if not ok:
+        raise value
+    return value
+
+
+def windows(decorated: Decoration,
+            max_size: int = WINDOW_MAX) -> list[WindowKind]:
+    """The windows of a decorated net: the parent's primitive rings
+    (:mod:`xtal.core.rings`), one :class:`WindowKind` per symmetry
+    class, smallest first.  Asked of the parent because a window *is*
+    a ring of it -- its trimers are the parent's edges round it."""
+    return list(_memo(decorated, ("windows", max_size),
+                      lambda: _windows(decorated, max_size)))
+
+
+def _windows(decorated: Decoration, max_size: int) -> list[WindowKind]:
+    from xtal.analysis.rcsr import space_group_operations
+    from xtal.core import rings
+
+    parent = decorated.parent_net
+    adjacency = {v: [] for v in range(parent.n_vertices)}
+    by_ends = {}
+    for k, edge in enumerate(parent.edges):
+        image = tuple(int(v) for v in edge.image)
+        back = tuple(-v for v in image)
+        adjacency[edge.i].append((edge.j, image))
+        adjacency[edge.j].append((edge.i, back))
+        by_ends[(edge.i, edge.j, image)] = (k, (0, 0, 0))
+        by_ends[(edge.j, edge.i, back)] = (k, back)
+
+    found = []
+    for ring in rings.of_adjacency(adjacency, max_size):
+        trimers = []
+        for (a, sa), (b, sb) in zip(ring, ring[1:] + ring[:1],
+                                    strict=True):
+            step = tuple(y - x for x, y in zip(sa, sb, strict=True))
+            k, shift = by_ends[(a, b, step)]
+            trimers.append((k, tuple(s + t for s, t in
+                                     zip(shift, sa, strict=True))))
+        centre = np.mean([decorated.trimers[k] + np.asarray(s)
+                          for k, s in trimers], axis=0)
+        found.append(Window(tuple(ring), tuple(trimers),
+                            tuple(float(v) for v in centre)))
+
+    ops = space_group_operations(decorated.group)
+    placed = on_net(decorated)
+    kinds = []
+    for size in sorted({w.size for w in found}):
+        same = [w for w in found if w.size == size]
+        centres = np.array([w.centre for w in same])
+        reps = _representatives(centres, ops)
+        orbit = _orbit_of(centres, reps, ops)
+        for n, r in enumerate(reps):
+            window = same[r]
+            radius, pucker, inward = _shape(decorated, window, placed)
+            members = tuple(w for w, o in zip(same, orbit, strict=True)
+                            if o == n)
+            kinds.append(WindowKind(window, len(members), radius,
+                                    pucker, inward, members))
+    return kinds
+
+
+def _lattice(decorated: Decoration) -> np.ndarray:
+    from xtal.core.lattice import Lattice
+
+    return np.asarray(Lattice.from_parameters(*decorated.cell).matrix)
+
+
+def _orbit_of(points, reps, ops) -> list[int]:
+    """Which representative each point is an image of."""
+    wrapped = np.mod(np.asarray(points, dtype=float), 1.0)
+    owner = [-1] * len(wrapped)
+    for n, r in enumerate(reps):
+        for rotation, translation in ops:
+            image = np.mod(rotation @ wrapped[r] + translation, 1.0)
+            delta = wrapped - image
+            delta -= np.round(delta)
+            for i in np.flatnonzero((np.abs(delta) < _SAME).all(axis=1)):
+                if owner[i] < 0:
+                    owner[i] = n
+    return owner
+
+
+def _sites(decorated, window, placed):
+    """Each trimer's centre and the unit direction its open site
+    takes towards the window -- the centre's direction, laid into the
+    trimer's own plane, which stands across the line between the two
+    supertetrahedra it joins -- and how far it had to turn."""
+    lattice = placed.lattice
+    parent = decorated.parent_net
+    corners = [(placed.trimers[edge] + np.asarray(shift)) @ lattice
+               for edge, shift in window.trimers]
+    centre = np.mean(corners, axis=0)
+    out = []
+    for (edge, shift), here in zip(window.trimers, corners, strict=True):
+        link = parent.edges[edge]
+        shift = np.asarray(shift)
+        tail = (placed.centres[link.i] + shift) @ lattice
+        head = (placed.centres[link.j] + np.asarray(link.image)
+                + shift) @ lattice
+        axis = head - tail
+        axis /= np.linalg.norm(axis)
+        towards = centre - here
+        flat = towards - (towards @ axis) * axis
+        turn = np.degrees(np.arctan2(abs(towards @ axis),
+                                     np.linalg.norm(flat)))
+        out.append((here, flat / np.linalg.norm(flat), turn))
+    return out
+
+
+def _shape(decorated, window, placed) -> tuple[float, float, int]:
+    sites = _sites(decorated, window, placed)
+    points = np.array([here for here, _, _ in sites])
+    middle = points.mean(axis=0)
+    radius = float(np.mean(np.linalg.norm(points - middle, axis=1)))
+    spread = np.linalg.svd(points - middle, compute_uv=False)
+    pucker = float(spread[-1] / np.sqrt(len(points)) / radius)
+    inward = sum(1 for _, _, turn in sites if turn <= SITE_REACH)
+    return radius, pucker, inward
+
+
+# ----------------------------------------------------------------------
+#  Where the trimers are, in A
+# ----------------------------------------------------------------------
+
+@dataclass(frozen=True, eq=False)
+class Placed:
+    """Where a decorated net's trimers and supertetrahedra are.
+
+    ``lattice`` in A; ``trimers`` (one per parent edge) and
+    ``centres`` (one per parent vertex: the supertetrahedron's middle)
+    fractional and unwrapped as the decoration has them.
+    """
+
+    lattice: np.ndarray
+    trimers: np.ndarray
+    centres: np.ndarray
+    #: Where it came from: ``"net"``, ``"estimate"`` or ``"trial"``.
+    source: str = "net"
+
+    def tot(self, decorated) -> np.ndarray:
+        """The T-O-T angle at every trimer, degrees: supertetrahedron
+        centre, trimer, supertetrahedron centre -- Si-O-Si, as the
+        cSDA paper measures it (Nat. Synth. 3, 33, SI section 15).
+        180 by construction on the decorated net; regular
+        supertetrahedra cannot keep it on sod, whose silica analogue
+        stops near 160."""
+        out = []
+        for k, link in enumerate(decorated.parent_net.edges):
+            here = self.trimers[k] @ self.lattice
+            tail = self.centres[link.i] @ self.lattice - here
+            head = (self.centres[link.j] + np.asarray(link.image)) \
+                @ self.lattice - here
+            cos = tail @ head / np.linalg.norm(tail) / np.linalg.norm(head)
+            out.append(np.degrees(np.arccos(np.clip(cos, -1.0, 1.0))))
+        return np.array(out)
+
+
+def on_net(decorated: Decoration) -> Placed:
+    """The decorated net as written, in its own units."""
+    return Placed(_lattice(decorated), decorated.trimers,
+                  decorated.parent_frac, "net")
+
+
+def estimate(decorated: Decoration, node, face) -> Placed:
+    """The net, scaled to these blocks by :func:`scale`."""
+    return Placed(_lattice(decorated) * scale(decorated, node, face),
+                  decorated.trimers, decorated.parent_frac, "estimate")
+
+
+def scale(decorated: Decoration, node, face) -> float:
+    """A of framework per unit of the decorated net, for this trimer
+    and this tritopic face.
+
+    A trimer and a face are joined node to node, so their centres
+    are the trimer's reach (oxide to carboxylate point) plus the
+    face's (centre to point) apart; the net's trimer-to-face edges,
+    averaged, are that length.  It is 5-9 % out either way (sod
+    builds larger, lta smaller), which is why a filler is judged on a
+    :func:`trial` instead.
+    """
+    lattice = _lattice(decorated)
+    lengths = []
+    for face_ in decorated.faces:
+        here = np.asarray(face_.frac)
+        for edge, shift in face_.trimers:
+            there = decorated.trimers[edge] + np.asarray(shift)
+            lengths.append(np.linalg.norm((there - here) @ lattice))
+    return (node.reach + face_reach(face)) / float(np.mean(lengths))
+
+
+def trial(net, blocks, log=None) -> Placed:
+    """Where PORMAKE puts the trimers: one pass of its builder over
+    ``net`` (a :class:`Decoration` or a :class:`Filled`) with
+    ``blocks`` (node slot -> catalogue block), its scaled net read
+    back onto the decoration's trimers by position.
+
+    What :func:`estimate` cannot know: the scaler trades the blocks'
+    angles against the net's, bends T-O-T, and makes the
+    supertetrahedra regular where the net drew them otherwise.
+    Seconds: nothing is identified.  sod-st on an In trimer builds at
+    33.9 A with BTC and 55.7 A with TATB, against In-sod-ZMOF-102's
+    33.75 and -320's 57.31.
+    """
+    from xtal.mof.build import _Logging, import_pormake
+
+    key = (net.name, tuple(sorted((k, str(b.path))
+                                  for k, b in blocks.items())))
+    if key in _TRIALS:
+        return _TRIALS[key]
+    pormake = import_pormake()
+    topology = net.topology()
+    before = topology.expanded()
+    nodes = {int(k): pormake.BuildingBlock(str(b.path))
+             for k, b in blocks.items()}
+    with _Logging(log):
+        framework = pormake.Builder().build_by_type(
+            topology=before, node_bbs=nodes)
+    _TRIALS[key] = placed_from(net, before, framework.info["topology"])
+    return _TRIALS[key]
+
+
+def placed_from(net, before, after) -> Placed:
+    """The trimers where PORMAKE's scaler left them: ``before`` is the
+    net as read, ``after`` the scaled copy a build hands back, slot for
+    slot, and each trimer is found among the slots by where the file
+    put it.  The scaler moves a node a few hundredths of the cell, so
+    the match is made on ``before``."""
+    start = before.atoms.get_scaled_positions()
+    moved = after.atoms.get_scaled_positions() - start
+    moved -= np.round(moved)
+    decorated = getattr(net, "decoration", net)
+    trimers = decorated.trimers.copy()
+    home = np.mod(trimers, 1.0)
+    for slot in before.node_indices:
+        delta = home - np.mod(start[slot], 1.0)
+        delta -= np.round(delta)
+        match = np.flatnonzero((np.abs(delta) < 1e-3).all(axis=1))
+        if len(match):
+            trimers[match[0]] = decorated.trimers[match[0]] + moved[slot]
+    return Placed(np.asarray(after.atoms.cell), trimers,
+                  _centres(decorated, trimers), "trial")
+
+
+#: Trials already run, by net and blocks.
+_TRIALS: dict = {}
+
+
+def _centres(decorated: Decoration, trimers) -> np.ndarray:
+    """Each supertetrahedron's middle: the mean of its four trimers,
+    each brought beside it."""
+    _, incident = _midpoints(decorated.parent_net, decorated.parent_frac)
+    return np.array([np.mean([trimers[k] + np.asarray(s)
+                              for k, s in edges], axis=0)
+                     for edges in incident])
+
+
+def plain_blocks(topology, trimer, face) -> dict:
+    """Node slot -> block for a decorated net: the trimer on every
+    6-c slot, the face on every 3-c one."""
+    return {slot.key: (trimer if slot.coordination == 6 else face)
+            for slot in topology.slots() if not slot.is_edge}
+
+
+def face_reach(block) -> float:
+    """A tritopic block's centre-to-point distance, mean."""
+    positions = np.asarray(block.positions, dtype=float)
+    points = positions[list(block.connections)]
+    middle = points.mean(axis=0)
+    return float(np.mean(np.linalg.norm(points - middle, axis=1)))
+
+
+def donors(decorated, kind: WindowKind, node, placed: Placed,
+           every: int = 1) -> np.ndarray:
+    """Where a filler's donor nitrogens go round one window, A: each
+    taken trimer's open-site line, the trimer's radius and the dative
+    bond out from its centre.  ``every`` takes every so-many-th site,
+    as a ditopic dps takes two of a pacs channel's three."""
+    from xtal.mof.attach import DATIVE_MN
+
+    out = node.radius + DATIVE_MN[node.metal]
+    return np.array([here + out * site
+                     for here, site, _ in _sites(decorated, kind.window,
+                                                 placed)][::every])
+
+
+def requirement(decorated, kind: WindowKind, node, placed: Placed,
+                every: int = 1):
+    """What fills one kind of window: a pyridyl with one donor on
+    each taken site, as a :class:`xtal.mof.linkers.Requirement`.
+
+    Its donor radius is the nitrogens' distance from their centroid,
+    the number :func:`xtal.mof.linkers.profile` measures a block by;
+    a ditopic filler is a span instead, point to point, the points
+    0.75 A in from each nitrogen towards its metal.  This is the cSDA
+    paper's L_T and L_E (SI section 3) on any window of any net, and
+    on sod it is their closed forms to within the tolerance, which is
+    theirs too.
+    """
+    from xtal.mof.block import CONNECTION_DISTANCE
+    from xtal.mof.linkers import Requirement, within
+
+    if kind.size % every:
+        raise DecorationError(
+            f"a {kind.label()} has {kind.size} sites, which taking "
+            f"every {every} does not divide")
+    at = donors(decorated, kind, node, placed, every)
+    topicity = len(at)
+    why = (f"{kind.label()} of {decorated.name} on {node.name}"
+           + (f", every {every}" if every > 1 else ""))
+    if topicity < 2:
+        raise DecorationError(
+            f"taking every {every} of a {kind.label()}'s sites leaves "
+            f"{topicity}, and a filler bridges at least two")
+    if topicity == 2:
+        inward = at.mean(axis=0) - at
+        inward /= np.linalg.norm(inward, axis=1)[:, None]
+        points = at - CONNECTION_DISTANCE * inward
+        value = float(np.linalg.norm(points[0] - points[1]))
+    else:
+        middle = at.mean(axis=0)
+        value = float(np.mean(np.linalg.norm(at - middle, axis=1)))
+    radius = _shape(decorated, kind.window, placed)[0]
+    slack = WINDOW_TOLERANCE + WINDOW_SLACK * radius
+    return Requirement(topicity, value, *within(value, slack),
+                       donor="pyridyl", why=why)
+
+
+def sentence(decorated, kind: WindowKind, node, placed: Placed,
+             every: int = 1) -> str:
+    """The line a person reads: the window, then what fills it.
+
+    "4-ring, 4 sites (4 facing in), radius 7.9 A: a 4-connected
+    pyridyl linker with a donor radius of 5.80 A (5.30-6.30)"."""
+    wanted = requirement(decorated, kind, node, placed, every)
+    across, pucker, inward = _shape(decorated, kind.window, placed)
+    shape = (f"{kind.label()}, {kind.size} sites ({inward} facing "
+             f"in), radius {across:.1f} A")
+    if pucker > 0.05:
+        shape += f", puckered {pucker:.2f}"
+    return f"{shape}: {wanted.sentence()}"
+
+
+# ----------------------------------------------------------------------
+#  Filling them
+# ----------------------------------------------------------------------
+
+#: Open sites a trimer has to give: one per metal.
+OPEN_SITES = 3
+
+
+@dataclass(frozen=True)
+class Fill:
+    """One kind of window to fill, and how many of its sites."""
+
+    kind: WindowKind
+    every: int = 1
+
+    @property
+    def topicity(self) -> int:
+        return self.kind.size // self.every
+
+    def token(self) -> str:
+        """How the filled net's name spells it: ``f4``, ``f6e3``."""
+        return f"f{self.kind.size}" + (f"e{self.every}"
+                                       if self.every > 1 else "")
+
+
+@dataclass(frozen=True, eq=False)
+class Filled:
+    """A decorated net with fillers in some of its windows."""
+
+    decoration: Decoration
+    fills: tuple[Fill, ...]
+    cell: tuple[float, ...]
+    graph_: Graph = field(repr=False)
+    margin: float
+    #: The group the file is written in: the decoration's, or the
+    #: subgroup that keeps a filler's choice of sites (:func:`fill`).
+    group: str = ""
+    #: Which fill each filler node of the graph belongs to, in order.
+    owners: tuple[int, ...] = ()
+
+    @property
+    def lowered(self) -> bool:
+        """Written below the decoration's group, to keep the sites a
+        filler takes apart from the ones it leaves."""
+        return self.group != self.decoration.group
+
+    @property
+    def name(self) -> str:
+        tokens = []
+        for one in self.fills:
+            if one.token() not in tokens:
+                tokens.append(one.token())
+        return "-".join([self.decoration.name] + tokens)
+
+    def graph(self) -> Graph:
+        return self.graph_
+
+    @property
+    def n_trimer_kinds(self) -> int:
+        """How many node lines are trimers: they come first."""
+        return sum(1 for k in self._lines()
+                   if k < len(self.decoration.trimers))
+
+    def _lines(self) -> list[int]:
+        """The graph node each node line of the file stands for."""
+        return _representatives(self.graph_.nodes, _ops(self.group))
+
+    def entry(self):
+        if "_entry" not in self.__dict__:
+            object.__setattr__(self, "_entry", _write(
+                self.name, self.group, self.cell, self.graph_))
+        return self.__dict__["_entry"]
+
+    def topology(self):
+        topology = _topology(self.entry())
+        topology._cache["filled"] = self
+        topology._cache["decorated"] = self
+        return topology
+
+    def filler_slots(self) -> dict[int, Fill]:
+        """Node slot -> the fill whose filler goes there.  Fillers
+        are the last node lines, one per kind in the order filled --
+        or more than one, where a subgroup splits a kind's windows."""
+        first = len(self.decoration.trimers) + len(self.decoration.faces)
+        return {slot: self.fills[self.owners[k - first]]
+                for slot, k in enumerate(self._lines()) if k >= first}
+
+    def __post_init__(self):
+        if not self.group:
+            object.__setattr__(self, "group", self.decoration.group)
+
+
+def _ops(group):
+    from xtal.analysis.rcsr import space_group_operations
+
+    return space_group_operations(group)
+
+
+def fill(decorated: Decoration, fills) -> Filled:
+    """``decorated`` with a filler node at the centre of every window
+    of each :class:`Fill`, bonded to the open site of each trimer it
+    takes -- every one of them, or every ``every``-th round the ring,
+    as a ditopic dps takes two of a pacs channel's three.
+
+    **A filler that takes every other site is written in a subgroup.**
+    sod's 6-ring sits on a -3 axis in Im-3m, which turns the three
+    sites a tritopic filler takes onto the three it leaves, so the
+    file would bond it to all six -- the disorder In-sod-ZMOF-102 is
+    refined with.  In I-43m the axis is 3m and the two triples are
+    apart, which is Co-sod-ZMOF-204: one PYM a 6-ring, each trimer
+    giving it one site.  So the same-cell subgroups are tried from the
+    largest (:data:`LOWER_INDEX`), each window's choice carried round
+    its orbit there; the first that is consistent, gives no trimer more
+    than its open sites -- the most even share first -- and expands
+    back to the graph is the one written.
+
+    Refused by name: a window whose trimers cannot all turn a site to
+    its centre (:data:`SITE_REACH`), a trimer asked for more than its
+    three open sites, and a choice of sites no subgroup keeps.
+    """
+    fills = tuple(fills)
+    for one in fills:
+        kind = one.kind
+        if kind.size % one.every or kind.size // one.every < 2:
+            raise DecorationError(
+                f"taking every {one.every} of a {kind.label()}'s "
+                f"{kind.size} sites leaves no filler to bridge them")
+        if kind.inward < kind.size:
+            raise DecorationError(
+                f"{decorated.name}: only {kind.inward} of a "
+                f"{kind.label()}'s {kind.size} trimers can turn an open "
+                f"site to its centre; the rest stand edge-on to it")
+    # Only a choice its group merges is retried.  Too many sites of
+    # one trimer, or edges PORMAKE cannot tell from non-edges, is the
+    # windows' geometry and not the choice of sites: the most even
+    # choice in the largest group says it, and trying every other
+    # cost rho's 8-rings eight seconds.
+    merged = None
+    for group, extra, owners in _arrangements(decorated, fills):
+        try:
+            return _filled(decorated, fills, group, extra, owners)
+        except _Merged as exc:
+            merged = exc
+    if merged is not None and all(one.every == 1 for one in fills):
+        raise merged
+    name = Filled(decorated, fills, decorated.cell, None, 0.0).name
+    raise DecorationError(
+        f"{name}: the windows' symmetry relates the sites a filler "
+        f"takes to the ones it leaves, so in {decorated.group} it would "
+        f"take them all, and no subgroup in the same cell down to "
+        f"index {LOWER_INDEX} keeps them apart; fill every site")
+
+
+#: How far below the decoration's group a fill may go to keep its
+#: sites apart, as the subgroup's index.  I-43m, the sod-ZMOFs', is 2.
+LOWER_INDEX = 8
+
+#: How many choices of sites are tried in each subgroup, the most
+#: evenly shared first.
+CHOICES = 8
+
+
+def _filled(decorated, fills, group, extra, owners) -> Filled:
+    graph = _graph(decorated.trimers, decorated.faces, extra)
+    over = [k for k, n in enumerate(graph.coordinations[
+        :len(decorated.trimers)]) if n > 6 + OPEN_SITES]
+    if over:
+        raise DecorationError(
+            f"{decorated.name}: these windows ask "
+            f"{graph.coordinations[over[0]] - 6} open sites of a "
+            f"trimer that has {OPEN_SITES}")
+    lattice = _lattice(decorated)
+    bonded, free = _reach(graph, lattice)
+    margin = free / bonded
+    if margin < MIN_MARGIN:
+        raise DecorationError(
+            f"{decorated.name} with its "
+            f"{' and '.join(f.kind.label() + 's' for f in fills)} "
+            f"filled cannot be written with every edge shorter than "
+            f"every non-edge (at best {margin:.2f} times as far, and "
+            f"PORMAKE needs {MIN_MARGIN})")
+    factor = PORMAKE_CUTOFF / np.sqrt(bonded * free)
+    a, b, c, alpha, beta, gamma = decorated.cell
+    filled = Filled(decorated, fills,
+                    (a * factor, b * factor, c * factor,
+                     alpha, beta, gamma), graph, margin, group,
+                    tuple(owners))
+    _check_filled(filled)
+    return filled
+
+
+def _arrangements(decorated, fills):
+    """``(group, extra, owners)`` to try, best first: the decoration's
+    own group, then each same-cell subgroup that keeps the cell as its
+    standard setting names it, by index.  Every site of a window is
+    one arrangement in any group; every ``m``-th is one per choice of
+    offset round each orbit of windows the group leaves."""
+    groups = [(decorated.group, _ops(decorated.group))]
+    if any(one.every > 1 for one in fills):
+        groups += _subgroups(decorated.group)
+    for group, ops in groups:
+        options = []
+        for n, one in enumerate(fills):
+            members = list(one.kind.members)
+            if one.every == 1:
+                options.append([[(n, w, tuple(w.trimers))
+                                  for w in members]])
+                continue
+            options.append(list(_choices(decorated, members, one.every,
+                                         ops, n)))
+            if not options[-1]:
+                break
+        else:
+            found = []
+            for combo in itertools.product(*options):
+                placed = [one for part in combo for one in part]
+                taken = np.zeros(len(decorated.trimers), dtype=int)
+                for _n, _w, chosen in placed:
+                    for k, _shift in chosen:
+                        taken[k] += 1
+                found.append((int(taken.max()), int(np.ptp(taken)),
+                              len(found), placed))
+            found.sort(key=lambda row: row[:3])
+            for *_key, placed in found[:CHOICES]:
+                yield (group,
+                       [(np.asarray(w.centre), list(chosen))
+                        for _n, w, chosen in placed],
+                       [n for n, _w, _c in placed])
+
+
+def _subgroups(group) -> list:
+    """``(name, ops)`` for the subgroups of ``group`` in its own cell
+    and setting, largest first: a filled net is written in one of
+    these by name, so its operations must be what the name expands
+    to, untransformed."""
+    from xtal.analysis.rcsr import space_group_operations
+    from xtal.core import subgroups
+
+    out = []
+    for sub in subgroups.subgroups_of(group):
+        if (sub.sublattice is not None or not sub.keeps_the_cell
+                or sub.index > LOWER_INDEX or sub.group is None):
+            continue
+        ops = [(np.asarray(o.rot, dtype=float),
+                np.mod(np.asarray(o.trans, dtype=float), 1.0))
+               for o in sub.ops]
+        for name in _spellings(sub.group):
+            try:
+                theirs = space_group_operations(name)
+            except (RuntimeError, ValueError):
+                continue
+            if _same_ops(ops, theirs):
+                out.append((sub.index, name, theirs))
+                break
+    out.sort(key=lambda row: row[0])
+    return [(name, ops) for _index, name, ops in out]
+
+
+def _spellings(group) -> list[str]:
+    short = group.short_name
+    return [short, f"{short}:1", f"{short}:2", f"{short}:H",
+            group.hm]
+
+
+def _same_ops(ours, theirs) -> bool:
+    def key(rot, tran):
+        return (tuple(np.round(rot).astype(int).ravel()),
+                tuple(np.round(np.mod(tran, 1.0) * 24).astype(int) % 24))
+
+    return ({key(*op) for op in ours} == {key(*op) for op in theirs})
+
+
+def _choices(decorated, members, every, ops, n):
+    """Every way to take each ``every``-th site of these windows that
+    ``ops`` keeps: one offset per orbit of windows, carried round it.
+    Each is a list of ``(n, window, chosen trimers)``."""
+    centres = np.array([w.centre for w in members])
+    reps = _representatives(centres, ops)
+    per_orbit = []
+    for r in reps:
+        ways = []
+        for offset in range(every):
+            chosen = list(members[r].trimers)[offset::every]
+            carried = _carry(decorated, members, r, chosen, ops)
+            if carried is not None:
+                ways.append([(n, members[m], tuple(sorted(c)))
+                             for m, c in carried.items()])
+        per_orbit.append(ways)
+    for combo in itertools.product(*per_orbit):
+        yield [one for part in combo for one in part]
+
+
+def _carry(decorated, members, r, chosen, ops):
+    """Window index -> the trimers it takes, ``chosen`` at window ``r``
+    carried by every operation; ``None`` if two operations disagree
+    about a window -- the choice is not one the group keeps."""
+    homes = np.mod(decorated.trimers, 1.0)
+    centres = np.array([w.centre for w in members])
+    start = np.asarray(members[r].centre)
+    out: dict[int, frozenset] = {}
+    for rot, tran in ops:
+        there = rot @ start + tran
+        delta = centres - there
+        delta -= np.round(delta)
+        hit = np.flatnonzero((np.abs(delta) < 1e-4).all(axis=1))
+        if not len(hit):
+            continue
+        m = int(hit[0])
+        lattice = np.round(there - centres[m])
+        image = set()
+        for k, shift in chosen:
+            point = rot @ (decorated.trimers[k] + np.asarray(shift)) \
+                + tran - lattice
+            gap = homes - np.mod(point, 1.0)
+            gap -= np.round(gap)
+            match = np.flatnonzero((np.abs(gap) < 1e-4).all(axis=1))
+            if not len(match):
+                return None
+            j = int(match[0])
+            image.add((j, tuple(int(v) for v in
+                                np.round(point - decorated.trimers[j]))))
+        image = frozenset(image)
+        if out.setdefault(m, image) != image:
+            return None
+    # Windows the subgroup does not reach from ``r`` are another of
+    # its orbits, chosen from their own representative.
+    return out
+
+def _check_filled(filled: Filled) -> None:
+    """Expanded, the file must be the graph: a filler whose choice
+    of sites its window's symmetry does not keep comes back bonded to
+    them all."""
+    from xtal.analysis import rcsr
+
+    graph = filled.graph_
+    try:
+        net = rcsr.expand(filled.entry())
+        agrees = (net.n_vertices, len(net.edges)) == (
+            len(graph.nodes), len(graph.edges))
+    except (rcsr.RcsrError, ValueError):
+        # A node with more edges than it declared is the reader's
+        # refusal of the same thing; retrying other settings of the
+        # group then finds none it knows.
+        agrees = False
+    if not agrees:
+        raise _Merged(
+            f"{filled.name}: the windows' symmetry relates the sites "
+            f"a filler takes to the ones it leaves, so in "
+            f"{filled.group} it would take them all; "
+            f"fill every site, or the window in a lower symmetry")
+
+
+#: ``sod-st-f4-f6``: a decorated net and the windows filled in it,
+#: each by size and, after ``e``, how many sites a filler skips.
+_NAME = re.compile(r"^(?P<parent>.+?)" + re.escape(SUFFIX)
+                   + r"(?P<fills>(?:-f\d+(?:e\d+)?)*)$")
+
+
+def parse(name: str):
+    """``(parent, [(size, every), ...])`` for a decorated net's name,
+    or ``None`` for any other."""
+    found = _NAME.match(name)
+    if not found:
+        return None
+    fills = [(int(size), int(every or 1)) for size, every in
+             re.findall(r"-f(\d+)(?:e(\d+))?", found["fills"])]
+    return found["parent"], fills
+
+
+def derived(name: str, source=None):
+    """The topology a decorated net's name spells, or ``None`` if the
+    name is not one.  ``source`` is the parent net when the caller
+    has it (the catalogue's own), or for a filled name the
+    :class:`Decoration` it is filled from; the RCSR's otherwise."""
+    spelled = parse(name)
+    if spelled is None:
+        return None
+    parent, spec = spelled
+    if spec and isinstance(source, Decoration):
+        decorated = source
+    else:
+        decorated = decoration(source if source is not None else parent)
+    if not spec:
+        return decorated.topology()
+    return filled(decorated, spec).topology()
+
+
+def filled(decorated: Decoration, spec) -> Filled:
+    """``decorated`` with every window of each ``(size, every)``
+    filled: all kinds of that size, as lta's two kinds of 4-ring."""
+    spec = tuple((int(size), int(every)) for size, every in spec)
+    return _memo(decorated, ("filled", spec),
+                 lambda: _filled_by_spec(decorated, spec))
+
+
+def _filled_by_spec(decorated: Decoration, spec) -> Filled:
+    largest = max([WINDOW_MAX] + [size for size, _ in spec])
+    kinds = windows(decorated, largest)
+    fills = []
+    for size, every in spec:
+        chosen = [k for k in kinds if k.size == size]
+        if not chosen:
+            have = ", ".join(sorted({str(k.size) for k in kinds}))
+            raise DecorationError(
+                f"{decorated.parent} has no {size}-ring windows (its "
+                f"windows are {have}-rings)")
+        fills += [Fill(k, every) for k in chosen]
+    return fill(decorated, fills)
+
+
+def spelled(parent: str, spec) -> str:
+    """The name of ``parent`` decorated, with the windows of ``spec``
+    (``(size, every)``) filled, smallest first: what :func:`parse`
+    reads back and the catalogue makes on asking."""
+    tokens = [f"-f{size}" + (f"e{every}" if every > 1 else "")
+              for size, every in sorted(spec)]
+    return parent + SUFFIX + "".join(tokens)
+
+
+def choices(decorated: Decoration) -> dict[int, dict[int, str]]:
+    """Every way one size of window can be filled on its own: size ->
+    every -> why it is refused, ``""`` where it is not.  ``every``
+    runs over the divisors that leave a filler two sites or more.
+
+    Each is the fill itself, tried -- a quarter of a second on fau --
+    because whether a choice of sites survives the window's symmetry,
+    or a long filler edge lets PORMAKE read the file by distance, is
+    only known by writing it.  Two sizes allowed alone can still be
+    refused together (a trimer has three open sites).  The builder
+    asks :func:`offered` and then :func:`choice` one at a time, so a
+    click on a net is not three seconds of fills on fau."""
+    out: dict[int, dict[int, str]] = {}
+    for size, everies in offered(decorated).items():
+        out[size] = {every: choice(decorated, size, every)
+                     for every in everies}
+    return out
+
+
+def offered(decorated: Decoration) -> dict[int, tuple[int, ...]]:
+    """size -> the ``every`` a window of that size could be filled
+    with, untried: what :func:`choices` tries."""
+    return {size: tuple(every for every in range(1, size // 2 + 1)
+                        if not size % every)
+            for size in sorted({k.size for k in windows(decorated)})}
+
+
+def choice(decorated: Decoration, size: int, every: int) -> str:
+    """Why filling every ``every``-th site of the ``size``-rings
+    alone is refused, or ``""``: the fill, tried (and kept)."""
+    try:
+        filled(decorated, [(size, every)])
+    except DecorationError as exc:
+        return str(exc)
+    return ""
+
+
+def made_from(topology):
+    """The :class:`Decoration` or :class:`Filled` a catalogue topology
+    was made from, or ``None`` for any other net."""
+    return topology._cache.get("decorated")
+
+
+def roles(topology) -> dict[int, str]:
+    """Node slot -> what goes there, for a decorated net: ``"trimer"``,
+    ``"face"``, or the window a filler fills (``"4-ring"``).  Empty
+    for any other net.  A filled net's trimer slot is 7- to
+    9-connected, and a person picks the six-connected trimer for it
+    (:func:`prepared` makes the twin), so the slot must say so."""
+    made = made_from(topology)
+    if made is None:
+        return {}
+    if isinstance(made, Filled):
+        # Counted in the group the file is written in: a subgroup
+        # splits the trimers into more kinds than the decoration has.
+        n_trimers = made.n_trimer_kinds
+        fillers = made.filler_slots()
+    else:
+        n_trimers = len(_representatives(made.trimers,
+                                         _ops(made.group)))
+        fillers = {}
+    out = {}
+    for slot in range(len(made.entry().nodes)):
+        if slot in fillers:
+            out[slot] = fillers[slot].kind.label()
+        else:
+            out[slot] = "trimer" if slot < n_trimers else "face"
+    return out
+
+
+@dataclass(frozen=True)
+class Asked:
+    """One kind of window, and what fills it on these blocks."""
+
+    kind: WindowKind
+    #: Its place among the kinds of its size: lta has two 4-rings.
+    index: int
+    every: int
+    sentence: str
+    requirement: object = field(repr=False)
+
+
+def asked(decorated: Decoration, catalog, trimer: str, face: str,
+          every: dict | None = None):
+    """``(placed, [Asked, ...])``: one :func:`trial` of ``decorated``
+    on these blocks, then every window kind's :func:`sentence` and
+    :func:`requirement`, ``every`` (size -> every) choosing how many
+    sites a filler takes.  ``trimer`` may name a twin; its windows are
+    worked out on the trimer it came from.  A kind whose sites
+    ``every`` does not divide is left out."""
+    from xtal.mof.partition import node_geometry
+    from xtal.mof.trimer import untwinned
+
+    every = every or {}
+    block = catalog.building_block(untwinned(trimer))
+    face_block = catalog.building_block(face)
+    node = node_geometry(block)
+    placed = trial(decorated, plain_blocks(decorated.topology(), block,
+                                           face_block))
+    out, seen = [], {}
+    for kind in windows(decorated):
+        index = seen.get(kind.size, 0)
+        seen[kind.size] = index + 1
+        step = int(every.get(kind.size, 1))
+        try:
+            wanted = requirement(decorated, kind, node, placed, step)
+        except DecorationError:
+            continue
+        out.append(Asked(kind, index, step,
+                         sentence(decorated, kind, node, placed, step),
+                         wanted))
+    return placed, out
+
+
+def rough(decorated: Decoration, catalog, trimer: str, face: str,
+          every: dict | None = None) -> dict:
+    """size -> ``(radius, requirement or None)`` for each size of
+    window, on :func:`estimate`'s instant scale rather than a
+    :func:`trial`: how far its trimers sit from its middle, A, and
+    what fills it, both a rough size -- the scale is 5-9 % out, which
+    is what *Suggest fillers* is for.  The first kind of a size
+    stands for it; ``every`` as :func:`asked` takes it."""
+    from xtal.mof.partition import node_geometry
+    from xtal.mof.trimer import untwinned
+
+    every = every or {}
+    node = node_geometry(catalog.building_block(untwinned(trimer)))
+    placed = estimate(decorated, node, catalog.building_block(face))
+    out = {}
+    for kind in windows(decorated):
+        if kind.size in out:
+            continue
+        radius = _shape(decorated, kind.window, placed)[0]
+        try:
+            wanted = requirement(decorated, kind, node, placed,
+                                 int(every.get(kind.size, 1)))
+        except DecorationError:
+            wanted = None
+        out[kind.size] = (radius, wanted)
+    return out
+
+
+# ----------------------------------------------------------------------
+#  Building one
+# ----------------------------------------------------------------------
+
+def prepared(request, catalog, folder):
+    """``(request, catalog)`` for a build on a filled net, with the
+    blocks it needs that are not blocks yet written into ``folder``.
+
+    A trimer slot of 7 to 9 named with a 6-connected trimer takes its
+    twin (:func:`xtal.mof.trimer.write_twin`) with as many open sites
+    made points; a filler named from the isoreticular series
+    (:func:`xtal.mof.linkers.stored`) is embedded from its SMILES.
+    Anything already a block of the right count is used as it is.
+    """
+    from dataclasses import replace
+
+    from xtal.mof.build import MofError
+    from xtal.mof.catalog import Catalog, CatalogError
+    from xtal.mof.trimer import TrimerError, twin_name, write_twin
+
+    topology = catalog.topology(request.topology)
+    blocks = Path(folder) / "blocks"
+    nodes = dict(request.nodes)
+    made = topology._cache.get("filled")
+    if made is not None:
+        _refuse_misfits(made, nodes, catalog)
+    wrote = False
+    for slot in topology.slots():
+        name = nodes.get(slot.key) if not slot.is_edge else None
+        if not name:
+            continue
+        try:
+            block = catalog.building_block(name)
+        except CatalogError:
+            block = None
+        if block is not None and block.n_connections == slot.coordination:
+            continue
+        if (block is not None and block.n_connections == 6
+                and 6 < slot.coordination <= 6 + OPEN_SITES):
+            count = slot.coordination - 6
+            try:
+                write_twin(block.path, blocks, count=count)
+            except TrimerError as exc:
+                raise MofError(f"{name}: {exc}") from None
+            nodes[slot.key] = twin_name(name, count)
+            wrote = True
+        elif block is None:
+            _write_series(name, blocks)
+            wrote = True
+    if not wrote:
+        return request, catalog
+    widened = Catalog(catalog.topology_dirs, catalog.bb_dirs + (blocks,))
+    # The made net, so the wider catalogue does not make it again.
+    widened._made[request.topology] = topology
+    return replace(request, nodes=nodes), widened
+
+
+def _write_series(name: str, folder: Path) -> None:
+    from xtal.build import chem
+    from xtal.mof import invent, linkers
+    from xtal.mof.build import MofError
+
+    found = linkers.generated(name)
+    # A new molecule's name is known without RDKit; making it is not.
+    spelled = found is not None or invent.by_name_is_one(name)
+    if spelled and not chem.installed():
+        raise MofError(f"building {name} from its SMILES needs the "
+                       f"'build' extra (RDKit)")
+    if found is None:
+        raise MofError(f"no building block called {name!r}, and no "
+                       f"generated linker either")
+    linkers.write_block(found, folder)
+
+
+def _refuse_misfits(made: Filled, nodes, catalog) -> None:
+    """Every filler must be inside what its window asks, before
+    anything is built: a donor radius three times too large builds,
+    with a metal-nitrogen bond of 0.6 A where the scaler gave up."""
+    from xtal.mof import linkers
+    from xtal.mof.build import MofError
+    from xtal.mof.catalog import CatalogError
+    from xtal.mof.partition import node_geometry
+    from xtal.mof.trimer import TrimerError
+
+    trimer = nodes.get(0)
+    face = nodes.get(made.n_trimer_kinds)
+    if not trimer or not face:
+        return                      # _resolve says what is missing
+    try:
+        node = node_geometry(catalog.building_block(trimer))
+        face_block = catalog.building_block(face)
+    except (CatalogError, TrimerError) as exc:
+        raise MofError(f"{made.name}: {exc}") from None
+    placed = None
+    for slot, one in made.filler_slots().items():
+        name = nodes.get(slot)
+        if not name:
+            continue
+        if placed is None:
+            decorated = made.decoration
+            placed = trial(decorated, plain_blocks(
+                decorated.topology(), catalog.building_block(trimer),
+                face_block))
+        wanted = requirement(made.decoration, one.kind, node, placed,
+                             one.every)
+        offered = _candidate(name, catalog, linkers)
+        if offered is None:
+            continue
+        if not wanted.admits(offered):
+            raise MofError(
+                f"{name} has a {wanted.measure} of "
+                f"{offered.value:.2f} A, and the "
+                f"{one.kind.label()}s of {made.decoration.name} on "
+                f"{node.name} with {face} ask for {wanted.value:.2f} "
+                f"({wanted.low:.2f}-{wanted.high:.2f}); it would be "
+                f"built strained or not at all")
+
+
+def _candidate(name, catalog, linkers):
+    from xtal.mof.catalog import CatalogError
+
+    try:
+        return linkers.profile(catalog.building_block(name))
+    except CatalogError:
+        pass
+    return linkers.generated(name)
+
+
+#: How far a built metal-nitrogen bond may be from the dative length
+#: before the build says so, A.  Rigid blocks leave pacs 0.1-0.2 A
+#: short; TPyP in TATB's 4-rings, which the window admits and
+#: In-sod-ZMOF-320 is made of, built In-N at 1.41-1.86 against 2.25,
+#: and it is relaxing that closes them.
+DATIVE_SLACK = 0.3
+
+
+@dataclass(frozen=True)
+class Said:
+    """What a build on a decorated net reports about itself."""
+
+    lines: tuple[str, ...]
+    warning: str = ""
+
+
+def report(topology, framework, structure) -> Said | None:
+    """T-O-T as built and the filler's metal-nitrogen bonds, for a
+    build on a decorated net: read off the scaled net the build itself
+    left, so it costs nothing.  ``None`` for any other net, and for a
+    repeated cell, whose slots are not the file's."""
+    from xtal.mof.attach import DATIVE_MN
+    from xtal.mof.partition import measured_dative
+
+    net = topology._cache.get("decorated")
+    scaled = framework.info.get("topology")
+    if net is None or scaled is None:
+        return None
+    before = topology.expanded()
+    if before.n_slots != scaled.n_slots:
+        return None
+    decorated = getattr(net, "decoration", net)
+    tot = placed_from(net, before, scaled).tot(decorated)
+    lines = [f"T-O-T as built {tot.min():.1f}-{tot.max():.1f} degrees "
+             f"(180 on the net as drawn)"]
+    warning = ""
+    bonds = measured_dative(structure)
+    metals = {s for s in structure.elements if s in DATIVE_MN}
+    if bonds and len(metals) == 1:
+        metal = metals.pop()
+        target = DATIVE_MN[metal]
+        lines.append(f"{len(bonds)} {metal}-N bonds as built, "
+                     f"{min(bonds):.2f}-{max(bonds):.2f} A against "
+                     f"{target:.2f}")
+        worst = max(bonds, key=lambda b: abs(b - target))
+        if abs(worst - target) > DATIVE_SLACK:
+            warning = (f"the fillers sit {abs(worst - target):.2f} A "
+                       f"off the dative length ({metal}-N {worst:.2f} "
+                       f"against {target:.2f}): the blocks were placed "
+                       f"rigid, so relax before reading the cell or the "
+                       f"bonds")
+    return Said(tuple(lines), warning)

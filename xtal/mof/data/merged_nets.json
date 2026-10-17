@@ -1,0 +1,24858 @@
+[
+{
+"name": "aca",
+"type": "3p-3p",
+"parents": [
+"ssa",
+"acs"
+],
+"parent_cn": [
+"4,4",
+"6"
+],
+"cn": [
+"4",
+"2+4=6",
+"6"
+],
+"ratio": [
+"0.905",
+"0.933"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "aca"
+}
+]
+},
+{
+"name": "acb",
+"type": "3p-3p",
+"parents": [
+"ssa",
+"acs"
+],
+"parent_cn": [
+"4,4",
+"6"
+],
+"cn": [
+"4",
+"2+4=6",
+"6"
+],
+"ratio": [
+"0.949",
+"0.895"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ach",
+"type": "3p-3p",
+"parents": [
+"acs",
+"shp"
+],
+"parent_cn": [
+"6",
+"4,12"
+],
+"cn": [
+"6",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.638",
+"0.825"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ald",
+"type": "3p-3p",
+"parents": [
+"shp",
+"alb"
+],
+"parent_cn": [
+"4,12",
+"6,12"
+],
+"cn": [
+"4",
+"6",
+"12+12=24"
+],
+"ratio": [
+"0.935",
+"0.894"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "alb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ale",
+"type": "3p-3p",
+"parents": [
+"stp",
+"alb"
+],
+"parent_cn": [
+"4,6",
+"6,12"
+],
+"cn": [
+"4",
+"12",
+"6+6=12"
+],
+"ratio": [
+"0.791",
+"0.779"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "alb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "anl",
+"type": "3p-3p",
+"parents": [
+"ana",
+"lcs"
+],
+"parent_cn": [
+"4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.655",
+"0.677"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "lcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ana"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "anl"
+}
+]
+},
+{
+"name": "ast-d",
+"type": "3p-3p",
+"parents": [
+"fcu",
+"pcu"
+],
+"parent_cn": [
+"12",
+"6"
+],
+"cn": [
+"2",
+"6",
+"12+6=18"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"proposed": [
+"M4a_M2a-6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ast-d"
+}
+]
+},
+{
+"name": "bob",
+"type": "3p-3p",
+"parents": [
+"bor",
+"nbo"
+],
+"parent_cn": [
+"3,4",
+"4"
+],
+"cn": [
+"3",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bof",
+"type": "3p-3p",
+"parents": [
+"bor",
+"fcu"
+],
+"parent_cn": [
+"3,4",
+"12"
+],
+"cn": [
+"3",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.577",
+"0.576"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bsc",
+"type": "3p-3p",
+"parents": [
+"bcs",
+"ctn"
+],
+"parent_cn": [
+"6",
+"3,4"
+],
+"cn": [
+"2",
+"4",
+"6+3=9"
+],
+"ratio": [
+"0.645",
+"0.634"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ctn"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bsl",
+"type": "3p-3p",
+"parents": [
+"lcs",
+"bcs"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"4",
+"2+2=4",
+"6"
+],
+"ratio": [
+"0.729",
+"0.721"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "lcs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bsu",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"bcs"
+],
+"parent_cn": [
+"6",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "buo",
+"type": "3p-3p",
+"parents": [
+"soc",
+"bcu"
+],
+"parent_cn": [
+"4,6",
+"8"
+],
+"cn": [
+"4",
+"8",
+"6+2=8"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bus",
+"type": "3p-3p",
+"parents": [
+"she",
+"bcu"
+],
+"parent_cn": [
+"4,6",
+"8"
+],
+"cn": [
+"4",
+"8",
+"6+2=8"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "crd",
+"type": "3p-3p",
+"parents": [
+"crs",
+"dia"
+],
+"parent_cn": [
+"6",
+"4"
+],
+"cn": [
+"2",
+"4",
+"2+6=8"
+],
+"ratio": [
+"0.612",
+"0.612"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "crd"
+}
+]
+},
+{
+"name": "crh",
+"type": "3p-3p",
+"parents": [
+"crs",
+"hxg"
+],
+"parent_cn": [
+"6",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"1",
+"1"
+],
+"proposed": [
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "crn",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"crs"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"2",
+"6",
+"2+4=6"
+],
+"ratio": [
+"0.867",
+"0.761"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "csc",
+"type": "3p-3p",
+"parents": [
+"csq",
+"acs"
+],
+"parent_cn": [
+"4,8",
+"6"
+],
+"cn": [
+"4",
+"6",
+"2+8=10"
+],
+"ratio": [
+"0.949",
+"0.899"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "csq"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "aca"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ctl",
+"type": "3p-3p",
+"parents": [
+"ctn",
+"lcs"
+],
+"parent_cn": [
+"3,4",
+"4"
+],
+"cn": [
+"3",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.884",
+"0.882"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ctn"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "lcs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ctp",
+"type": "3p-3p",
+"parents": [
+"csq",
+"stp"
+],
+"parent_cn": [
+"4,8",
+"4,6"
+],
+"cn": [
+"4",
+"6",
+"8+4=12"
+],
+"ratio": [
+"0.949",
+"0.895"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "csq"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "dif",
+"type": "3p-3p",
+"parents": [
+"fcu",
+"dia"
+],
+"parent_cn": [
+"12",
+"4"
+],
+"cn": [
+"2",
+"4",
+"12+4=16"
+],
+"ratio": [
+"0.612",
+"0.612"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "epr",
+"type": "3p-3p",
+"parents": [
+"pto",
+"sod"
+],
+"parent_cn": [
+"3,4",
+"4"
+],
+"cn": [
+"3",
+"4",
+"4+4=8"
+],
+"ratio": [
+"1",
+"1"
+],
+"proposed": [
+"M2a-6a",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pto"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "epr"
+}
+]
+},
+{
+"name": "flf",
+"type": "3p-3p",
+"parents": [
+"fcu",
+"flu"
+],
+"parent_cn": [
+"12",
+"4,8"
+],
+"cn": [
+"2",
+"4",
+"12+8=20"
+],
+"ratio": [
+"0.612",
+"0.612"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flh",
+"type": "3p-3p",
+"parents": [
+"she",
+"flu"
+],
+"parent_cn": [
+"4,6",
+"4,8"
+],
+"cn": [
+"4",
+"8",
+"4+6=10"
+],
+"ratio": [
+"0.817",
+"0.821"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+9,
+[
+1,
+8
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flp",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"flu"
+],
+"parent_cn": [
+"6",
+"4,8"
+],
+"cn": [
+"2",
+"8",
+"6+4=10"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flr",
+"type": "3p-3p",
+"parents": [
+"pyr",
+"flu"
+],
+"parent_cn": [
+"3,6",
+"4,8"
+],
+"cn": [
+"3",
+"4",
+"6+8=14"
+],
+"ratio": [
+"0.943",
+"0.942"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fls",
+"type": "3p-3p",
+"parents": [
+"soc",
+"flu"
+],
+"parent_cn": [
+"4,6",
+"4,8"
+],
+"cn": [
+"4",
+"8",
+"4+6=10"
+],
+"ratio": [
+"0.817",
+"0.821"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+9,
+[
+1,
+8
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3,
+"name": "xba"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "dpe"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 0,
+"shape": [
+15,
+[
+4,
+8
+]
+]
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwx",
+"type": "3p-3p",
+"parents": [
+"ftw",
+"bcu"
+],
+"parent_cn": [
+"4,12",
+"8"
+],
+"cn": [
+"4",
+"8",
+"2+12=14"
+],
+"ratio": [
+"0.817",
+"0.815"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwf",
+"type": "3p-3p",
+"parents": [
+"ftw",
+"flu"
+],
+"parent_cn": [
+"4,12",
+"4,8"
+],
+"cn": [
+"4",
+"8",
+"12+4=16"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwo",
+"type": "3p-3p",
+"parents": [
+"tbo",
+"ftw"
+],
+"parent_cn": [
+"3,4",
+"4,12"
+],
+"cn": [
+"3",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.577",
+"0.575"
+],
+"proposed": [
+"M2a-6a_M3b_M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwp",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"ftw"
+],
+"parent_cn": [
+"6",
+"4,12"
+],
+"cn": [
+"2",
+"4",
+"6+12=18"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"proposed": [
+"M3a-4a",
+"M3a4a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwv",
+"type": "3p-3p",
+"parents": [
+"bor",
+"ftw"
+],
+"parent_cn": [
+"3,4",
+"4,12"
+],
+"cn": [
+"3",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwt",
+"type": "3p-3p",
+"parents": [
+"the",
+"ftw"
+],
+"parent_cn": [
+"3,8",
+"4,12"
+],
+"cn": [
+"3",
+"12",
+"8+4=12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "gal",
+"type": "3p-3p",
+"parents": [
+"lcs",
+"gar"
+],
+"parent_cn": [
+"4",
+"4,6"
+],
+"cn": [
+"2",
+"6",
+"4+4=8"
+],
+"ratio": [
+"0.913",
+"0.913"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "lcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "gar"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "gal"
+}
+]
+},
+{
+"name": "gas",
+"type": "3p-3p",
+"parents": [
+"bcs",
+"gar"
+],
+"parent_cn": [
+"6",
+"4,6"
+],
+"cn": [
+"2",
+"4",
+"6+6=12"
+],
+"ratio": [
+"0.645",
+"0.645"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "gar"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hxd",
+"type": "3p-3p",
+"parents": [
+"dia",
+"hxg"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"4",
+"6",
+"2+6=8"
+],
+"ratio": [
+"0.612",
+"0.612"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hxn",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"hxg"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"4",
+"2+2=4",
+"6"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hxp",
+"type": "3p-3p",
+"parents": [
+"hxg",
+"pcu"
+],
+"parent_cn": [
+"6",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hxs",
+"type": "3p-3p",
+"parents": [
+"sod",
+"hxg"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"2",
+"6",
+"2+4=6"
+],
+"ratio": [
+"1",
+"1"
+],
+"proposed": [
+"M6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "hxs"
+}
+]
+},
+{
+"name": "ias",
+"type": "3p-3p",
+"parents": [
+"bcs",
+"iac"
+],
+"parent_cn": [
+"6",
+"4,6"
+],
+"cn": [
+"2",
+"4",
+"6+6=12"
+],
+"ratio": [
+"0.645",
+"0.645"
+],
+"proposed": [
+"M2a-6a",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "iac"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ifc",
+"type": "3p-3p",
+"parents": [
+"ssc",
+"ifi"
+],
+"parent_cn": [
+"4,4",
+"4,6"
+],
+"cn": [
+"4",
+"6",
+"4+4=8"
+],
+"ratio": [
+"1",
+"1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ifi"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ifl",
+"type": "3p-3p",
+"parents": [
+"lcv",
+"ifi"
+],
+"parent_cn": [
+"4",
+"4,6"
+],
+"cn": [
+"2",
+"6",
+"4+4=8"
+],
+"ratio": [
+"0.655",
+"0.655"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ifi"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "lcv"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ifr",
+"type": "3p-3p",
+"parents": [
+"srs",
+"ifi"
+],
+"parent_cn": [
+"3",
+"4,6"
+],
+"cn": [
+"3",
+"6",
+"2+4=6"
+],
+"ratio": [
+"0.378",
+"0.378"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ifi"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ifs",
+"type": "3p-3p",
+"parents": [
+"srs",
+"ifi"
+],
+"parent_cn": [
+"3",
+"4,6"
+],
+"cn": [
+"2",
+"4",
+"3+6=9"
+],
+"ratio": [
+"0.756",
+"0.756"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ifi"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "itb",
+"type": "3p-3p",
+"parents": [
+"bcu",
+"ith"
+],
+"parent_cn": [
+"8",
+"4,12"
+],
+"cn": [
+"2",
+"4",
+"8+12=20"
+],
+"ratio": [
+"0.645",
+"0.645"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ith"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "itp",
+"type": "3p-3p",
+"parents": [
+"pto",
+"ith"
+],
+"parent_cn": [
+"3,4",
+"4,12"
+],
+"cn": [
+"3",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.632",
+"0.632"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ith"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pto"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "its",
+"type": "3p-3p",
+"parents": [
+"sod",
+"ith"
+],
+"parent_cn": [
+"4",
+"4,12"
+],
+"cn": [
+"4",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.632",
+"0.632"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ith"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "kfo",
+"type": "3p-3p",
+"parents": [
+"dia",
+"mgc"
+],
+"parent_cn": [
+"4",
+"6,12"
+],
+"cn": [
+"4",
+"2+6=8",
+"12"
+],
+"ratio": [
+"0.522",
+"0.522"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "kfo"
+}
+]
+},
+{
+"name": "lvs",
+"type": "3p-3p",
+"parents": [
+"lcv",
+"srs"
+],
+"parent_cn": [
+"4",
+"3"
+],
+"cn": [
+"2",
+"3",
+"2+4=6"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "lcv"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "lvs"
+}
+]
+},
+{
+"name": "lys",
+"type": "3p-3p",
+"parents": [
+"lcy",
+"srs"
+],
+"parent_cn": [
+"6",
+"3"
+],
+"cn": [
+"2",
+"3",
+"3+6=9"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "lcy"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgh",
+"type": "3p-3p",
+"parents": [
+"hxg",
+"mgc"
+],
+"parent_cn": [
+"6",
+"6,12"
+],
+"cn": [
+"6",
+"6+6=12",
+"12"
+],
+"ratio": [
+"0.853",
+"0.853"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgi",
+"type": "3p-3p",
+"parents": [
+"dia",
+"mgc"
+],
+"parent_cn": [
+"4",
+"6,12"
+],
+"cn": [
+"2",
+"6",
+"4+12=16"
+],
+"ratio": [
+"0.957",
+"0.957"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgr",
+"type": "3p-3p",
+"parents": [
+"crs",
+"mgc"
+],
+"parent_cn": [
+"6",
+"6,12"
+],
+"cn": [
+"2",
+"12",
+"6+6=12"
+],
+"ratio": [
+"0.853",
+"0.853"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgs",
+"type": "3p-3p",
+"parents": [
+"spn",
+"mgc"
+],
+"parent_cn": [
+"3,6",
+"6,12"
+],
+"cn": [
+"3",
+"12",
+"6+6=12"
+],
+"ratio": [
+"0.492",
+"0.492"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nbf",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"fcu"
+],
+"parent_cn": [
+"4",
+"12"
+],
+"cn": [
+"4",
+"4+2=6",
+"12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nbo-x-d",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"bcu"
+],
+"parent_cn": [
+"6",
+"8"
+],
+"cn": [
+"2",
+"8",
+"2+6=8"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "nbo-x-d"
+}
+]
+},
+{
+"name": "nic",
+"type": "3p-3p",
+"parents": [
+"acs",
+"nia"
+],
+"parent_cn": [
+"6",
+"6,6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.824",
+"0.894"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nku",
+"type": "3p-3p",
+"parents": [
+"ana",
+"bcs"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"2",
+"6",
+"2+4=6"
+],
+"ratio": [
+"0.984",
+"0.962"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ana"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "nku"
+}
+]
+},
+{
+"name": "nso",
+"type": "3p-3p",
+"parents": [
+"sod",
+"nbo"
+],
+"parent_cn": [
+"4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "nso"
+}
+]
+},
+{
+"name": "occ",
+"type": "3p-3p",
+"parents": [
+"scu",
+"ocu"
+],
+"parent_cn": [
+"4,8",
+"6,8"
+],
+"cn": [
+"4",
+"8",
+"6+8=14"
+],
+"ratio": [
+"0.817",
+"0.845"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+3
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocf",
+"type": "3p-3p",
+"parents": [
+"ftw",
+"ocu"
+],
+"parent_cn": [
+"4,12",
+"6,8"
+],
+"cn": [
+"4",
+"8",
+"6+12=18"
+],
+"ratio": [
+"0.817",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocw",
+"type": "3p-3p",
+"parents": [
+"she",
+"ocu"
+],
+"parent_cn": [
+"4,6",
+"6,8"
+],
+"cn": [
+"4",
+"8",
+"6+6=12"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocp",
+"type": "3p-3p",
+"parents": [
+"pto",
+"ocu"
+],
+"parent_cn": [
+"3,4",
+"6,8"
+],
+"cn": [
+"4",
+"8",
+"3+6=9"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pto"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocs",
+"type": "3p-3p",
+"parents": [
+"soc",
+"ocu"
+],
+"parent_cn": [
+"4,6",
+"6,8"
+],
+"cn": [
+"4",
+"8",
+"6+6=12"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"proposed": [
+"M2a-6a",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pco",
+"type": "3p-3p",
+"parents": [
+"bor",
+"pcu"
+],
+"parent_cn": [
+"3,4",
+"6"
+],
+"cn": [
+"3",
+"4+2=6",
+"6"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcp",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"pto"
+],
+"parent_cn": [
+"6",
+"3,4"
+],
+"cn": [
+"2",
+"4",
+"6+3=9"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pto"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pct",
+"type": "3p-3p",
+"parents": [
+"tbo",
+"pcu"
+],
+"parent_cn": [
+"3,4",
+"6"
+],
+"cn": [
+"3",
+"4+2=6",
+"6"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "phq",
+"type": "3p-3p",
+"parents": [
+"qtz",
+"pth"
+],
+"parent_cn": [
+"4",
+"4,4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.707",
+"0.913"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pth"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "qtz"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pht",
+"type": "3p-3p",
+"parents": [
+"pth",
+"qtz"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"4",
+"4",
+"4+4=8"
+],
+"ratio": [
+"1",
+"1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pth"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "qtz"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pop",
+"type": "3p-3p",
+"parents": [
+"soc",
+"pto"
+],
+"parent_cn": [
+"4,6",
+"3,4"
+],
+"cn": [
+"4",
+"4",
+"6+3=9"
+],
+"ratio": [
+"1",
+"1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pto"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pop"
+}
+]
+},
+{
+"name": "psb",
+"type": "3p-3p",
+"parents": [
+"bcu",
+"pts"
+],
+"parent_cn": [
+"8",
+"4,4"
+],
+"cn": [
+"2",
+"4",
+"8+4=12"
+],
+"ratio": [
+"0.612",
+"0.678"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pts"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pyi",
+"type": "3p-3p",
+"parents": [
+"pyr",
+"dia"
+],
+"parent_cn": [
+"3,6",
+"4"
+],
+"cn": [
+"3",
+"4",
+"4+6=10"
+],
+"ratio": [
+"0.943",
+"0.942"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "cys"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pyp",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"pyr"
+],
+"parent_cn": [
+"6",
+"3,6"
+],
+"cn": [
+"2",
+"6",
+"6+3=9"
+],
+"ratio": [
+"0.775",
+"0.825"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pyu",
+"type": "3p-3p",
+"parents": [
+"fcu",
+"pyr"
+],
+"parent_cn": [
+"12",
+"3,6"
+],
+"cn": [
+"2",
+"3",
+"12+6=18"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pyy",
+"type": "3p-3p",
+"parents": [
+"pyr",
+"pcu"
+],
+"parent_cn": [
+"3,6",
+"6"
+],
+"cn": [
+"3",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "qtq",
+"type": "3p-3p",
+"parents": [
+"qtz",
+"qtz"
+],
+"parent_cn": [
+"4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.548",
+"0.566"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "qtz"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "qtz"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "reb",
+"type": "3p-3p",
+"parents": [
+"reo",
+"bor"
+],
+"parent_cn": [
+"8",
+"3,4"
+],
+"cn": [
+"2",
+"3",
+"8+4=12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ren",
+"type": "3p-3p",
+"parents": [
+"reo",
+"nbo"
+],
+"parent_cn": [
+"8",
+"4"
+],
+"cn": [
+"2",
+"4",
+"8+4=12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "reo-d",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"bcu"
+],
+"parent_cn": [
+"6",
+"8"
+],
+"cn": [
+"2",
+"8",
+"6+8=14"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "reo-d"
+}
+]
+},
+{
+"name": "rep",
+"type": "3p-3p",
+"parents": [
+"reo",
+"pcu"
+],
+"parent_cn": [
+"8",
+"6"
+],
+"cn": [
+"2",
+"6",
+"2+8=10"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ret",
+"type": "3p-3p",
+"parents": [
+"reo",
+"tbo"
+],
+"parent_cn": [
+"8",
+"3,4"
+],
+"cn": [
+"2",
+"3",
+"4+8=12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhb",
+"type": "3p-3p",
+"parents": [
+"tbo",
+"rht"
+],
+"parent_cn": [
+"3,4",
+"3,24"
+],
+"cn": [
+"4",
+"3+3=6",
+"24"
+],
+"ratio": [
+"0.5",
+"0.5"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhc",
+"type": "3p-3p",
+"parents": [
+"rht",
+"pcu"
+],
+"parent_cn": [
+"3,24",
+"6"
+],
+"cn": [
+"3",
+"6",
+"24+6=30"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhd",
+"type": "3p-3p",
+"parents": [
+"rht",
+"dia"
+],
+"parent_cn": [
+"3,24",
+"4"
+],
+"cn": [
+"3",
+"4",
+"4+24=28"
+],
+"ratio": [
+"0.943",
+"0.943"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhf",
+"type": "3p-3p",
+"parents": [
+"rht",
+"flu"
+],
+"parent_cn": [
+"3,24",
+"4,8"
+],
+"cn": [
+"3",
+"4",
+"8+24=32"
+],
+"ratio": [
+"0.943",
+"0.943"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rht-x",
+"type": "3p-3p",
+"parents": [
+"fcu",
+"rht"
+],
+"parent_cn": [
+"12",
+"3,24"
+],
+"cn": [
+"2",
+"3",
+"12+24=36"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"proposed": [
+"M2a-12a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "rht-x"
+}
+]
+},
+{
+"name": "scc",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"soc"
+],
+"parent_cn": [
+"6",
+"4,6"
+],
+"cn": [
+"2",
+"4",
+"6+6=12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"proposed": [
+"M2a-6a",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "tam"
+}
+]
+},
+{
+"name": "szz",
+"type": "3p-3p",
+"parents": [
+"rhr",
+"sod"
+],
+"parent_cn": [
+"4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.577",
+"0.629"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rhr"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ses",
+"type": "3p-3p",
+"parents": [
+"sod",
+"she"
+],
+"parent_cn": [
+"4",
+"4,6"
+],
+"cn": [
+"2",
+"6",
+"4+4=8"
+],
+"ratio": [
+"1",
+"1"
+],
+"proposed": [
+"M2a-6a",
+"M3a-4a",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ses"
+}
+]
+},
+{
+"name": "sha",
+"type": "3p-3p",
+"parents": [
+"shp",
+"acs"
+],
+"parent_cn": [
+"4,12",
+"6"
+],
+"cn": [
+"4",
+"6",
+"6+12=18"
+],
+"ratio": [
+"0.905",
+"0.897"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shu",
+"type": "3p-3p",
+"parents": [
+"csq",
+"shp"
+],
+"parent_cn": [
+"4,8",
+"4,12"
+],
+"cn": [
+"4",
+"12",
+"8+4=12"
+],
+"ratio": [
+"0.707",
+"0.734"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "csq"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shn",
+"type": "3p-3p",
+"parents": [
+"shp",
+"nia"
+],
+"parent_cn": [
+"4,12",
+"6,6"
+],
+"cn": [
+"4",
+"6",
+"6+12=18"
+],
+"ratio": [
+"0.905",
+"0.896"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sho",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"she"
+],
+"parent_cn": [
+"4",
+"4,6"
+],
+"cn": [
+"4",
+"2+4=6",
+"6"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"proposed": [
+"M4a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "sho"
+}
+]
+},
+{
+"name": "shr",
+"type": "3p-3p",
+"parents": [
+"ssa",
+"shp"
+],
+"parent_cn": [
+"4,4",
+"4,12"
+],
+"cn": [
+"4",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.577",
+"0.71"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "spc",
+"type": "3p-3p",
+"parents": [
+"crs",
+"spn"
+],
+"parent_cn": [
+"6",
+"3,6"
+],
+"cn": [
+"2",
+"3",
+"6+6=12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "spd",
+"type": "3p-3p",
+"parents": [
+"spn",
+"dia"
+],
+"parent_cn": [
+"3,6",
+"4"
+],
+"cn": [
+"3",
+"4",
+"6+2=8"
+],
+"ratio": [
+"0.943",
+"0.943"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sph",
+"type": "3p-3p",
+"parents": [
+"spn",
+"hxg"
+],
+"parent_cn": [
+"3,6",
+"6"
+],
+"cn": [
+"3",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"proposed": [
+"M2a-6a",
+"M8a"
+],
+"made": [
+"Tb-sph-MOF-6",
+"Tb-sph-MOF-3"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "sph"
+}
+]
+},
+{
+"name": "sqd",
+"type": "3p-3p",
+"parents": [
+"dia",
+"sqc"
+],
+"parent_cn": [
+"4",
+"4,8"
+],
+"cn": [
+"2",
+"4",
+"4+8=12"
+],
+"ratio": [
+"0.732",
+"0.922"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "sqc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sqv",
+"type": "3p-3p",
+"parents": [
+"lvt",
+"sqc"
+],
+"parent_cn": [
+"4",
+"4,8"
+],
+"cn": [
+"2",
+"8",
+"4+4=8"
+],
+"ratio": [
+"0.791",
+"1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "lvt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sqc"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ssl",
+"type": "3p-3p",
+"parents": [
+"lcv",
+"ssc"
+],
+"parent_cn": [
+"4",
+"4,4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.655",
+"0.655"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "lcv"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ssc"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ssr",
+"type": "3p-3p",
+"parents": [
+"srs",
+"ssc"
+],
+"parent_cn": [
+"3",
+"4,4"
+],
+"cn": [
+"3",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.378",
+"0.378"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "srs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ssu",
+"type": "3p-3p",
+"parents": [
+"ssb",
+"bcu"
+],
+"parent_cn": [
+"4,4",
+"8"
+],
+"cn": [
+"4",
+"2+4=6",
+"8"
+],
+"ratio": [
+"0.775",
+"0.88"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "stt",
+"type": "3p-3p",
+"parents": [
+"ssa",
+"stp"
+],
+"parent_cn": [
+"4,4",
+"4,6"
+],
+"cn": [
+"4",
+"6",
+"4+4=8"
+],
+"ratio": [
+"0.949",
+"0.887"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "aca"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sub",
+"type": "3p-3p",
+"parents": [
+"scu",
+"bcu"
+],
+"parent_cn": [
+"4,8",
+"8"
+],
+"cn": [
+"4",
+"8",
+"8+8=16"
+],
+"ratio": [
+"0.775",
+"0.837"
+],
+"proposed": [
+"M6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "suc",
+"type": "3p-3p",
+"parents": [
+"scu",
+"bcu"
+],
+"parent_cn": [
+"4,8",
+"8"
+],
+"cn": [
+"4",
+"8",
+"2+8=10"
+],
+"ratio": [
+"0.817",
+"0.858"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sup",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"scu"
+],
+"parent_cn": [
+"6",
+"4,8"
+],
+"cn": [
+"2",
+"4",
+"6+8=14"
+],
+"ratio": [
+"0.707",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tam",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"she"
+],
+"parent_cn": [
+"6",
+"4,6"
+],
+"cn": [
+"2",
+"4",
+"6+6=12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"proposed": [
+"M6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "tam"
+}
+]
+},
+{
+"name": "tbc",
+"type": "3p-3p",
+"parents": [
+"tbo",
+"fcu"
+],
+"parent_cn": [
+"3,4",
+"12"
+],
+"cn": [
+"3",
+"4+2=6",
+"12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tbf",
+"type": "3p-3p",
+"parents": [
+"tbo",
+"fcu"
+],
+"parent_cn": [
+"3,4",
+"12"
+],
+"cn": [
+"3",
+"4+2=6",
+"12"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"proposed": [
+"M2a-6a_M3b",
+"M6a_M3b",
+"M8a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tbn",
+"type": "3p-3p",
+"parents": [
+"tbo",
+"nbo"
+],
+"parent_cn": [
+"3,4",
+"4"
+],
+"cn": [
+"3",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tdi",
+"type": "3p-3p",
+"parents": [
+"dia",
+"ttt"
+],
+"parent_cn": [
+"4",
+"3,12"
+],
+"cn": [
+"4",
+"2+3=5",
+"12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "dnb"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tec",
+"type": "3p-3p",
+"parents": [
+"the",
+"pcu"
+],
+"parent_cn": [
+"3,8",
+"6"
+],
+"cn": [
+"3",
+"6",
+"8+2=10"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tef",
+"type": "3p-3p",
+"parents": [
+"the",
+"fcu"
+],
+"parent_cn": [
+"3,8",
+"12"
+],
+"cn": [
+"3",
+"2+8=10",
+"12"
+],
+"ratio": [
+"0.577",
+"0.576"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ter",
+"type": "3p-3p",
+"parents": [
+"reo",
+"the"
+],
+"parent_cn": [
+"8",
+"3,8"
+],
+"cn": [
+"2",
+"3",
+"8+8=16"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "thc",
+"type": "3p-3p",
+"parents": [
+"thp",
+"lcs"
+],
+"parent_cn": [
+"8",
+"4"
+],
+"cn": [
+"2",
+"4",
+"8+4=12"
+],
+"ratio": [
+"0.655",
+"0.655"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "thp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "lcs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tht",
+"type": "3p-3p",
+"parents": [
+"thp",
+"ctn"
+],
+"parent_cn": [
+"8",
+"3,4"
+],
+"cn": [
+"2",
+"3",
+"8+4=12"
+],
+"ratio": [
+"0.579",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "thp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ctn"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "toh",
+"type": "3p-3p",
+"parents": [
+"hxg",
+"toc"
+],
+"parent_cn": [
+"6",
+"4,6"
+],
+"cn": [
+"2",
+"4",
+"6+6=12"
+],
+"ratio": [
+"0.612",
+"0.612"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ton",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"toc"
+],
+"parent_cn": [
+"4",
+"4,6"
+],
+"cn": [
+"2",
+"6",
+"4+4=8"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ton"
+}
+]
+},
+{
+"name": "tov",
+"type": "3p-3p",
+"parents": [
+"toc",
+"pcu"
+],
+"parent_cn": [
+"4,6",
+"6"
+],
+"cn": [
+"4",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttb",
+"type": "3p-3p",
+"parents": [
+"fcu",
+"ttt"
+],
+"parent_cn": [
+"12",
+"3,12"
+],
+"cn": [
+"2",
+"3",
+"12+12=24"
+],
+"ratio": [
+"0.577",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tve",
+"type": "3p-3p",
+"parents": [
+"ttt",
+"pcu"
+],
+"parent_cn": [
+"3,12",
+"6"
+],
+"cn": [
+"3",
+"6",
+"6+12=18"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttq",
+"type": "3p-3p",
+"parents": [
+"hxg",
+"ttt"
+],
+"parent_cn": [
+"6",
+"3,12"
+],
+"cn": [
+"6",
+"6+3=9",
+"12"
+],
+"ratio": [
+"0.853",
+"0.863"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tti",
+"type": "3p-3p",
+"parents": [
+"ttt",
+"dia"
+],
+"parent_cn": [
+"3,12",
+"4"
+],
+"cn": [
+"3",
+"4",
+"4+12=16"
+],
+"ratio": [
+"0.943",
+"0.943"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttl",
+"type": "3p-3p",
+"parents": [
+"ttt",
+"flu"
+],
+"parent_cn": [
+"3,12",
+"4,8"
+],
+"cn": [
+"3",
+"4",
+"12+8=20"
+],
+"ratio": [
+"0.943",
+"0.942"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttr",
+"type": "3p-3p",
+"parents": [
+"crs",
+"ttt"
+],
+"parent_cn": [
+"6",
+"3,12"
+],
+"cn": [
+"2",
+"6+3=9",
+"12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "ttr"
+}
+]
+},
+{
+"name": "tvy",
+"type": "3p-3p",
+"parents": [
+"spn",
+"ttt"
+],
+"parent_cn": [
+"3,6",
+"3,12"
+],
+"cn": [
+"3",
+"6+3=9",
+"12"
+],
+"ratio": [
+"0.492",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "twb",
+"type": "3p-3p",
+"parents": [
+"bcu",
+"twf"
+],
+"parent_cn": [
+"8",
+"4,24"
+],
+"cn": [
+"2",
+"4",
+"8+24=32"
+],
+"ratio": [
+"0.645",
+"0.645"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "twh",
+"type": "3p-3p",
+"parents": [
+"hxg",
+"twf"
+],
+"parent_cn": [
+"6",
+"4,24"
+],
+"cn": [
+"6",
+"2+4=6",
+"24"
+],
+"ratio": [
+"0.632",
+"0.632"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "twn",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"twf"
+],
+"parent_cn": [
+"4",
+"4,24"
+],
+"cn": [
+"4",
+"2+4=6",
+"24"
+],
+"ratio": [
+"0.447",
+"0.447"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "two",
+"type": "3p-3p",
+"parents": [
+"sod",
+"twf"
+],
+"parent_cn": [
+"4",
+"4,24"
+],
+"cn": [
+"2",
+"4+4=8",
+"24"
+],
+"ratio": [
+"0.632",
+"0.632"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tws",
+"type": "3p-3p",
+"parents": [
+"she",
+"twf"
+],
+"parent_cn": [
+"4,6",
+"4,24"
+],
+"cn": [
+"6",
+"4+4=8",
+"24"
+],
+"ratio": [
+"0.632",
+"0.632"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "urg",
+"type": "3p-3p",
+"parents": [
+"pto",
+"bcu"
+],
+"parent_cn": [
+"3,4",
+"8"
+],
+"cn": [
+"4",
+"3+2=5",
+"8"
+],
+"ratio": [
+"0.816",
+"0.816"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pto"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "urg"
+}
+]
+},
+{
+"name": "urk",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"pcu"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"4",
+"6",
+"4+2=6"
+],
+"ratio": [
+"1",
+"1"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "urk"
+}
+]
+},
+{
+"name": "urr",
+"type": "3p-3p",
+"parents": [
+"the",
+"nbo"
+],
+"parent_cn": [
+"3,8",
+"4"
+],
+"cn": [
+"3",
+"4",
+"8+4=12"
+],
+"ratio": [
+"0.817",
+"0.816"
+],
+"proposed": [
+"M2a-12a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "urr"
+}
+]
+},
+{
+"name": "wzz",
+"type": "3p-3p",
+"parents": [
+"flu",
+"pcu"
+],
+"parent_cn": [
+"4,8",
+"6"
+],
+"cn": [
+"4",
+"6",
+"8+6=14"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "wzz"
+}
+]
+},
+{
+"name": "xam",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"ocu"
+],
+"parent_cn": [
+"4",
+"6,8"
+],
+"cn": [
+"2",
+"6",
+"4+8=12"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xam"
+}
+]
+},
+{
+"name": "xau",
+"type": "3p-3p",
+"parents": [
+"reo",
+"fcu"
+],
+"parent_cn": [
+"8",
+"12"
+],
+"cn": [
+"2",
+"2+8=10",
+"12"
+],
+"ratio": [
+"1",
+"1"
+],
+"proposed": [
+"M6a",
+"M8a",
+"M8a_M2a-6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xau"
+}
+]
+},
+{
+"name": "xaz",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"ocu"
+],
+"parent_cn": [
+"6",
+"6,8"
+],
+"cn": [
+"2",
+"8",
+"6+6=12"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"proposed": [
+"M2a-6a",
+"M6",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xaz"
+}
+]
+},
+{
+"name": "xbk",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"fcu"
+],
+"parent_cn": [
+"6",
+"12"
+],
+"cn": [
+"2+2=4",
+"6",
+"12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbk"
+}
+]
+},
+{
+"name": "xbn",
+"type": "3p-3p",
+"parents": [
+"nbo",
+"ftw"
+],
+"parent_cn": [
+"4",
+"4,12"
+],
+"cn": [
+"4",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbn"
+}
+]
+},
+{
+"name": "xbo",
+"type": "3p-3p",
+"parents": [
+"pcu",
+"ftw"
+],
+"parent_cn": [
+"6",
+"4,12"
+],
+"cn": [
+"6",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"proposed": [
+"M2a-6a_M4a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbo"
+}
+]
+},
+{
+"name": "xbp",
+"type": "3p-3p",
+"parents": [
+"dia",
+"pcu"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"4",
+"6",
+"4+6=10"
+],
+"ratio": [
+"0.866",
+"0.866"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbp"
+}
+]
+},
+{
+"name": "acc",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hcb"
+],
+"parent_cn": [
+"6",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+6=9"
+],
+"ratio": [
+"0.816",
+"0.881"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nia-d",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hcb"
+],
+"parent_cn": [
+"6",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+6=9"
+],
+"ratio": [
+"0.816",
+"0.881"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "nia-d"
+}
+]
+},
+{
+"name": "ack",
+"type": "3p-2p",
+"parents": [
+"acs",
+"kgd"
+],
+"parent_cn": [
+"6",
+"3,6"
+],
+"cn": [
+"2",
+"3",
+"6+6=12"
+],
+"ratio": [
+"0.816",
+"0.839"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "nia-d"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "aci",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hcb"
+],
+"parent_cn": [
+"6,6",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+6=9"
+],
+"ratio": [
+"0.816",
+"0.887"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tsn",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hcb"
+],
+"parent_cn": [
+"6,6",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+6=9"
+],
+"ratio": [
+"0.816",
+"0.898"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "tsn"
+}
+]
+},
+{
+"name": "acl",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hxl"
+],
+"parent_cn": [
+"6,6",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.707",
+"0.987"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "acg",
+"type": "3p-2p",
+"parents": [
+"acs",
+"kgd"
+],
+"parent_cn": [
+"6,6",
+"3,6"
+],
+"cn": [
+"3",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.816",
+"0.887"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "tsn"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hcp",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hxl"
+],
+"parent_cn": [
+"6",
+"6"
+],
+"cn": [
+"2",
+"2",
+"6+6=12"
+],
+"ratio": [
+"0.707",
+"1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "hcp"
+}
+]
+},
+{
+"name": "acn",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hcb"
+],
+"parent_cn": [
+"6",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"6"
+],
+"ratio": [
+"0.816",
+"0.891"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "aco",
+"type": "3p-2p",
+"parents": [
+"acs",
+"hxl"
+],
+"parent_cn": [
+"6",
+"6"
+],
+"cn": [
+"2+2=4",
+"6",
+"6"
+],
+"ratio": [
+"0.707",
+"1"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "lon-e",
+"type": "3p-2p",
+"parents": [
+"acs",
+"kgm"
+],
+"parent_cn": [
+"6",
+"4"
+],
+"cn": [
+"2",
+"6",
+"2+4=6"
+],
+"ratio": [
+"0.707",
+"1"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "acs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "lon-e"
+}
+]
+},
+{
+"name": "ali",
+"type": "3p-2p",
+"parents": [
+"alb",
+"hcb"
+],
+"parent_cn": [
+"6,12",
+"3"
+],
+"cn": [
+"2",
+"3+6=9",
+"12"
+],
+"ratio": [
+"0.707",
+"0.886"
+],
+"proposed": [
+"M3a",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "alb"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "alh",
+"type": "3p-2p",
+"parents": [
+"alb",
+"hxl"
+],
+"parent_cn": [
+"6,12",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+12=18"
+],
+"ratio": [
+"0.817",
+"0.935"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "alb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "alk",
+"type": "3p-2p",
+"parents": [
+"alb",
+"kgd"
+],
+"parent_cn": [
+"6,12",
+"3,6"
+],
+"cn": [
+"3",
+"6",
+"6+12=18"
+],
+"ratio": [
+"0.707",
+"0.85"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "alb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "alj",
+"type": "3p-2p",
+"parents": [
+"alb",
+"kgd"
+],
+"parent_cn": [
+"6,12",
+"3,6"
+],
+"cn": [
+"6",
+"3+6=9",
+"12"
+],
+"ratio": [
+"0.707",
+"0.873"
+],
+"proposed": [
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "alb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bsa",
+"type": "3p-2p",
+"parents": [
+"bcu",
+"sql"
+],
+"parent_cn": [
+"8",
+"4,4"
+],
+"cn": [
+"2",
+"4",
+"4+8=12"
+],
+"ratio": [
+"0.789",
+"0.855"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "xal",
+"type": "3p-2p",
+"parents": [
+"bcu",
+"sql"
+],
+"parent_cn": [
+"8,8",
+"4"
+],
+"cn": [
+"2",
+"8",
+"4+8=12"
+],
+"ratio": [
+"0.896",
+"0.987"
+],
+"proposed": [
+"M6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xal"
+}
+]
+},
+{
+"name": "bsd",
+"type": "3p-2p",
+"parents": [
+"bcu",
+"sql"
+],
+"parent_cn": [
+"8,8",
+"4,4"
+],
+"cn": [
+"4",
+"8",
+"4+8=12"
+],
+"ratio": [
+"0.789",
+"0.876"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "boh",
+"type": "3p-2p",
+"parents": [
+"bor",
+"hxl"
+],
+"parent_cn": [
+"3,4",
+"6"
+],
+"cn": [
+"3",
+"6",
+"2+4=6"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "pcu-h"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bok",
+"type": "3p-2p",
+"parents": [
+"bor",
+"kgm"
+],
+"parent_cn": [
+"3,4",
+"4"
+],
+"cn": [
+"2",
+"3",
+"4+4=8"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+4
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "pcu-h"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 0,
+"shape": [
+3,
+[
+4
+]
+]
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "bos",
+"type": "3p-2p",
+"parents": [
+"bor",
+"sql"
+],
+"parent_cn": [
+"3,4",
+"4"
+],
+"cn": [
+"2",
+"3",
+"4+4=8"
+],
+"ratio": [
+"non",
+"0.709"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "boq",
+"type": "3p-2p",
+"parents": [
+"bor",
+"sql"
+],
+"parent_cn": [
+"3,4",
+"4"
+],
+"cn": [
+"3",
+"4",
+"2+4=6"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "csb",
+"type": "3p-2p",
+"parents": [
+"csq",
+"hcb"
+],
+"parent_cn": [
+"4,8",
+"3"
+],
+"cn": [
+"3",
+"4",
+"2+8=10"
+],
+"ratio": [
+"0.943",
+"0.977"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "csq"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "csm",
+"type": "3p-2p",
+"parents": [
+"csq",
+"hxl"
+],
+"parent_cn": [
+"4,8",
+"6"
+],
+"cn": [
+"4",
+"6",
+"2+8=10"
+],
+"ratio": [
+"0.612",
+"0.953"
+],
+"proposed": [
+"M6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "csq"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "csg",
+"type": "3p-2p",
+"parents": [
+"csq",
+"kgm"
+],
+"parent_cn": [
+"4,8",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+8=12"
+],
+"ratio": [
+"0.612",
+"0.961"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "csq"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "dic",
+"type": "3p-2p",
+"parents": [
+"dia",
+"hcb"
+],
+"parent_cn": [
+"4",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+4=7"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tcd",
+"type": "3p-2p",
+"parents": [
+"dia",
+"hxl"
+],
+"parent_cn": [
+"4",
+"6"
+],
+"cn": [
+"2",
+"2",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "tcd"
+}
+]
+},
+{
+"name": "dik",
+"type": "3p-2p",
+"parents": [
+"dia",
+"kgd"
+],
+"parent_cn": [
+"4",
+"3,6"
+],
+"cn": [
+"2",
+"3",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tsi",
+"type": "3p-2p",
+"parents": [
+"dia",
+"sql"
+],
+"parent_cn": [
+"4",
+"4"
+],
+"cn": [
+"2",
+"2",
+"4+4=8"
+],
+"ratio": [
+"0.612",
+"0.997"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "tsi"
+}
+]
+},
+{
+"name": "dib",
+"type": "3p-2p",
+"parents": [
+"dia",
+"sql"
+],
+"parent_cn": [
+"4",
+"4,4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.866",
+"0.976"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "diq",
+"type": "3p-2p",
+"parents": [
+"dia",
+"sql"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.633",
+"0.988"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "epx",
+"type": "3p-2p",
+"parents": [
+"dia",
+"sql"
+],
+"parent_cn": [
+"4,4",
+"4,4"
+],
+"cn": [
+"4",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.896",
+"0.994"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "epx"
+}
+]
+},
+{
+"name": "fka",
+"type": "3p-2p",
+"parents": [
+"fcu",
+"kgd"
+],
+"parent_cn": [
+"12",
+"3,6"
+],
+"cn": [
+"2",
+"3",
+"6+12=18"
+],
+"ratio": [
+"0.577",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fuq",
+"type": "3p-2p",
+"parents": [
+"fcu",
+"sql"
+],
+"parent_cn": [
+"12",
+"4,4"
+],
+"cn": [
+"2",
+"4",
+"4+12=16"
+],
+"ratio": [
+"0.707",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fha",
+"type": "3p-2p",
+"parents": [
+"fcu",
+"hcb"
+],
+"parent_cn": [
+"12",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"12"
+],
+"proposed": [
+"M6a_M3b",
+"M8a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fhx",
+"type": "3p-2p",
+"parents": [
+"fcu",
+"hxl"
+],
+"parent_cn": [
+"12",
+"6"
+],
+"cn": [
+"2+2=4",
+"6",
+"12"
+],
+"ratio": [
+"0.5",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ahq"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fkm",
+"type": "3p-2p",
+"parents": [
+"fcu",
+"kgm"
+],
+"parent_cn": [
+"12",
+"4"
+],
+"cn": [
+"2",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.5",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flc",
+"type": "3p-2p",
+"parents": [
+"flu",
+"hcb"
+],
+"parent_cn": [
+"4,8",
+"3,3"
+],
+"cn": [
+"3",
+"3+4=7",
+"8"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flx",
+"type": "3p-2p",
+"parents": [
+"flu",
+"hxl"
+],
+"parent_cn": [
+"4,8",
+"6"
+],
+"cn": [
+"2",
+"4",
+"6+8=14"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fll",
+"type": "3p-2p",
+"parents": [
+"flu",
+"hxl"
+],
+"parent_cn": [
+"4,8",
+"6"
+],
+"cn": [
+"2",
+"8",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flk",
+"type": "3p-2p",
+"parents": [
+"flu",
+"kgd"
+],
+"parent_cn": [
+"4,8",
+"3,6"
+],
+"cn": [
+"3",
+"4",
+"6+8=14"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flq",
+"type": "3p-2p",
+"parents": [
+"flu",
+"sql"
+],
+"parent_cn": [
+"4,8",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+8=12"
+],
+"ratio": [
+"0.612",
+"0.949"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "xak",
+"type": "3p-2p",
+"parents": [
+"flu",
+"sql"
+],
+"parent_cn": [
+"4,8",
+"4"
+],
+"cn": [
+"2",
+"8",
+"4+4=8"
+],
+"ratio": [
+"0.866",
+"1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xak"
+}
+]
+},
+{
+"name": "pfm",
+"type": "3p-2p",
+"parents": [
+"flu",
+"sql"
+],
+"parent_cn": [
+"4,8",
+"4,4"
+],
+"cn": [
+"4",
+"4",
+"4+8=12"
+],
+"ratio": [
+"1",
+"1"
+],
+"proposed": [
+"M2a-6a",
+"M6a",
+"M8a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pfm"
+}
+]
+},
+{
+"name": "flb",
+"type": "3p-2p",
+"parents": [
+"flu",
+"sql"
+],
+"parent_cn": [
+"4,8",
+"4,4"
+],
+"cn": [
+"4",
+"8",
+"4+4=8"
+],
+"ratio": [
+"0.816",
+"0.891"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwh",
+"type": "3p-2p",
+"parents": [
+"ftw",
+"hcb"
+],
+"parent_cn": [
+"4,12",
+"3"
+],
+"cn": [
+"3",
+"2+4=6",
+"12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwg",
+"type": "3p-2p",
+"parents": [
+"ftw",
+"kgd"
+],
+"parent_cn": [
+"4,12",
+"3,6"
+],
+"cn": [
+"3",
+"4",
+"6+12=18"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwk",
+"type": "3p-2p",
+"parents": [
+"ftw",
+"kgm"
+],
+"parent_cn": [
+"4,12",
+"4"
+],
+"cn": [
+"2",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.577",
+"0.99"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fws",
+"type": "3p-2p",
+"parents": [
+"ftw",
+"sql"
+],
+"parent_cn": [
+"4,12",
+"4"
+],
+"cn": [
+"4",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.905",
+"0.98"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwl",
+"type": "3p-2p",
+"parents": [
+"ftw",
+"sql"
+],
+"parent_cn": [
+"4,12",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+12=16"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwq",
+"type": "3p-2p",
+"parents": [
+"ftw",
+"sql"
+],
+"parent_cn": [
+"4,12",
+"4"
+],
+"cn": [
+"4",
+"2+4=6",
+"12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "kty"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "itx",
+"type": "3p-2p",
+"parents": [
+"ith",
+"hxl"
+],
+"parent_cn": [
+"4,12",
+"6"
+],
+"cn": [
+"2",
+"4",
+"6+12=18"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ith"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "itk",
+"type": "3p-2p",
+"parents": [
+"ith",
+"kgd"
+],
+"parent_cn": [
+"4,12",
+"3,6"
+],
+"cn": [
+"3",
+"4",
+"6+12=18"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ith"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "lcq",
+"type": "3p-2p",
+"parents": [
+"lcy",
+"sql"
+],
+"parent_cn": [
+"6",
+"4"
+],
+"cn": [
+"2",
+"2",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "tsi"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "lcy"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgb",
+"type": "3p-2p",
+"parents": [
+"mgc",
+"hcb"
+],
+"parent_cn": [
+"6,12",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+12=15"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "stb"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgt",
+"type": "3p-2p",
+"parents": [
+"mgc",
+"hcb"
+],
+"parent_cn": [
+"6,12",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+12=15"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "stb"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgx",
+"type": "3p-2p",
+"parents": [
+"mgc",
+"hxl"
+],
+"parent_cn": [
+"6,12",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+12=18"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "stb"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgq",
+"type": "3p-2p",
+"parents": [
+"mgc",
+"sql"
+],
+"parent_cn": [
+"6,12",
+"4"
+],
+"cn": [
+"2",
+"6",
+"4+12=16"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sqc"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "tsi"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mgl",
+"type": "3p-2p",
+"parents": [
+"mgc",
+"sql"
+],
+"parent_cn": [
+"6,12",
+"4,4"
+],
+"cn": [
+"4",
+"6",
+"4+12=16"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sqc"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "scp"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nbh",
+"type": "3p-2p",
+"parents": [
+"nbo",
+"hcb"
+],
+"parent_cn": [
+"4",
+"3"
+],
+"cn": [
+"2",
+"3",
+"2+4=6"
+],
+"ratio": [
+"0.577",
+"0.915"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nbc",
+"type": "3p-2p",
+"parents": [
+"nbo",
+"hcb"
+],
+"parent_cn": [
+"4,4",
+"3"
+],
+"cn": [
+"3",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.577",
+"0.922"
+],
+"proposed": [
+"M4a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "epa",
+"type": "3p-2p",
+"parents": [
+"nbo",
+"hxl"
+],
+"parent_cn": [
+"4,4",
+"6"
+],
+"cn": [
+"4",
+"6",
+"2+4=6"
+],
+"ratio": [
+"1",
+"0.99"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "epa"
+}
+]
+},
+{
+"name": "nbm",
+"type": "3p-2p",
+"parents": [
+"nbo",
+"kgm"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"1",
+"0.993"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ats",
+"type": "3p-2p",
+"parents": [
+"nia",
+"hcb"
+],
+"parent_cn": [
+"6,6",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+6=9"
+],
+"ratio": [
+"0.816",
+"0.898"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ats"
+}
+]
+},
+{
+"name": "nid",
+"type": "3p-2p",
+"parents": [
+"nia",
+"hcb"
+],
+"parent_cn": [
+"6,6",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+6=9"
+],
+"ratio": [
+"0.816",
+"0.886"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nix",
+"type": "3p-2p",
+"parents": [
+"nia",
+"hxl"
+],
+"parent_cn": [
+"6,6",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.707",
+"0.987"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nih",
+"type": "3p-2p",
+"parents": [
+"nia",
+"hxl"
+],
+"parent_cn": [
+"6,6",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.707",
+"0.987"
+],
+"made": [
+"Tb-nih-MOF-1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nia"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nik",
+"type": "3p-2p",
+"parents": [
+"nia",
+"kgd"
+],
+"parent_cn": [
+"6,6",
+"3,6"
+],
+"cn": [
+"3",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.816",
+"0.881"
+],
+"proposed": [
+"M3a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocb",
+"type": "3p-2p",
+"parents": [
+"ocu",
+"hcb"
+],
+"parent_cn": [
+"6,8",
+"3"
+],
+"cn": [
+"3",
+"6",
+"2+8=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "urk"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "snz"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3,
+"name": "tfz"
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocx",
+"type": "3p-2p",
+"parents": [
+"ocu",
+"hxl"
+],
+"parent_cn": [
+"6,8",
+"6"
+],
+"cn": [
+"6",
+"6",
+"2+8=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "urk"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3,
+"name": "ahq"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "snz"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3,
+"name": "yav-d"
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "epa"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ock",
+"type": "3p-2p",
+"parents": [
+"ocu",
+"kgm"
+],
+"parent_cn": [
+"6,8",
+"4"
+],
+"cn": [
+"2",
+"6",
+"4+8=12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "urk"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "snz"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3,
+"name": "kag"
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocq",
+"type": "3p-2p",
+"parents": [
+"ocu",
+"sql"
+],
+"parent_cn": [
+"6,8",
+"4"
+],
+"cn": [
+"2",
+"8",
+"4+6=10"
+],
+"ratio": [
+"0.927",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocv",
+"type": "3p-2p",
+"parents": [
+"ocu",
+"sql"
+],
+"parent_cn": [
+"6,8",
+"4,4"
+],
+"cn": [
+"4",
+"8",
+"4+6=10"
+],
+"ratio": [
+"0.763",
+"0.886"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "kty"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocm",
+"type": "3p-2p",
+"parents": [
+"ocu",
+"sql"
+],
+"parent_cn": [
+"6,8",
+"4"
+],
+"cn": [
+"4",
+"8",
+"2+6=8"
+],
+"ratio": [
+"0.763",
+"0.883"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "kty"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ocl",
+"type": "3p-2p",
+"parents": [
+"ocu",
+"sql"
+],
+"parent_cn": [
+"6,8",
+"4"
+],
+"cn": [
+"4",
+"8",
+"2+6=8"
+],
+"ratio": [
+"0.763",
+"0.883"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ocu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcc",
+"type": "3p-2p",
+"parents": [
+"pcu",
+"hcb"
+],
+"parent_cn": [
+"6",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+6=9"
+],
+"ratio": [
+"0.577",
+"0.881"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcg",
+"type": "3p-2p",
+"parents": [
+"pcu",
+"kgd"
+],
+"parent_cn": [
+"6",
+"3,6"
+],
+"cn": [
+"2",
+"3",
+"6+6=12"
+],
+"ratio": [
+"0.577",
+"0.84"
+],
+"proposed": [
+"M6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcs",
+"type": "3p-2p",
+"parents": [
+"pcu",
+"sql"
+],
+"parent_cn": [
+"6",
+"4,4"
+],
+"cn": [
+"2",
+"4",
+"4+6=10"
+],
+"ratio": [
+"0.707",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "fsc"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pch",
+"type": "3p-2p",
+"parents": [
+"pcu",
+"hxl"
+],
+"parent_cn": [
+"6,6",
+"6"
+],
+"cn": [
+"2",
+"6",
+"6+6=12"
+],
+"ratio": [
+"1",
+"0.987"
+],
+"proposed": [
+"M8a"
+],
+"made": [
+"Y-pch-MOF-1",
+"Y-pch-MOF-2"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pck",
+"type": "3p-2p",
+"parents": [
+"pcu",
+"kgd"
+],
+"parent_cn": [
+"6,6",
+"3,6"
+],
+"cn": [
+"3",
+"6",
+"6+6=12"
+],
+"ratio": [
+"0.577",
+"0.881"
+],
+"proposed": [
+"M8a"
+],
+"made": [
+"Y-pck-MOF-1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcm",
+"type": "3p-2p",
+"parents": [
+"pcu",
+"hcb"
+],
+"parent_cn": [
+"6",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"6"
+],
+"ratio": [
+"0.577",
+"0.892"
+],
+"proposed": [
+"M6a_M3b",
+"M8a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ahq",
+"type": "3p-2p",
+"parents": [
+"pcu",
+"hxl"
+],
+"parent_cn": [
+"6",
+"6"
+],
+"cn": [
+"2+2=4",
+"6",
+"6"
+],
+"ratio": [
+"1",
+"1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ahq"
+}
+]
+},
+{
+"name": "ptx",
+"type": "3p-2p",
+"parents": [
+"pth",
+"hxl"
+],
+"parent_cn": [
+"4,4",
+"6"
+],
+"cn": [
+"2",
+"4",
+"4+6=10"
+],
+"ratio": [
+"0.612",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "pth"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ptl",
+"type": "3p-2p",
+"parents": [
+"pth",
+"hxl"
+],
+"parent_cn": [
+"4,4",
+"6"
+],
+"cn": [
+"2",
+"4",
+"4+6=10"
+],
+"ratio": [
+"0.612",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pth"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ptk",
+"type": "3p-2p",
+"parents": [
+"pth",
+"kgd"
+],
+"parent_cn": [
+"4,24",
+"3,6"
+],
+"cn": [
+"3",
+"4",
+"4+6=10"
+],
+"ratio": [
+"non",
+"0.951"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pth"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ptg",
+"type": "3p-2p",
+"parents": [
+"pth",
+"kgd"
+],
+"parent_cn": [
+"4,4",
+"3,6"
+],
+"cn": [
+"3",
+"4",
+"4+6=10"
+],
+"ratio": [
+"0.943",
+"0.951"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pth"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pss",
+"type": "3p-2p",
+"parents": [
+"pts",
+"sql"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.612",
+"0.99"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "pts"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "cdq"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pst",
+"type": "3p-2p",
+"parents": [
+"pts",
+"sql"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.612",
+"0.988"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pts"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "urj",
+"type": "3p-2p",
+"parents": [
+"pts",
+"sql"
+],
+"parent_cn": [
+"4,4",
+"4,4"
+],
+"cn": [
+"4",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.866",
+"0.994"
+],
+"proposed": [
+"M4b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pts"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "urj"
+}
+]
+},
+{
+"name": "psp",
+"type": "3p-2p",
+"parents": [
+"pts",
+"sql"
+],
+"parent_cn": [
+"4,4",
+"4,4"
+],
+"cn": [
+"4",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.866",
+"0.994"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pts"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "psp"
+}
+]
+},
+{
+"name": "pyh",
+"type": "3p-2p",
+"parents": [
+"pyr",
+"hxl"
+],
+"parent_cn": [
+"3,6",
+"6"
+],
+"cn": [
+"2",
+"3",
+"6+6=12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+5
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+0,
+2,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+1,
+2,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+5
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+3,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pys",
+"type": "3p-2p",
+"parents": [
+"pyr",
+"sql"
+],
+"parent_cn": [
+"3,6",
+"4"
+],
+"cn": [
+"2",
+"3",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3,
+"name": "bcu"
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pyq",
+"type": "3p-2p",
+"parents": [
+"pyr",
+"sql"
+],
+"parent_cn": [
+"3,6",
+"4,4"
+],
+"cn": [
+"3",
+"4",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 1
+},
+{
+"kinds": [
+4
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 1
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "pyr"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhh",
+"type": "3p-2p",
+"parents": [
+"rht",
+"hxl"
+],
+"parent_cn": [
+"3,24",
+"6"
+],
+"cn": [
+"2",
+"3",
+"6+24=30"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "gez"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhs",
+"type": "3p-2p",
+"parents": [
+"rht",
+"sql"
+],
+"parent_cn": [
+"3,24",
+"4"
+],
+"cn": [
+"2",
+"3",
+"4+24=28"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+9,
+[
+1,
+8
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhq",
+"type": "3p-2p",
+"parents": [
+"rht",
+"sql"
+],
+"parent_cn": [
+"3,24",
+"4,4"
+],
+"cn": [
+"3",
+"4",
+"4+24=28"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+9,
+[
+1,
+8
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sus",
+"type": "3p-2p",
+"parents": [
+"scu",
+"sql"
+],
+"parent_cn": [
+"4,8",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+8=12"
+],
+"ratio": [
+"0.612",
+"0.949"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "kty",
+"type": "3p-2p",
+"parents": [
+"scu",
+"sql"
+],
+"parent_cn": [
+"4,8",
+"4"
+],
+"cn": [
+"4",
+"2+4=6",
+"8"
+],
+"ratio": [
+"0.816",
+"0.907"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "scu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "kty"
+}
+]
+},
+{
+"name": "shq",
+"type": "3p-2p",
+"parents": [
+"she",
+"sql"
+],
+"parent_cn": [
+"4,6",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shd",
+"type": "3p-2p",
+"parents": [
+"she",
+"sql"
+],
+"parent_cn": [
+"4,6",
+"4,4"
+],
+"cn": [
+"4",
+"6",
+"4+4=8"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shm",
+"type": "3p-2p",
+"parents": [
+"shp",
+"hcb"
+],
+"parent_cn": [
+"4,12",
+"3"
+],
+"cn": [
+"3",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.471",
+"0.543"
+],
+"proposed": [
+"M2a",
+"M4a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shh",
+"type": "3p-2p",
+"parents": [
+"shp",
+"hxl"
+],
+"parent_cn": [
+"4,12",
+"6"
+],
+"cn": [
+"2",
+"4",
+"6+12=18"
+],
+"ratio": [
+"0.612",
+"0.887"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shx",
+"type": "3p-2p",
+"parents": [
+"shp",
+"hxl"
+],
+"parent_cn": [
+"4,12",
+"6"
+],
+"cn": [
+"6",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.816",
+"0.879"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shk",
+"type": "3p-2p",
+"parents": [
+"shp",
+"kgd"
+],
+"parent_cn": [
+"4,12",
+"3,6"
+],
+"cn": [
+"3",
+"4",
+"6+12=18"
+],
+"ratio": [
+"0.943",
+"0.93"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "shg",
+"type": "3p-2p",
+"parents": [
+"shp",
+"kgm"
+],
+"parent_cn": [
+"4,12",
+"4"
+],
+"cn": [
+"2",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.816",
+"0.898"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "shp"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "scs",
+"type": "3p-2p",
+"parents": [
+"soc",
+"sql"
+],
+"parent_cn": [
+"4,6",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+6=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "scq",
+"type": "3p-2p",
+"parents": [
+"soc",
+"sql"
+],
+"parent_cn": [
+"4,6",
+"4,4"
+],
+"cn": [
+"4",
+"6",
+"4+4=8"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "scm",
+"type": "3p-2p",
+"parents": [
+"soc",
+"sql"
+],
+"parent_cn": [
+"4,6",
+"4"
+],
+"cn": [
+"4",
+"4",
+"2+6=8"
+],
+"ratio": [
+"0.906",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "she"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sqq",
+"type": "3p-2p",
+"parents": [
+"sqc",
+"sql"
+],
+"parent_cn": [
+"4,8",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+8=12"
+],
+"ratio": [
+"0.685",
+"0.95"
+],
+"proposed": [
+"M6a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "sqc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ssh",
+"type": "3p-2p",
+"parents": [
+"ssa",
+"hcb"
+],
+"parent_cn": [
+"4,4",
+"3"
+],
+"cn": [
+"3",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.943",
+"0.986"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ssx",
+"type": "3p-2p",
+"parents": [
+"ssa",
+"hxl"
+],
+"parent_cn": [
+"4,4",
+"6"
+],
+"cn": [
+"4",
+"6",
+"2+4=6"
+],
+"ratio": [
+"0.612",
+"0.988"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ssg",
+"type": "3p-2p",
+"parents": [
+"ssa",
+"kgm"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.612",
+"0.991"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ssa"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ssq",
+"type": "3p-2p",
+"parents": [
+"ssb",
+"sql"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.612",
+"0.989"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ssb"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sti",
+"type": "3p-2p",
+"parents": [
+"stp",
+"hcb"
+],
+"parent_cn": [
+"4,6",
+"3"
+],
+"cn": [
+"2",
+"4",
+"3+6=9"
+],
+"ratio": [
+"0.612",
+"0.978"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "stm",
+"type": "3p-2p",
+"parents": [
+"stp",
+"hcb"
+],
+"parent_cn": [
+"4,6",
+"3"
+],
+"cn": [
+"3",
+"6",
+"2+4=6"
+],
+"ratio": [
+"0.817",
+"0.887"
+],
+"proposed": [
+"M3a_M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sss",
+"type": "3p-2p",
+"parents": [
+"stp",
+"hxl"
+],
+"parent_cn": [
+"4,6",
+"6"
+],
+"cn": [
+"6",
+"6",
+"2+4=6"
+],
+"ratio": [
+"0.707",
+"0.993"
+],
+"proposed": [
+"M3a_M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "sss"
+}
+]
+},
+{
+"name": "stn",
+"type": "3p-2p",
+"parents": [
+"stp",
+"kgd"
+],
+"parent_cn": [
+"4,6",
+"3,6"
+],
+"cn": [
+"4",
+"6",
+"3+6=9"
+],
+"ratio": [
+"0.612",
+"0.985"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "eye",
+"type": "3p-2p",
+"parents": [
+"stp",
+"kgm"
+],
+"parent_cn": [
+"4,6",
+"4"
+],
+"cn": [
+"2",
+"6",
+"4+4=8"
+],
+"ratio": [
+"0.707",
+"0.995"
+],
+"proposed": [
+"M3a_M4a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "stp"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "eye"
+}
+]
+},
+{
+"name": "thx",
+"type": "3p-2p",
+"parents": [
+"the",
+"hxl"
+],
+"parent_cn": [
+"3,8",
+"6"
+],
+"cn": [
+"3",
+"6",
+"2+8=10"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "eea"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "thk",
+"type": "3p-2p",
+"parents": [
+"the",
+"kgm"
+],
+"parent_cn": [
+"3,8",
+"4"
+],
+"cn": [
+"2",
+"3",
+"4+8=12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "eea"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tom",
+"type": "3p-2p",
+"parents": [
+"toc",
+"hcb"
+],
+"parent_cn": [
+"4,6",
+"3"
+],
+"cn": [
+"3",
+"6",
+"2+4=6"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+4
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+3,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "eea"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tob",
+"type": "3p-2p",
+"parents": [
+"toc",
+"hcb"
+],
+"parent_cn": [
+"4,6",
+"3"
+],
+"cn": [
+"3",
+"4",
+"2+6=8"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "eea"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tox",
+"type": "3p-2p",
+"parents": [
+"toc",
+"hxl"
+],
+"parent_cn": [
+"4,6",
+"6"
+],
+"cn": [
+"2",
+"4",
+"6+6=12"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 3,
+"name": "eea"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tol",
+"type": "3p-2p",
+"parents": [
+"toc",
+"hxl"
+],
+"parent_cn": [
+"4,6",
+"6"
+],
+"cn": [
+"6",
+"6",
+"2+4=6"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "eea"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "toy",
+"type": "3p-2p",
+"parents": [
+"toc",
+"kgm"
+],
+"parent_cn": [
+"4,6",
+"4"
+],
+"cn": [
+"2",
+"6",
+"4+4=8"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+4
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "eea"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tow",
+"type": "3p-2p",
+"parents": [
+"toc",
+"sql"
+],
+"parent_cn": [
+"4,6",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+6=10"
+],
+"ratio": [
+"0.656",
+"0.971"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+3
+],
+"periodicity": 3,
+"name": "pts"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ths-e"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3,
+"name": "cdq"
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tod",
+"type": "3p-2p",
+"parents": [
+"toc",
+"sql"
+],
+"parent_cn": [
+"4,6",
+"4,4"
+],
+"cn": [
+"4",
+"4",
+"4+6=10"
+],
+"ratio": [
+"0.927",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pts"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "toc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "urj"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttk",
+"type": "3p-2p",
+"parents": [
+"ttt",
+"hcb"
+],
+"parent_cn": [
+"3,12",
+"3,3"
+],
+"cn": [
+"3",
+"3",
+"3+12=15"
+],
+"ratio": [
+"1",
+"0.99"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "wyt"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttj",
+"type": "3p-2p",
+"parents": [
+"ttt",
+"hxl"
+],
+"parent_cn": [
+"3,12",
+"6"
+],
+"cn": [
+"2",
+"3",
+"6+12=18"
+],
+"ratio": [
+"0.577",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3,
+"name": "wyt"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttm",
+"type": "3p-2p",
+"parents": [
+"ttt",
+"sql"
+],
+"parent_cn": [
+"3,12",
+"4"
+],
+"cn": [
+"2",
+"3",
+"4+12=16"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ttn",
+"type": "3p-2p",
+"parents": [
+"ttt",
+"sql"
+],
+"parent_cn": [
+"3,12",
+"4,4"
+],
+"cn": [
+"3",
+"4",
+"4+12=16"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "twx",
+"type": "3p-2p",
+"parents": [
+"twf",
+"hxl"
+],
+"parent_cn": [
+"4,24",
+"6"
+],
+"cn": [
+"2",
+"4",
+"6+24=30"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "twk",
+"type": "3p-2p",
+"parents": [
+"twf",
+"kgd"
+],
+"parent_cn": [
+"4,24",
+"3,6"
+],
+"cn": [
+"3",
+"4",
+"6+24=30"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "twq",
+"type": "3p-2p",
+"parents": [
+"twf",
+"sql"
+],
+"parent_cn": [
+"4,24",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+24=28"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 1
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "twl",
+"type": "3p-2p",
+"parents": [
+"twf",
+"sql"
+],
+"parent_cn": [
+"4,24",
+"4,4"
+],
+"cn": [
+"4",
+"4",
+"4+24=28"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 3,
+"name": "pfm"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "twf"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ith-d",
+"type": "3p-1p",
+"parents": [
+"pto",
+"lcw"
+],
+"parent_cn": [
+"3,4",
+"2"
+],
+"cn": [
+"2",
+"3",
+"2+4=6"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pto"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ith-d"
+}
+]
+},
+{
+"name": "thw",
+"type": "3p-1p",
+"parents": [
+"the",
+"lcw"
+],
+"parent_cn": [
+"3,8",
+"2"
+],
+"cn": [
+"2",
+"3",
+"2+8=10"
+],
+"ratio": [
+"0.408",
+"0.408"
+],
+"made": [
+"Zr-thw-MOF-1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "itw",
+"type": "3p-1p",
+"parents": [
+"ith",
+"lcw"
+],
+"parent_cn": [
+"4,12",
+"2"
+],
+"cn": [
+"2",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.894",
+"0.894"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ith"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "sww",
+"type": "3p-1p",
+"parents": [
+"sod",
+"lcw"
+],
+"parent_cn": [
+"4,4",
+"2"
+],
+"cn": [
+"2",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "sod"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rew",
+"type": "3p-1p",
+"parents": [
+"reo",
+"lcw"
+],
+"parent_cn": [
+"8",
+"2"
+],
+"cn": [
+"2",
+"2",
+"2+8=10"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "brw",
+"type": "3p-1p",
+"parents": [
+"bor",
+"lcw"
+],
+"parent_cn": [
+"3,4",
+"2"
+],
+"cn": [
+"2",
+"3",
+"2+4=6"
+],
+"ratio": [
+"0.408",
+"0.408"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tbw",
+"type": "3p-1p",
+"parents": [
+"tbo",
+"lcw"
+],
+"parent_cn": [
+"3,4",
+"2"
+],
+"cn": [
+"2",
+"3",
+"2+4=6"
+],
+"ratio": [
+"0.408",
+"0.408"
+],
+"proposed": [
+"M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "flw",
+"type": "3p-1p",
+"parents": [
+"ftw",
+"lcw"
+],
+"parent_cn": [
+"4,12",
+"2"
+],
+"cn": [
+"2",
+"2+4=6",
+"12"
+],
+"ratio": [
+"0.707",
+"0.707"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "boc",
+"type": "3p-0p",
+"parents": [
+"bor",
+"cub"
+],
+"parent_cn": [
+"3,4",
+"3,3"
+],
+"cn": [
+"3",
+"4",
+"3+3=6"
+],
+"ratio": [
+"0.667",
+"0.335"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "cra",
+"type": "3p-0p",
+"parents": [
+"crs",
+"tet"
+],
+"parent_cn": [
+"6",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"6"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "crc",
+"type": "3p-0p",
+"parents": [
+"crs",
+"cub"
+],
+"parent_cn": [
+"6",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+6=9"
+],
+"ratio": [
+"0.577",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "cre",
+"type": "3p-0p",
+"parents": [
+"crs",
+"tet"
+],
+"parent_cn": [
+"6",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"6"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"proposed": [
+"M3b_M2-6",
+"M3b_M2a-6a",
+"M6a_M3b",
+"M8a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "crf",
+"type": "3p-0p",
+"parents": [
+"crs",
+"rdo"
+],
+"parent_cn": [
+"6",
+"3,4"
+],
+"cn": [
+"3",
+"6",
+"4+2=6"
+],
+"ratio": [
+"0.577",
+"0.228"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "crv",
+"type": "3p-0p",
+"parents": [
+"crs",
+"oct"
+],
+"parent_cn": [
+"6",
+"4"
+],
+"cn": [
+"2",
+"6",
+"4+2=6"
+],
+"ratio": [
+"1",
+"0.302"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "did",
+"type": "3p-0p",
+"parents": [
+"dia",
+"cub"
+],
+"parent_cn": [
+"4,4",
+"3,3"
+],
+"cn": [
+"3",
+"4",
+"3+4=7"
+],
+"ratio": [
+"0.943",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "xbz"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "dig",
+"type": "3p-0p",
+"parents": [
+"dia",
+"tet"
+],
+"parent_cn": [
+"4,4",
+"3"
+],
+"cn": [
+"2",
+"4",
+"3+4=7"
+],
+"ratio": [
+"0.612",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+5,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "pha"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "omy"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "dih",
+"type": "3p-0p",
+"parents": [
+"dia",
+"cub"
+],
+"parent_cn": [
+"4",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+4=7"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+4
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+5
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+6
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu-h"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+5
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+0,
+6
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+5
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1,
+6
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+5
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+2,
+6
+],
+"periodicity": 0,
+"shape": [
+7,
+[
+1,
+6
+]
+]
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+3,
+5
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+3,
+6
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+4,
+6
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 3,
+"name": "cab"
+},
+{
+"kinds": [
+0,
+1,
+5
+],
+"periodicity": 0,
+"shape": [
+18,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+6
+],
+"periodicity": 0,
+"shape": [
+18,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+5
+],
+"periodicity": 3,
+"name": "gah"
+},
+{
+"kinds": [
+0,
+2,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+5
+]
+]
+},
+{
+"kinds": [
+0,
+3,
+5
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+3,
+6
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+4,
+6
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+5
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1,
+2,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3,
+5
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+1,
+3,
+6
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+1,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1,
+4,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+1,
+7
+]
+]
+},
+{
+"kinds": [
+3,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+3,
+4,
+6
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+3,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+4,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+5
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+0,
+1,
+2,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+5
+],
+"periodicity": 0,
+"shape": [
+24,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+3,
+6
+],
+"periodicity": 0,
+"shape": [
+24,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+18,
+[
+5
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+4,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+18,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+4,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+5
+]
+]
+},
+{
+"kinds": [
+0,
+3,
+4,
+6
+],
+"periodicity": 0,
+"shape": [
+16,
+[
+3,
+5
+]
+]
+},
+{
+"kinds": [
+0,
+3,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+4,
+5,
+6
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+4,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+1,
+3,
+4,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+3,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+1,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+4,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+5,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+3,
+4,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+16,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+24,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+3,
+4,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+5,
+6
+],
+"periodicity": 0,
+"shape": [
+24,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3,
+4,
+5,
+6
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+4,
+6
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+4,
+5,
+6
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4,
+5,
+6
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "dii",
+"type": "3p-0p",
+"parents": [
+"dia",
+"tet"
+],
+"parent_cn": [
+"4",
+"3"
+],
+"cn": [
+"2",
+"2",
+"3+4=7"
+],
+"ratio": [
+"0.612",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+4
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+1,
+3
+]
+]
+},
+{
+"kinds": [
+5
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+5
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "pcu-h"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+5
+],
+"periodicity": 0,
+"shape": [
+1,
+[
+2
+]
+]
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+5
+],
+"periodicity": 0,
+"shape": [
+2,
+[
+1
+]
+]
+},
+{
+"kinds": [
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+3,
+5
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+4,
+5
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+1,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "cab"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+5
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+1,
+5
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+5
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+3,
+5
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+4,
+5
+],
+"periodicity": 2
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+5
+],
+"periodicity": 0,
+"shape": [
+18,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+3,
+5
+],
+"periodicity": 1
+},
+{
+"kinds": [
+1,
+4,
+5
+],
+"periodicity": 3,
+"name": "gah"
+},
+{
+"kinds": [
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+2,
+3,
+5
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+2,
+4,
+5
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+5
+],
+"periodicity": 0,
+"shape": [
+18,
+[
+5
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+5
+],
+"periodicity": 1
+},
+{
+"kinds": [
+0,
+1,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4
+],
+"periodicity": 2
+},
+{
+"kinds": [
+0,
+2,
+3,
+5
+],
+"periodicity": 3,
+"name": "dia-a"
+},
+{
+"kinds": [
+0,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+5
+],
+"periodicity": 3,
+"name": "pcb"
+},
+{
+"kinds": [
+1,
+2,
+4,
+5
+],
+"periodicity": 3,
+"name": "dia"
+},
+{
+"kinds": [
+1,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3,
+4,
+5
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ffv",
+"type": "3p-0p",
+"parents": [
+"fcu",
+"tet"
+],
+"parent_cn": [
+"12",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"12"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ffe",
+"type": "3p-0p",
+"parents": [
+"fcu",
+"tet"
+],
+"parent_cn": [
+"12",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"12"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"proposed": [
+"M2a-6a_M3b",
+"M6a_M3b",
+"M8a",
+"M8a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ffh",
+"type": "3p-0p",
+"parents": [
+"fcu",
+"cub"
+],
+"parent_cn": [
+"12",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+12=15"
+],
+"ratio": [
+"0.577",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+3
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xay"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+0,
+3
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "xay"
+},
+{
+"kinds": [
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2,
+3
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2,
+3
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ffk",
+"type": "3p-0p",
+"parents": [
+"fcu",
+"oct"
+],
+"parent_cn": [
+"12",
+"4"
+],
+"cn": [
+"2",
+"4+2=6",
+"12"
+],
+"ratio": [
+"1",
+"0.301"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ffl",
+"type": "3p-0p",
+"parents": [
+"fcu",
+"rdo"
+],
+"parent_cn": [
+"12",
+"3,4"
+],
+"cn": [
+"3",
+"4+2=6",
+"12"
+],
+"ratio": [
+"0.577",
+"0.228"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fld",
+"type": "3p-0p",
+"parents": [
+"flu",
+"cub"
+],
+"parent_cn": [
+"4,8",
+"3"
+],
+"cn": [
+"2",
+"3+4=7",
+"8"
+],
+"ratio": [
+"0.866",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+9,
+[
+1,
+8
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbm"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fle",
+"type": "3p-0p",
+"parents": [
+"flu",
+"rdo"
+],
+"parent_cn": [
+"4,8",
+"3,4"
+],
+"cn": [
+"4",
+"3+4=7",
+"8"
+],
+"ratio": [
+"0.817",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+9,
+[
+1,
+8
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "flu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "xba"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwm",
+"type": "3p-0p",
+"parents": [
+"ftw",
+"tet"
+],
+"parent_cn": [
+"4,12",
+"3"
+],
+"cn": [
+"3",
+"4+2=6",
+"12"
+],
+"ratio": [
+"0.577",
+"0.427"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 3,
+"name": "fcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fwn",
+"type": "3p-0p",
+"parents": [
+"ftw",
+"oct"
+],
+"parent_cn": [
+"4,12",
+"4"
+],
+"cn": [
+"2",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.819",
+"0.471"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "fww",
+"type": "3p-0p",
+"parents": [
+"ftw",
+"rdo"
+],
+"parent_cn": [
+"4,12",
+"3,4"
+],
+"cn": [
+"3",
+"4+4=8",
+"12"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"proposed": [
+"M6a_M4c"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ftw"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hxa",
+"type": "3p-0p",
+"parents": [
+"hxg",
+"cub"
+],
+"parent_cn": [
+"6,6",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+6=9"
+],
+"ratio": [
+"0.577",
+"0.378"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hxe",
+"type": "3p-0p",
+"parents": [
+"hxg",
+"tet"
+],
+"parent_cn": [
+"6,6",
+"3"
+],
+"cn": [
+"2",
+"6",
+"3+6=9"
+],
+"ratio": [
+"1",
+"0.555"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "hxc",
+"type": "3p-0p",
+"parents": [
+"hxg",
+"cub"
+],
+"parent_cn": [
+"6",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"3+6=9"
+],
+"ratio": [
+"0.577",
+"0.42"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "kpl",
+"type": "3p-0p",
+"parents": [
+"soc",
+"oct"
+],
+"parent_cn": [
+"4,6",
+"4"
+],
+"cn": [
+"2",
+"6",
+"4+4=8"
+],
+"ratio": [
+"1",
+"0.471"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "kpl"
+}
+]
+},
+{
+"name": "mga",
+"type": "3p-0p",
+"parents": [
+"mgc",
+"cub"
+],
+"parent_cn": [
+"6,12",
+"3,3"
+],
+"cn": [
+"3",
+"3+6=9",
+"12"
+],
+"ratio": [
+"0.492",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "mge",
+"type": "3p-0p",
+"parents": [
+"mgc",
+"tet"
+],
+"parent_cn": [
+"6,12",
+"3"
+],
+"cn": [
+"2",
+"3+6=9",
+"12"
+],
+"ratio": [
+"0.853",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "mgc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nam",
+"type": "3p-0p",
+"parents": [
+"nbo",
+"tet"
+],
+"parent_cn": [
+"4,4",
+"3"
+],
+"cn": [
+"3",
+"4",
+"2+4=6"
+],
+"ratio": [
+"0.819",
+"0.594"
+],
+"proposed": [
+"M3a"
+],
+"made": [
+"Fe-nam-MOF-1"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nbb",
+"type": "3p-0p",
+"parents": [
+"nbo",
+"tet"
+],
+"parent_cn": [
+"4",
+"3"
+],
+"cn": [
+"2",
+"3",
+"2+4=6"
+],
+"ratio": [
+"0.817",
+"0.575"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nbr",
+"type": "3p-0p",
+"parents": [
+"nbo",
+"rdo"
+],
+"parent_cn": [
+"4,4",
+"3,4"
+],
+"cn": [
+"3",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.819",
+"0.455"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "nbu",
+"type": "3p-0p",
+"parents": [
+"nbo",
+"rdo"
+],
+"parent_cn": [
+"4",
+"3,4"
+],
+"cn": [
+"2",
+"3",
+"4+4=8"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ncb",
+"type": "3p-0p",
+"parents": [
+"pcu",
+"tet"
+],
+"parent_cn": [
+"6",
+"3"
+],
+"cn": [
+"2",
+"2",
+"3+6=9"
+],
+"ratio": [
+"0.706",
+"0.853"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "ncb"
+}
+]
+},
+{
+"name": "pca",
+"type": "3p-0p",
+"parents": [
+"pcu",
+"cub"
+],
+"parent_cn": [
+"6,6",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"6+3=9"
+],
+"ratio": [
+"0.818",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+12,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcb-e",
+"type": "3p-0p",
+"parents": [
+"pcu",
+"cuo"
+],
+"parent_cn": [
+"6",
+"4"
+],
+"cn": [
+"2",
+"6",
+"4+2=6"
+],
+"ratio": [
+"non",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+12,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcb-e"
+}
+]
+},
+{
+"name": "pce",
+"type": "3p-0p",
+"parents": [
+"pcu",
+"tet"
+],
+"parent_cn": [
+"6,6",
+"3"
+],
+"cn": [
+"2",
+"6",
+"6+3=9"
+],
+"ratio": [
+"0.706",
+"non"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcf",
+"type": "3p-0p",
+"parents": [
+"pcu",
+"cub"
+],
+"parent_cn": [
+"6",
+"3,3"
+],
+"cn": [
+"2",
+"3",
+"6+3=9"
+],
+"ratio": [
+"0.818",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcj",
+"type": "3p-0p",
+"parents": [
+"pcu",
+"oct"
+],
+"parent_cn": [
+"6",
+"4"
+],
+"cn": [
+"4",
+"2+2=4",
+"6"
+],
+"ratio": [
+"non",
+"0.603"
+],
+"proposed": [
+"M4a_M2a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pcq",
+"type": "3p-0p",
+"parents": [
+"pcu",
+"rdo"
+],
+"parent_cn": [
+"6",
+"3,4"
+],
+"cn": [
+"2",
+"4",
+"3+6=9"
+],
+"ratio": [
+"0.707",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pcu"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+4,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "xaw"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "pha",
+"type": "3p-0p",
+"parents": [
+"bor",
+"tet"
+],
+"parent_cn": [
+"3,4",
+"3"
+],
+"cn": [
+"2",
+"4",
+"3+3=6"
+],
+"ratio": [
+"0.866",
+"0.459"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "bor"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pha"
+}
+]
+},
+{
+"name": "pyc",
+"type": "3p-0p",
+"parents": [
+"nbo",
+"oct"
+],
+"parent_cn": [
+"4",
+"4"
+],
+"cn": [
+"2",
+"2",
+"4+4=8"
+],
+"ratio": [
+"0.739",
+"0.577"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "pyc"
+}
+]
+},
+{
+"name": "rea",
+"type": "3p-0p",
+"parents": [
+"reo",
+"cub"
+],
+"parent_cn": [
+"8",
+"3"
+],
+"cn": [
+"3",
+"2+2=4",
+"8"
+],
+"ratio": [
+"0.577",
+"0.42"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rec",
+"type": "3p-0p",
+"parents": [
+"reo",
+"cub"
+],
+"parent_cn": [
+"8",
+"3"
+],
+"cn": [
+"2",
+"3",
+"8+2=10"
+],
+"ratio": [
+"0.577",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+12,
+[
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "rhr"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 0,
+"shape": [
+20,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "nha"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ree",
+"type": "3p-0p",
+"parents": [
+"reo",
+"oct"
+],
+"parent_cn": [
+"8",
+"4"
+],
+"cn": [
+"2",
+"4",
+"8+2=10"
+],
+"ratio": [
+"0.707",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+12,
+[
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "rhr"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 0,
+"shape": [
+18,
+[
+4,
+6
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "ref",
+"type": "3p-0p",
+"parents": [
+"reo",
+"rdo"
+],
+"parent_cn": [
+"8",
+"3,4"
+],
+"cn": [
+"2",
+"3",
+"8+4=12"
+],
+"ratio": [
+"0.615",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+8
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "reg",
+"type": "3p-0p",
+"parents": [
+"reo",
+"tet"
+],
+"parent_cn": [
+"8",
+"3"
+],
+"cn": [
+"2",
+"3",
+"8+2=10"
+],
+"ratio": [
+"0.615",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+10,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "reh",
+"type": "3p-0p",
+"parents": [
+"reo",
+"cuo"
+],
+"parent_cn": [
+"8",
+"4"
+],
+"cn": [
+"2",
+"4+2=6",
+"8"
+],
+"ratio": [
+"1",
+"0.447"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "reo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+12,
+[
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rha",
+"type": "3p-0p",
+"parents": [
+"rht",
+"cub"
+],
+"parent_cn": [
+"3,24",
+"3"
+],
+"cn": [
+"2",
+"3+3=6",
+"24"
+],
+"ratio": [
+"0.817",
+"0.471"
+],
+"proposed": [
+"M6a_M2a-12a",
+"M8a_M2a-12a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhe",
+"type": "3p-0p",
+"parents": [
+"rht",
+"cub"
+],
+"parent_cn": [
+"3,24",
+"3,3"
+],
+"cn": [
+"3",
+"3+3=6",
+"24"
+],
+"ratio": [
+"0.333",
+"0.174"
+],
+"proposed": [
+"M2a-12a_M3a-4a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhg",
+"type": "3p-0p",
+"parents": [
+"rht",
+"rdo"
+],
+"parent_cn": [
+"3,24",
+"3,4"
+],
+"cn": [
+"4",
+"3+3=6",
+"24"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"proposed": [
+"M3a_M2a-12a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "rhi",
+"type": "3p-0p",
+"parents": [
+"rht",
+"tet"
+],
+"parent_cn": [
+"3,24",
+"3"
+],
+"cn": [
+"2",
+"3+3=6",
+"24"
+],
+"ratio": [
+"0.577",
+"0.243"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "rht"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "scj",
+"type": "3p-0p",
+"parents": [
+"soc",
+"tet"
+],
+"parent_cn": [
+"4,6",
+"3"
+],
+"cn": [
+"3",
+"6",
+"4+2=6"
+],
+"ratio": [
+"0.577",
+"0.427"
+],
+"proposed": [
+"M3a-M3b",
+"M3a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "scr",
+"type": "3p-0p",
+"parents": [
+"soc",
+"rdo"
+],
+"parent_cn": [
+"4,6",
+"3,4"
+],
+"cn": [
+"3",
+"6",
+"4+4=8"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"proposed": [
+"M3a-M3b",
+"M3a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "scw",
+"type": "3p-0p",
+"parents": [
+"soc",
+"tet"
+],
+"parent_cn": [
+"4,6",
+"3"
+],
+"cn": [
+"3",
+"6",
+"4+2=6"
+],
+"ratio": [
+"0.577",
+"0.427"
+],
+"proposed": [
+"M3a-M3b",
+"M3a_M3b"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "crs"
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "soc"
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "spa",
+"type": "3p-0p",
+"parents": [
+"spn",
+"cub"
+],
+"parent_cn": [
+"3,6",
+"3,3"
+],
+"cn": [
+"3",
+"6",
+"3+3=6"
+],
+"ratio": [
+"0.546",
+"0.174"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "spb",
+"type": "3p-0p",
+"parents": [
+"spn",
+"tet"
+],
+"parent_cn": [
+"3,6",
+"3"
+],
+"cn": [
+"2",
+"3",
+"3+6=9"
+],
+"ratio": [
+"0.577",
+"non"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+2
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3,
+6
+]
+]
+},
+{
+"kinds": [
+0,
+2
+],
+"periodicity": 3
+},
+{
+"kinds": [
+1,
+2
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+0,
+1,
+2
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "str",
+"type": "3p-0p",
+"parents": [
+"spn",
+"tet"
+],
+"parent_cn": [
+"3,6",
+"3"
+],
+"cn": [
+"2",
+"6",
+"3+3=6"
+],
+"ratio": [
+"0.577",
+"0.243"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "spn"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "str"
+}
+]
+},
+{
+"name": "tbm",
+"type": "3p-0p",
+"parents": [
+"tbo",
+"cub"
+],
+"parent_cn": [
+"3,4",
+"3,3"
+],
+"cn": [
+"3",
+"4",
+"3+3=6"
+],
+"ratio": [
+"0.668",
+"0.335"
+],
+"proposed": [
+"M3c"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tvv",
+"type": "3p-0p",
+"parents": [
+"tbo",
+"rdo"
+],
+"parent_cn": [
+"3,4",
+"3,4"
+],
+"cn": [
+"4",
+"4",
+"3+3=6"
+],
+"ratio": [
+"0.866",
+"0.603"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tcw",
+"type": "3p-0p",
+"parents": [
+"ttt",
+"cub"
+],
+"parent_cn": [
+"3,12",
+"3,3"
+],
+"cn": [
+"3",
+"3+3=6",
+"12"
+],
+"ratio": [
+"0.392",
+"0.174"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tcx",
+"type": "3p-0p",
+"parents": [
+"ttt",
+"cub"
+],
+"parent_cn": [
+"3,12",
+"3,3"
+],
+"cn": [
+"3",
+"3+3=6",
+"12"
+],
+"ratio": [
+"0.606",
+"0.335"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tew",
+"type": "3p-0p",
+"parents": [
+"ttt",
+"tet"
+],
+"parent_cn": [
+"3,12",
+"3"
+],
+"cn": [
+"2",
+"3+3=6",
+"12"
+],
+"ratio": [
+"0.679",
+"0.243"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "tex",
+"type": "3p-0p",
+"parents": [
+"ttt",
+"tet"
+],
+"parent_cn": [
+"3,12",
+"3"
+],
+"cn": [
+"2",
+"3+3=6",
+"12"
+],
+"ratio": [
+"0.687",
+"0.459"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "ttt"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "thi",
+"type": "3p-0p",
+"parents": [
+"the",
+"cub"
+],
+"parent_cn": [
+"3,8",
+"3"
+],
+"cn": [
+"2",
+"3+3=6",
+"8"
+],
+"ratio": [
+"0.817",
+"0.471"
+],
+"proposed": [
+"M3a",
+"M3c"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "thm",
+"type": "3p-0p",
+"parents": [
+"the",
+"rdo"
+],
+"parent_cn": [
+"3,8",
+"3,4"
+],
+"cn": [
+"4",
+"3+3=6",
+"8"
+],
+"ratio": [
+"0.577",
+"0.333"
+],
+"proposed": [
+"M3a",
+"M3c"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 3,
+"name": "the"
+},
+{
+"kinds": [
+1
+],
+"periodicity": 0,
+"shape": [
+14,
+[
+3,
+4
+]
+]
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3
+}
+]
+},
+{
+"name": "xay",
+"type": "3p-0p",
+"parents": [
+"hxg",
+"tet"
+],
+"parent_cn": [
+"6",
+"3"
+],
+"cn": [
+"2",
+"2",
+"3+6=9"
+],
+"ratio": [
+"1",
+"0.632"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "hxg"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xay"
+}
+]
+},
+{
+"name": "xbf",
+"type": "3p-0p",
+"parents": [
+"tbo",
+"cub"
+],
+"parent_cn": [
+"3,4",
+"3"
+],
+"cn": [
+"2",
+"4",
+"3+3=6"
+],
+"ratio": [
+"0.612",
+"0.853"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+8,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbf"
+}
+]
+},
+{
+"name": "xbh",
+"type": "3p-0p",
+"parents": [
+"tbo",
+"tet"
+],
+"parent_cn": [
+"3,4",
+"3"
+],
+"cn": [
+"2",
+"4",
+"3+3=6"
+],
+"ratio": [
+"0.866",
+"0.459"
+],
+"proposed": [
+"M3a"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+4,
+[
+3
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "tbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbh"
+}
+]
+},
+{
+"name": "xbi",
+"type": "3p-0p",
+"parents": [
+"nbo",
+"oct"
+],
+"parent_cn": [
+"4,4",
+"4"
+],
+"cn": [
+"2",
+"4",
+"4+4=8"
+],
+"ratio": [
+"0.707",
+"0.632"
+],
+"parts": [
+{
+"kinds": [
+0
+],
+"periodicity": 0,
+"shape": [
+6,
+[
+4
+]
+]
+},
+{
+"kinds": [
+1
+],
+"periodicity": 3,
+"name": "nbo"
+},
+{
+"kinds": [
+0,
+1
+],
+"periodicity": 3,
+"name": "xbi"
+}
+]
+}
+]

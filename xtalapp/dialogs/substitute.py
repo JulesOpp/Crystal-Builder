@@ -146,11 +146,22 @@ class SubstituteDialog(QDialog):
             return substitute.group(smiles, name=name)
         return name
 
+    def chosen_smiles(self) -> str:
+        """The group shown, as SMILES, for Draw to start from."""
+        from xtal.build import library
+
+        smiles = self.group.currentData()
+        if smiles:
+            return str(smiles)
+        entry = library.find(self.group.currentText())
+        return entry.smiles if entry is not None else ""
+
     def draw_group(self) -> None:
         """*Draw...*: a group of one's own, chosen once it is drawn."""
         from xtalapp.dialogs.draw_group import DrawGroupDialog
 
-        drawn = DrawGroupDialog.ask(self.folder, self)
+        drawn = DrawGroupDialog.ask(self.folder, self,
+                                    smiles=self.chosen_smiles())
         if drawn is None:
             return
         name, smiles = drawn

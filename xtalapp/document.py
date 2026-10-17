@@ -1502,6 +1502,20 @@ class Document(QObject):
         path = Path(path)
         return write_cgd(path, [entry_of(self._structure, path.stem)])
 
+    def write_for_topcryst(self, folder) -> Path:
+        """Write the crystal for an upload to TopCryst, in ``folder``.
+
+        One way, like :meth:`export`, and cleaned the same way
+        (:func:`xtal.io.export.write_for_topcryst`).  Named after the
+        file the tab is, as Save names its project.
+        """
+        from xtal.io.export import write_for_topcryst
+
+        name = (self._path.stem if self._path is not None
+                else str(self._structure.meta.get("title")
+                         or "structure"))
+        return write_for_topcryst(self._structure, folder, name)
+
     def delete_selected_bonds(self) -> str:
         """Suppress every selected bond, as one undo step.
 
@@ -2517,17 +2531,19 @@ class Document(QObject):
         structure's meta as it is read, so it is made once, when the
         file is opened, and never again over a group somebody has
         since renamed or deleted."""
-        parts = self._structure.meta.pop(shelx.PARTS_KEY, None)
-        if not parts:
+        parts = self._structure.meta.pop(shelx.PARTS_KEY, None) or []
+        named = self._structure.meta.pop(atom_groups.META_KEY, None) or []
+        if not parts and not named:
             return []
         cell, lattice = self.cell, self._structure.lattice
         groups = []
-        for part, sites in parts:
+        wanted = [(f"PART {part}", None, sites) for part, sites in parts]
+        for name, colour, sites in [*wanted, *named]:
             atoms = [int(a) for site in sites
                      for a in cell.indices_of_site(int(site))]
             if atoms:
                 groups.append(atom_groups.make(
-                    cell, lattice, atoms, f"PART {part}"))
+                    cell, lattice, atoms, name, colour))
         return groups
 
     def rename_atom_group(self, row: int, name: str) -> None:

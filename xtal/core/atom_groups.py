@@ -26,6 +26,13 @@ import numpy as np
 
 from xtal.core import tracking
 
+#: Where a structure that was made with groups in mind carries them
+#: for the window (``[(name, colour or None, [site, ...]), ...]``):
+#: a merged net drawn with its parents apart
+#: (:func:`xtal.mof.merged_nets.drawn`).  Popped as the document is
+#: made, as a SHELX file's PARTs are, so it is made once.
+META_KEY = "atom_groups"
+
 
 @dataclass(frozen=True)
 class AtomGroup:

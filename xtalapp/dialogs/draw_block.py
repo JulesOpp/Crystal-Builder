@@ -31,6 +31,25 @@ worth checking before the file is written is the one this dialog
 exists to check, and :func:`xtal.mof.block.write_building_block`
 still runs :func:`~xtal.mof.block.problems` underneath as the last
 word.
+
+**A linker may be drawn whole**, its carboxylic acids and hydroxyls
+drawn as they are instead of ending each arm in ``X``: each donor is
+counted as the connection point it becomes (:mod:`xtal.mof.donors`).
+For a rod linker (a slot with ``donors`` set, from
+:mod:`xtalapp.dialogs.rod_build`) it is saved with no ``X``, so the
+file says which donor each point is; for any other slot the donors
+are taken off and an ``X`` written where each joined, which is what
+PORMAKE's own blocks are -- BDC is E14, a benzene with an ``X`` at
+each carboxylate's carbon, because the cluster carries the
+carboxylates.  Drawn with stars it is saved as any block is.
+
+**So may an L-type one**, for any slot but a rod's: a drawing with no
+carboxylate and no hydroxyl makes a point of each pyridyl nitrogen
+whose lone pair is free (:func:`xtal.mof.donors.find`), and is saved
+with an ``X`` on that lone pair -- a window filler or a partitioner
+is a pyridyl, and its point is a fourth bond on the nitrogen that a
+person drawing pyridines does not think to draw.  A star drawn on the
+nitrogen is the same point (:func:`xtal.build.chem._charge_dative`).
 """
 
 from __future__ import annotations
@@ -47,6 +66,7 @@ from PySide6.QtWidgets import (
 
 from xtal.build import BuildError
 from xtal.modules.build import BUILD, molecule_for
+from xtal.mof import donors
 from xtal.mof.block import BlockError, write_building_block
 from xtal.workspace import safe_name
 from xtalapp.dialogs import sketch
@@ -66,9 +86,13 @@ class DrawBlockDialog(QDialog):
     """A SMILES box and a canvas, aimed at one slot's coordination
     number."""
 
-    def __init__(self, slot, folder: str, parent=None):
+    def __init__(self, slot, folder: str, parent=None, smiles: str = ""):
         super().__init__(parent)
         self.slot = slot
+        #: Whether a drawing with no stars is saved whole, donors and
+        #: all (a rod linker), or with each donor made an ``X``.  Its
+        #: donors count as its points either way.
+        self.whole = bool(getattr(slot, "donors", False))
         self.folder = str(folder or "").strip()
         self.molecule = None
         self.path: Path | None = None
@@ -81,6 +105,10 @@ class DrawBlockDialog(QDialog):
         # for one are already exactly right.
         self.action = BUILD.action("molecule")
         self.form = ParamForm(self.action.params, self)
+        if smiles:
+            # The block the row was showing, so Draw is an edit of it
+            # rather than a blank page.
+            self.form.set_values({"smiles": smiles})
         self.sketch = sketch_for(self, True)
         self.footer = QLabel(self)
         self.footer.setWordWrap(True)
@@ -88,6 +116,10 @@ class DrawBlockDialog(QDialog):
         self.where = QLabel(self._where(), self)
         set_tone(self.where, HINT)
         self.where.setWordWrap(True)
+        self.note = QLabel(self._note(), self)
+        set_tone(self.note, HINT)
+        self.note.setWordWrap(True)
+        self.note.setVisible(bool(self._note()))
 
         self._quiet = QTimer(self)
         self._quiet.setSingleShot(True)
@@ -117,6 +149,7 @@ class DrawBlockDialog(QDialog):
         layout.addWidget(self.form)
         layout.addWidget(self.sketch, 1)
         layout.addWidget(self.footer)
+        layout.addWidget(self.note)
         layout.addWidget(self.where)
         layout.addWidget(buttons)
         self.resize(520, 620)
@@ -157,18 +190,70 @@ class DrawBlockDialog(QDialog):
             self.molecule = None
             self._say(str(exc), ok=False)
             return
-        fits = self.molecule.n_connections == self.slot.coordination
-        self._say(self._outcome(self.molecule, fits), ok=fits)
+        have, kinds = self._points(self.molecule)
+        fits = have == self.slot.coordination
+        said = self._outcome(self.molecule, have, kinds, fits)
+        if fits and not self._on_nitrogens(self.molecule, kinds):
+            fits = False
+            said = (f"{said.split(' -- ')[0]} -- a {self.slot.label.lower()} "
+                    f"meets each metal through a pyridyl nitrogen: put "
+                    f"its points on ring nitrogens, or draw the "
+                    f"pyridines bare")
+        self._say(said, ok=fits)
 
-    def _outcome(self, molecule, fits: bool) -> str:
-        have = molecule.n_connections
+    def _on_nitrogens(self, molecule, kinds) -> bool:
+        """Whether every point is a nitrogen's, for a slot that asks
+        (a partitioner, whose points are dative); always, otherwise."""
+        if not getattr(self.slot, "nitrogen", False):
+            return True
+        if kinds:
+            return set(kinds) == {donors.PYRIDYL}
+        elements = molecule.elements
+        for x in molecule.connections:
+            partner = next((j if i == x else i
+                            for i, j, *_ in molecule.bonds
+                            if x in (i, j)), None)
+            if partner is None or elements[partner] != "N":
+                return False
+        return True
+
+    def _points(self, molecule) -> tuple[int, tuple[str, ...]]:
+        """The points ``molecule`` makes: its stars, or, drawn whole,
+        one per donor."""
+        if molecule.n_connections:
+            return molecule.n_connections, ()
+        return donors.points(donors.whole(molecule),
+                             pyridyls=not self.whole)
+
+    def _outcome(self, molecule, have: int, kinds, fits: bool) -> str:
         need = self.slot.coordination
-        base = (f"<b>{molecule.formula}</b>, {molecule.n_atoms} "
-                f"atom(s), {have} connection point(s)")
+        base = f"<b>{molecule.formula}</b>, {molecule.n_atoms} atom(s), "
+        if kinds:
+            base += (f"{donors.described(kinds)}: {have} connection "
+                     f"point(s)")
+        else:
+            base += f"{have} connection point(s)"
+            if have and self.whole:
+                base += " drawn bare, which pair with any of the rod's"
         if fits:
             return f"{base} -- fits {self.slot.label.lower()}"
+        if not have:
+            what = ("carboxylates and phenols" if self.whole else
+                    "carboxylic acids, hydroxyls or pyridines")
+            return (f"{base} -- draw its {what}, or mark its "
+                    f"{need} points")
         return (f"{base} -- {self.slot.label} needs {need}, "
                 f"not {have}")
+
+    def _note(self) -> str:
+        """Said for a rod linker only: its donors are the rod's points
+        and their kinds, which is what drawing them is for."""
+        if not self.whole:
+            return ""
+        return ("No need to end each arm in X (*): draw the linker's "
+                "carboxylic acids (C(=O)O) and hydroxyls as they are, "
+                "and each is the rod point of its kind -- dobpdc and "
+                "pc-dobpdc are two drawings.")
 
     def _where(self) -> str:
         if not self.folder:
@@ -214,8 +299,11 @@ class DrawBlockDialog(QDialog):
         the form's real values, exactly once.
         """
         self._rebuild()
-        if (self.molecule is None or not self.folder or
-                self.molecule.n_connections != self.slot.coordination):
+        if self.molecule is None or not self.folder:
+            return
+        have, kinds = self._points(self.molecule)
+        if (have != self.slot.coordination
+                or not self._on_nitrogens(self.molecule, kinds)):
             return
         values = self.action.coerce(self.form.values())
         stem = safe_name(str(values.get("name") or "") or
@@ -228,17 +316,29 @@ class DrawBlockDialog(QDialog):
             return
         path = Path(self.folder) / f"{stem}.xyz"
         try:
-            self.path = write_building_block(
-                final.to_structure(), path)
-        except (BlockError, OSError) as exc:
+            if not final.n_connections:
+                from xtal.io.atomic import write_text
+
+                drawn = donors.whole(final)
+                if not self.whole:
+                    drawn = donors.as_linker(drawn, pyridyls=True)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                write_text(path, drawn.text())
+                self.path = path
+            else:
+                self.path = write_building_block(
+                    final.to_structure(), path)
+        except (BlockError, donors.DonorError, OSError) as exc:
             self._say(str(exc), ok=False)
             return
         super().accept()
 
     @classmethod
-    def ask(cls, slot, folder: str, parent=None) -> Path | None:
-        """The path just written, or ``None`` if it was cancelled."""
-        with answered(cls(slot, folder, parent)) as dialog:
+    def ask(cls, slot, folder: str, parent=None,
+            smiles: str = "") -> Path | None:
+        """The path just written, or ``None`` if it was cancelled.
+        ``smiles`` is what the drawing starts as."""
+        with answered(cls(slot, folder, parent, smiles)) as dialog:
             if dialog.exec() != QDialog.Accepted:
                 return None
             return dialog.path

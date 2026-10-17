@@ -154,7 +154,7 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True,
     # None, so the reason has to be captured or the user is told only
     # that something did not work.
     with rdBase.BlockLogs():
-        mol = Chem.MolFromSmiles(text)
+        mol = Chem.MolFromSmiles(text) or _dative(Chem, text)
     if mol is None:
         raise BuildError(f"{text!r} is not a SMILES string RDKit can "
                          f"read")
@@ -229,6 +229,48 @@ def _looks_like_xyz(text: str) -> bool:
         if run >= 3:
             return True
     return False
+
+
+def _dative(Chem, text: str):                       # noqa: N803
+    """``text`` read with every pyridyl nitrogen a connection point
+    hangs off made a cation (:func:`_charge_dative`), or ``None``."""
+    mol = Chem.MolFromSmiles(text, sanitize=False)
+    if mol is None or not _charge_dative(mol):
+        return None
+    try:
+        Chem.SanitizeMol(mol)
+    except Exception:                               # noqa: BLE001
+        return None
+    return mol
+
+
+def _charge_dative(mol) -> bool:
+    """Make each aromatic nitrogen a connection point hangs off the
+    cation it has to be, in place; whether any was.
+
+    A pyridyl meets its metal through the nitrogen's lone pair, so its
+    point is a fourth bond on that nitrogen: ``*[n+]1ccccc1``, as the
+    partitioners and the series write it.  Drawn on the canvas, a star
+    on a pyridine's nitrogen was refused for its valence ("too many
+    bonds") and typed as ``*n1ccccc1`` it was not a SMILES string at
+    all, so the one way to draw a dative point was to know to charge
+    the nitrogen first.
+    """
+    changed = False
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() != 0:
+            continue
+        for n in atom.GetNeighbors():
+            # Its two ring bonds are an aromatic pair or a single and
+            # a double, as the canvas draws them Kekule.
+            order = sum(b.GetBondTypeAsDouble() for b in n.GetBonds())
+            if (n.GetSymbol() == "N" and n.GetFormalCharge() == 0
+                    and n.GetNumExplicitHs() == 0
+                    and n.GetDegree() == 3 and order == 4):
+                n.SetFormalCharge(1)
+                n.SetNoImplicit(True)
+                changed = True
+    return changed
 
 
 def _dummies(mol) -> list[int]:
@@ -991,6 +1033,11 @@ def _away(mol, cart, member: int, points) -> np.ndarray:
     return direction / np.linalg.norm(direction)
 
 
+#: Enough for any molecule the builders draw to converge; a step is
+#: microseconds on one that has.
+RELAX_STEPS = 20000
+
+
 def _relax(AllChem, mol) -> None:
     """MMFF where it has the parameters, UFF where it does not, and
     the ETKDG geometry where neither does.
@@ -998,12 +1045,18 @@ def _relax(AllChem, mol) -> None:
     Failing to relax is not failing to build: what ETKDG produces is
     already a chemically sensible molecule, and the user has a force
     field in the application to take it further.
+
+    Run to convergence, not RDKit's 200 steps: a hundred-atom linker
+    is not relaxed in 200, and ETKDG's bent arms were kept -- the
+    three arms of T-benzene-PPP-py 12-21 A apart from seed to seed
+    and RDKit version to version, against 18.62 A every time once
+    converged.
     """
     try:
         if AllChem.MMFFHasAllMoleculeParams(mol):
-            AllChem.MMFFOptimizeMolecule(mol)
+            AllChem.MMFFOptimizeMolecule(mol, maxIters=RELAX_STEPS)
         elif AllChem.UFFHasAllMoleculeParams(mol):
-            AllChem.UFFOptimizeMolecule(mol)
+            AllChem.UFFOptimizeMolecule(mol, maxIters=RELAX_STEPS)
     except (ValueError, RuntimeError):          # pragma: no cover
         pass
 
@@ -1070,6 +1123,7 @@ def sketch_mol(sketch, sanitize: bool = True):
             mol.GetAtomWithIdx(bond.b).SetIsAromatic(True)
             mol.GetBondBetweenAtoms(bond.a, bond.b).SetIsAromatic(True)
     mol = mol.GetMol()
+    _charge_dative(mol)
     if sanitize:
         with rdBase.BlockLogs():
             try:
@@ -1086,6 +1140,108 @@ def sketch_smiles(sketch) -> str:
     from rdkit import Chem
 
     return Chem.MolToCXSmiles(sketch_mol(sketch))
+
+
+#: A building block's bond letters as RDKit's types.
+_LETTER_ORDERS = {"S": "SINGLE", "D": "DOUBLE", "T": "TRIPLE",
+                  "A": "AROMATIC"}
+
+
+def block_smiles(symbols, bonds) -> str:
+    """A building block's graph as a starred SMILES, ``""`` where
+    RDKit cannot make one (a metal cluster, mostly).
+
+    What *Draw...* opens on when a block is already chosen: the
+    block's own atoms and bond letters, its ``X`` as numbered stars
+    and its hydrogens folded back into their atoms.  Read off the
+    bonds and never the positions.  A nitrogen with four bonds -- a
+    pyridyl's, with its point -- is written as the cation it has to
+    be to sanitize, as the series' SMILES are.
+    """
+    if not installed():
+        return ""
+    from rdkit import Chem, rdBase
+
+    # A pair written twice is one bond: 52 shipped blocks name one
+    # partner twice.
+    seen, unique = set(), []
+    for i, j, letter in bonds:
+        pair = frozenset((int(i), int(j)))
+        if len(pair) == 2 and pair not in seen:
+            seen.add(pair)
+            unique.append((int(i), int(j), str(letter)))
+    bonds = unique
+    # PORMAKE and the rod files write a carboxylate's two C-O as
+    # aromatic, which no Kekule form has: drawn as the acid instead,
+    # C(=O)O, the acid's hydrogen left to the oxygen's valence.
+    terminal = {}
+    for n, (i, j, letter) in enumerate(bonds):
+        for a, b in ((i, j), (j, i)):
+            if (letter == "A" and symbols[a] == "O"
+                    and sum(a in (x, y) for x, y, _ in bonds) == 1):
+                terminal.setdefault(b, []).append(n)
+    for _carbon, found in terminal.items():
+        if len(found) == 2:
+            first, second = found
+            i, j, _ = bonds[first]
+            bonds[first] = (i, j, "D")
+            i, j, _ = bonds[second]
+            bonds[second] = (i, j, "S")
+
+    # Hydrogens on carbon are atoms of the block; an oxygen or a
+    # nitrogen may be written bare (a phenolate, an azolate) and is
+    # drawn with the hydrogen its valence wants -- unless that leaves
+    # no Kekule form (pyrazole's second N), so fewer are tried.
+    for bare in (("O", "N"), ("O",), ()):
+        mol = _block_mol(Chem, symbols, bonds, bare)
+        if mol is None:
+            return ""
+        with rdBase.BlockLogs():
+            try:
+                Chem.SanitizeMol(mol)
+                return Chem.MolToSmiles(Chem.RemoveHs(mol))
+            except (ValueError, RuntimeError):
+                continue
+    return ""
+
+
+def _block_mol(Chem, symbols, bonds, bare):
+    mol = Chem.RWMol()
+    points = 0
+    for symbol in symbols:
+        if symbol == "X":
+            points += 1
+            atom = Chem.Atom(0)
+            atom.SetAtomMapNum(points)
+        else:
+            try:
+                atom = Chem.Atom(str(symbol))
+            except (ValueError, RuntimeError):
+                return None
+            atom.SetNoImplicit(symbol not in bare)
+        mol.AddAtom(atom)
+    valence = [0.0] * len(symbols)
+    for i, j, letter in bonds:
+        kind = getattr(Chem.BondType, _LETTER_ORDERS.get(letter,
+                                                         "SINGLE"))
+        mol.AddBond(i, j, kind)
+        if letter == "A":
+            for k in (i, j):
+                mol.GetAtomWithIdx(k).SetIsAromatic(True)
+            mol.GetBondBetweenAtoms(i, j).SetIsAromatic(True)
+        step = {"D": 2.0, "T": 3.0, "A": 1.5}.get(letter, 1.0)
+        valence[i] += step
+        valence[j] += step
+    hydrogens = {k for i, j, _ in bonds for k, other in ((i, j), (j, i))
+                 if symbols[other] in ("H", "D")}
+    for k, symbol in enumerate(symbols):
+        # Four bonds: a pyridyl N with its point, an ammonium.  An
+        # aromatic N-H is pyrrole's, and neutral.
+        pyrrole = (k in hydrogens
+                   and mol.GetAtomWithIdx(k).GetIsAromatic())
+        if symbol == "N" and valence[k] > 3.4 and not pyrrole:
+            mol.GetAtomWithIdx(k).SetFormalCharge(1)
+    return mol.GetMol()
 
 
 def sketch_from_smiles(text: str):

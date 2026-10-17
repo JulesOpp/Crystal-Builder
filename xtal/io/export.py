@@ -27,6 +27,8 @@ bonds.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from xtal.core import elements as el
 from xtal.core.structure import TOPOLOGY, Structure
 
@@ -79,3 +81,31 @@ def what_is_dropped(structure: Structure) -> str:
         return ""
     return (f"{' and '.join(said)} will not be written -- a marker is "
             f"not chemistry and a net edge is not a bond")
+
+
+#: TopCryst (topcryst.com) names a crystal's topology from an uploaded
+#: CIF -- ToposPro's reading, a second opinion on the Net panel that
+#: covers what no catalogue here does.  The upload is the person's own:
+#: nothing is sent from this application.
+TOPCRYST_URL = "https://topcryst.com/"
+
+#: What the site says it takes from one person in a day.  Said before
+#: the file is written, because the eleventh upload is refused there.
+TOPCRYST_DAILY_LIMIT = 10
+
+
+def write_for_topcryst(structure: Structure, folder, name: str) -> Path:
+    """Write ``structure`` as ``<folder>/topcryst/<name>.cif`` and
+    return the path.
+
+    Cleaned like any export: TopCryst decides bonding for itself, and
+    a marker would reach it as an element it has never heard of, a net
+    edge as a bond four times too long.  A folder of its own inside the
+    entry, so the upload is easy to find and never mistaken for the
+    entry's own CIF.
+    """
+    from xtal.io.cif_writer import write_cif
+
+    target = Path(folder) / "topcryst" / f"{name}.cif"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    return write_cif(for_export(structure), target, title=name)

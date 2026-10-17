@@ -254,3 +254,25 @@ def test_a_built_molecule_keeps_the_bonds_it_was_given():
 
     assert len(structure.bonds) == 12
     assert {round(b.order, 2) for b in structure.bonds} == {1.0, 1.5}
+
+
+@needs_rdkit
+def test_a_star_drawn_on_a_pyridine_nitrogen_is_its_dative_point():
+    """A pyridyl's point is a fourth bond on its nitrogen.  Drawn on
+    the canvas or typed plainly, the nitrogen is made the cation it has
+    to be rather than refused: "too many bonds" on the canvas and "not
+    a SMILES string" in the box were all a person drawing a filler or
+    a partitioner was told."""
+    from xtal.build import chem
+
+    typed = from_smiles("*n1ccc(cc1)-c1ccn(*)cc1", optimise=False)
+    assert typed.n_connections == 2
+    for x in typed.connections:
+        (n,) = [j if i == x else i for i, j, *_ in typed.bonds
+                if x in (i, j)]
+        assert typed.elements[n] == "N"
+
+    sketch = chem.sketch_from_smiles("c1ccncc1")
+    n = next(i for i, a in enumerate(sketch.atoms) if a.element == "N")
+    sketch.grow(n, "*")
+    assert chem.sketch_smiles(sketch) == "*[n+]1ccccc1"

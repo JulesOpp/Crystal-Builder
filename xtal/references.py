@@ -50,6 +50,34 @@ PORMAKE = (doi("PORMAKE: Lee et al., ACS Appl. Mater. Interfaces 2021",
                "10.1021/acsami.1c02471"),
            github("Sangwon91/PORMAKE"))
 
+#: The pacs papers: the symmetry-matching insertion the builder's
+#: closed form follows, and the account of the family.
+PACS = (doi("Pore-space partition: Zhao et al., J. Am. Chem. Soc. 2015",
+            "10.1021/ja512137t"),
+        doi("Pore-space partition: Zhai et al., Acc. Chem. Res. 2017",
+            "10.1021/acs.accounts.6b00526"))
+
+#: Supertetrahedra of M3O trimers on a zeolite net, their windows
+#: bridged by an N-donor: the centring structure-directing agents.
+SUPERTETRAHEDRA = (doi("Centring structure-directing agents: Barsukova "
+                       "et al., Nat. Synth. 2024",
+                       "10.1038/s44160-023-00401-8"),)
+
+#: Merged nets: sph from spn and hxg, and the enumeration the explorer
+#: lists.
+MERGED_NETS = (doi("Merged nets: Jiang et al., J. Am. Chem. Soc. 2018",
+                   "10.1021/jacs.8b04745"),
+               doi("Merged-nets enumeration: Jiang et al., Science 2024",
+                   "10.1126/science.ads7866"))
+
+#: How a rod MOF's net is read off its points of extension.
+RODS = (doi("Rod MOFs: Schoedel et al., Chem. Rev. 2016",
+            "10.1021/acs.chemrev.6b00346"),)
+
+TOPCRYST = (doi("TopCryst: Shevchenko et al., Sci. Technol. Adv. Mater. "
+                "Methods 2022", "10.1080/27660400.2022.2088041"),
+            Reference("topcryst.com", "https://topcryst.com/"))
+
 #: What ORCA's own manual (6.1, "How to cite") asks for: the generic
 #: reference and the update for the version an input is written for.
 ORCA = (doi("ORCA: Neese, WIREs Comput. Mol. Sci. 2012",

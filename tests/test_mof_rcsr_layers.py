@@ -2,7 +2,7 @@
 
 Until 2026-09-21 the builder's layers were four hand-written files in
 ``xtal/mof/library/nets``; now they are every 2-periodic net the RCSR
-has that PORMAKE can build on, 196 of 200, held as text and written
+has that PORMAKE can build on, 199 of 200, held as text and written
 flat in their layer groups by :func:`xtal.analysis.rcsr.as_layer`.
 What breaks if these regress is a layered MOF built on the wrong
 cell, or a net in the list that no build can ever succeed on.
@@ -44,11 +44,11 @@ def _two_d():
 
 
 def test_every_buildable_rcsr_layer_is_offered(layers):
-    """All 200 but the four PORMAKE refuses, and the four that used
-    to be files among them."""
+    """All 200 but the one PORMAKE refuses (sde), and the four that
+    used to be files among them."""
     assert len(_two_d()) == 200
     assert set(layers) == {e.name for e in _two_d()} - PORMAKE_REJECTS
-    assert len(layers) == 196
+    assert len(layers) == 199
     assert {"hcb", "hxl", "kgm", "sql"} <= set(layers)
 
 
@@ -86,11 +86,19 @@ def test_a_layer_ends_on_its_end_line(layers):
 
 def test_the_default_catalogue_reads_the_layers_between_pormake_and_yours():
     """A folder after the layers still wins, as every later folder
-    does; the layers still win over anything before them."""
+    does; the layers still win over anything before them.  The RCSR's
+    3-periodic nets follow them, then the merged nets of the 2024
+    paper, and our own nets (``pacs``) come after all three: over the
+    RCSR's, under yours."""
+    from xtal.mof.catalog import MERGED_NETS, RCSR_NETS, library_nets
+
     catalog = Catalog.default(topology_dir="/nonexistent")
     dirs = catalog.topology_dirs
     assert RCSR_LAYERS in dirs
-    assert dirs.index(RCSR_LAYERS) == len(dirs) - 2
+    assert dirs.index(RCSR_LAYERS) == len(dirs) - 5
+    assert dirs.index(RCSR_NETS) == len(dirs) - 4
+    assert dirs.index(MERGED_NETS) == len(dirs) - 3
+    assert dirs[-2] == library_nets()
 
 
 def test_a_users_net_still_replaces_an_rcsr_layer_of_the_same_name(
@@ -121,7 +129,7 @@ def test_a_missing_rcsr_file_is_a_failure_named_not_a_crash(
 def test_every_rcsr_layer_is_recorded_as_a_layer_and_is_one(layers):
     """What :func:`rcsr_layers` tells each topology instead of asking,
     asked: every one builds through PORMAKE, and its graph is free
-    along c.  The four rejects are what PORMAKE refuses."""
+    along c.  The reject is what PORMAKE refuses."""
     from xtal.mof.build import import_pormake
     from xtal.mof.layers import stacking_axis_is_free
 

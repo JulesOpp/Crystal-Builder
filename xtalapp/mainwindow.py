@@ -518,6 +518,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
     def export_net(self) -> None:
         self.document_set.export_net()
 
+    def send_to_topcryst(self) -> None:
+        self.document_set.send_to_topcryst()
+
     def show_only_selected(self) -> None:
         document = self.current_document()
         if document is not None:
@@ -915,9 +918,21 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         """
         return self.module_runner.module_worker
 
-    def run_module_action(self, module_name: str,
-                          action_name: str) -> None:
-        self.module_runner.run_module_action(module_name, action_name)
+    def run_module_action(self, module_name: str, action_name: str,
+                          values: dict | None = None,
+                          initial: dict | None = None) -> None:
+        self.module_runner.run_module_action(module_name, action_name,
+                                             values, initial)
+
+    def open_net_explorer(self):
+        """The merged-net explorer, one per window, raised if open."""
+        from xtalapp.dialogs.net_explorer import NetExplorer
+
+        explorer = self.__dict__.get("_net_explorer")
+        if explorer is None:
+            explorer = self._net_explorer = NetExplorer(self)
+        windows.present(explorer)
+        return explorer
 
     def stop_module(self) -> None:
         self.module_runner.stop_module()

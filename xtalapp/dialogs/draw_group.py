@@ -45,7 +45,7 @@ QUIET_MS = 350
 class DrawGroupDialog(QDialog):
     """A name, a SMILES box and a canvas."""
 
-    def __init__(self, folder=None, parent=None):
+    def __init__(self, folder=None, parent=None, smiles: str = ""):
         super().__init__(parent)
         self.setWindowTitle("Draw a group")
         self.folder = Path(folder) if folder else None
@@ -57,6 +57,8 @@ class DrawGroupDialog(QDialog):
         self.name.setPlaceholderText("Acetoxy")
         self.smiles = QLineEdit(self)
         self.smiles.setPlaceholderText("[*]OC(C)=O")
+        # The group chosen in the dialog behind, to edit from.
+        self.smiles.setText(str(smiles or ""))
         self.smiles.setToolTip(
             "The group as SMILES, with [*] where it bonds to the atom "
             "whose hydrogen (or fluorine) it replaces -- exactly one")
@@ -143,10 +145,10 @@ class DrawGroupDialog(QDialog):
         super().accept()
 
     @classmethod
-    def ask(cls, folder=None, parent=None):
+    def ask(cls, folder=None, parent=None, smiles: str = ""):
         """``(name, smiles)`` of the group drawn, or ``None`` if it was
-        cancelled."""
-        with answered(cls(folder, parent)) as dialog:
+        cancelled.  ``smiles`` is what the drawing starts as."""
+        with answered(cls(folder, parent, smiles)) as dialog:
             if dialog.exec() != QDialog.Accepted:
                 return None
             return dialog.drawn

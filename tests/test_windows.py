@@ -13,8 +13,10 @@ from xtalapp import windows
 
 #: A run with windows shown on purpose, to watch a test.
 _WATCHED = pytest.mark.skipif(
-    bool(os.environ.get("XTAL_SHOW_TEST_WINDOWS")),
-    reason="XTAL_SHOW_TEST_WINDOWS draws the suite's windows")
+    bool(os.environ.get("XTAL_SHOW_TEST_WINDOWS"))
+    or os.environ.get("QT_QPA_PLATFORM") == "offscreen",
+    reason="the windows are drawn (XTAL_SHOW_TEST_WINDOWS), or there "
+           "is no screen to keep them off (offscreen)")
 
 
 class _Stub(QWidget):

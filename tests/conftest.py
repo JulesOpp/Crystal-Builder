@@ -376,11 +376,21 @@ def _keep_windows_off_screen(app) -> None:
     event, which costs about 25 ms a GUI test.
     ``XTAL_SHOW_TEST_WINDOWS=1`` leaves it out, to watch a test's
     windows while debugging one.
+
+    So does the offscreen platform, CI's, which has no screen to keep
+    them off.  There the filter was the one Python every event passed
+    through, and on Linux a posted event reached it as a wrapper over
+    freed memory: two cores (2026-10-17) fault in ``event.type()``
+    inside it, from ``sendThroughApplicationEventFilters``, in two
+    different MOF builder tests, one Linux run in two.  The
+    application installs no such filter of its own.
     """
     from PySide6.QtCore import QEvent, QObject, Qt
+    from PySide6.QtGui import QGuiApplication
 
     if getattr(app, "_off_screen", None) is not None \
-            or os.environ.get("XTAL_SHOW_TEST_WINDOWS"):
+            or os.environ.get("XTAL_SHOW_TEST_WINDOWS") \
+            or QGuiApplication.platformName() == "offscreen":
         return
 
     class Filter(QObject):
@@ -469,6 +479,35 @@ def _no_blocking_modal(monkeypatch):
 
         monkeypatch.setattr(QMessageBox, name, refuse_static,
                             raising=False)
+
+    # The file, input, colour and font pickers' statics run their
+    # dialog's exec inside C++, past the patch above: a test that
+    # reached QFileDialog.getExistingDirectory sat 74 minutes with
+    # nothing on screen (2026-10-17), and -n0 has no timeout to end it.
+    from PySide6.QtWidgets import (
+        QColorDialog,
+        QFileDialog,
+        QFontDialog,
+        QInputDialog,
+    )
+
+    for cls, names in (
+            (QFileDialog, ("getOpenFileName", "getOpenFileNames",
+                           "getSaveFileName", "getExistingDirectory",
+                           "getOpenFileUrl", "getOpenFileUrls",
+                           "getSaveFileUrl", "getExistingDirectoryUrl")),
+            (QInputDialog, ("getText", "getMultiLineText", "getInt",
+                            "getDouble", "getItem")),
+            (QColorDialog, ("getColor",)),
+            (QFontDialog, ("getFont",))):
+        for name in names:
+            def refuse_picker(*args, _name=f"{cls.__name__}.{name}",
+                              **kwargs):
+                raise AssertionError(
+                    f"{_name}() would wait for a click. Patch it if "
+                    "the test means to reach it.")
+
+            monkeypatch.setattr(cls, name, refuse_picker, raising=False)
 
 
 @pytest.fixture(autouse=True)

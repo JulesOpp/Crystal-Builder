@@ -48,11 +48,23 @@ LAYER_ROLE = Qt.UserRole + 2
 _UNREAD = "QLineEdit { border: 1px solid #b3261e; }"
 
 
+def net_list(parent) -> QListWidget:
+    """A list of nets that never scrolls sideways: a row too long for
+    it -- a net with a dozen kinds of vertex -- is cut short with an
+    ellipsis and said whole in its tooltip.  One such row gave every
+    builder's list a scroll bar 528 px wide."""
+    nets = QListWidget(parent)
+    nets.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    nets.setTextElideMode(Qt.ElideRight)
+    return nets
+
+
 def add_row(nets: QListWidget, text: str, facts: NetFacts,
             layer: bool) -> QListWidgetItem:
     """One row of a net list, carrying what :meth:`NetSearch.narrow`
     matches it on."""
     item = QListWidgetItem(text)
+    item.setToolTip(text)
     item.setData(NAME_ROLE, facts.name)
     item.setData(FACTS_ROLE, facts)
     item.setData(LAYER_ROLE, bool(layer))
