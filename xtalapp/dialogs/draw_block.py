@@ -31,6 +31,13 @@ worth checking before the file is written is the one this dialog
 exists to check, and :func:`xtal.mof.block.write_building_block`
 still runs :func:`~xtal.mof.block.problems` underneath as the last
 word.
+
+**A rod linker may be drawn whole** (a slot with ``donors`` set, from
+:mod:`xtalapp.dialogs.rod_build`): its carboxylates and phenols drawn
+as they are, each counted as the connection point it becomes
+(:mod:`xtal.mof.donors`), and saved with no ``X`` so the file says
+which donor each point is.  Drawn with stars it is saved as any block
+is, and its points pair with any of the rod's.
 """
 
 from __future__ import annotations
@@ -47,6 +54,7 @@ from PySide6.QtWidgets import (
 
 from xtal.build import BuildError
 from xtal.modules.build import BUILD, molecule_for
+from xtal.mof import donors
 from xtal.mof.block import BlockError, write_building_block
 from xtal.workspace import safe_name
 from xtalapp.dialogs import sketch
@@ -69,6 +77,8 @@ class DrawBlockDialog(QDialog):
     def __init__(self, slot, folder: str, parent=None):
         super().__init__(parent)
         self.slot = slot
+        #: Whether a drawing with no stars counts its donors as points.
+        self.donors = bool(getattr(slot, "donors", False))
         self.folder = str(folder or "").strip()
         self.molecule = None
         self.path: Path | None = None
@@ -157,16 +167,33 @@ class DrawBlockDialog(QDialog):
             self.molecule = None
             self._say(str(exc), ok=False)
             return
-        fits = self.molecule.n_connections == self.slot.coordination
-        self._say(self._outcome(self.molecule, fits), ok=fits)
+        have, kinds = self._points(self.molecule)
+        fits = have == self.slot.coordination
+        self._say(self._outcome(self.molecule, have, kinds, fits),
+                  ok=fits)
 
-    def _outcome(self, molecule, fits: bool) -> str:
-        have = molecule.n_connections
+    def _points(self, molecule) -> tuple[int, tuple[str, ...]]:
+        """The points ``molecule`` makes: its stars, or, drawn whole
+        for a slot that counts donors, one per donor."""
+        if molecule.n_connections or not self.donors:
+            return molecule.n_connections, ()
+        return donors.points(donors.whole(molecule))
+
+    def _outcome(self, molecule, have: int, kinds, fits: bool) -> str:
         need = self.slot.coordination
-        base = (f"<b>{molecule.formula}</b>, {molecule.n_atoms} "
-                f"atom(s), {have} connection point(s)")
+        base = f"<b>{molecule.formula}</b>, {molecule.n_atoms} atom(s), "
+        if kinds:
+            base += (f"{donors.described(kinds)}: {have} connection "
+                     f"point(s)")
+        else:
+            base += f"{have} connection point(s)"
+            if have and self.donors:
+                base += " drawn bare, which pair with any of the rod's"
         if fits:
             return f"{base} -- fits {self.slot.label.lower()}"
+        if self.donors and not have:
+            return (f"{base} -- draw its carboxylates and phenols, or "
+                    f"mark its {need} points")
         return (f"{base} -- {self.slot.label} needs {need}, "
                 f"not {have}")
 
@@ -215,7 +242,7 @@ class DrawBlockDialog(QDialog):
         """
         self._rebuild()
         if (self.molecule is None or not self.folder or
-                self.molecule.n_connections != self.slot.coordination):
+                self._points(self.molecule)[0] != self.slot.coordination):
             return
         values = self.action.coerce(self.form.values())
         stem = safe_name(str(values.get("name") or "") or
@@ -228,8 +255,15 @@ class DrawBlockDialog(QDialog):
             return
         path = Path(self.folder) / f"{stem}.xyz"
         try:
-            self.path = write_building_block(
-                final.to_structure(), path)
+            if self.donors and not final.n_connections:
+                from xtal.io.atomic import write_text
+
+                path.parent.mkdir(parents=True, exist_ok=True)
+                write_text(path, donors.whole(final).text())
+                self.path = path
+            else:
+                self.path = write_building_block(
+                    final.to_structure(), path)
         except (BlockError, OSError) as exc:
             self._say(str(exc), ok=False)
             return

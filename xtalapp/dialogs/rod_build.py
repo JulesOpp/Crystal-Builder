@@ -296,6 +296,7 @@ class RodBuildDialog(QDialog):
         out = [("", f"The rod's own ({own})" if own
                 else "The rod's own (none: pick one)")]
         points = self.points()
+        out += self._saved_linkers(points, query)
         for name in rods.shipped_linkers():
             if self._shipped_count(name) != points:
                 continue
@@ -334,8 +335,10 @@ class RodBuildDialog(QDialog):
                                  "has nowhere to go.")
             set_tone(self.summary, WARNING)
             return
-        slot = SimpleNamespace(label="Linker", coordination=self.points())
-        written = DrawBlockDialog.ask(slot, str(self.blocks), self)
+        slot = SimpleNamespace(label="Linker", coordination=self.points(),
+                               donors=True)
+        written = DrawBlockDialog.ask(slot, str(self.drawn_folder()),
+                                      self)
         if written is not None:
             self.linker_search.blockSignals(True)
             self.linker_search.clear()
@@ -356,6 +359,33 @@ class RodBuildDialog(QDialog):
             self.rod_preview.set_block(None)
         self._say_points()
         self._fill_linkers(keep=self.linker_name())
+
+    def drawn_folder(self):
+        """Where a drawn linker goes: beside the rods saved from a
+        structure, never in ``blocks/`` itself, which PORMAKE reads --
+        a four-point dobpdc there was offered as a node by the general
+        builder."""
+        return self.blocks / rods.SAVED / "linkers"
+
+    def _saved_linkers(self, points: int, query: str):
+        """``(name, label)`` for each linker drawn or saved in this
+        workspace with ``points`` points."""
+        from xtal.mof import donors
+        from xtal.mof.trimer import Block
+
+        if self.blocks is None:
+            return []
+        out = []
+        for path in sorted(self.drawn_folder().glob("*.xyz")):
+            if query and query.lower() not in path.stem.lower():
+                continue
+            try:
+                have = donors.points(Block.read(path))[0]
+            except (OSError, ValueError, IndexError):
+                continue
+            if have == points:
+                out.append((path.stem, f"{path.stem} (this workspace)"))
+        return out
 
     def points(self) -> int:
         """How many points a linker for the rod in the box has: two,
@@ -394,8 +424,11 @@ class RodBuildDialog(QDialog):
             f"crystal's lengths.  This rod takes a linker with {points}"
             f" connection points, {ends}; only those are listed.")
         self.draw.setToolTip(
-            f"Draw a linker with {points} connection points ({ends}); "
-            f"it is saved in this workspace's blocks and chosen here")
+            f"Draw a linker with {points} connection points ({ends}): "
+            f"whole, its carboxylates and phenols as they are, which "
+            f"says which donor each point is -- dobpdc and pc-dobpdc "
+            f"are two drawings -- or with its points marked.  It is "
+            f"saved in this workspace's blocks and chosen here")
 
     def _show_linker(self) -> None:
         from xtal.mof.rodbuild import load_linker

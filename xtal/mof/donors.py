@@ -22,7 +22,7 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
-from xtal.mof.block import CONNECTION_DISTANCE
+from xtal.mof.block import BOND_LETTERS, CONNECTION_DISTANCE
 
 CARBOXYLATE = "carboxylate"
 PHENOLATE = "phenolate"
@@ -151,3 +151,27 @@ def described(kinds) -> str:
         else:
             parts.append(f"{n} {PLURALS[k]}" if n > 1 else f"a {k}")
     return " and ".join(parts)
+
+
+def whole(molecule):
+    """A built molecule (:class:`xtal.build.molecule.Molecule`) as a
+    block with no ``X``: a rod linker drawn whole, as it is saved and
+    as :func:`as_linker` reads it.  Its stars, if it was drawn with
+    any, become ``X`` as they always did."""
+    from xtal.mof.trimer import Block
+
+    symbols = ["X" if i in set(molecule.connections) else e
+               for i, e in enumerate(molecule.elements)]
+    bonds = [(int(i), int(j), BOND_LETTERS.get(float(order), "S"))
+             for i, j, order, *_rest in molecule.bonds]
+    return Block(symbols, np.asarray(molecule.cart, float), bonds,
+                 [i for i, s in enumerate(symbols) if s == "X"])
+
+
+def points(block) -> tuple[int, tuple[str, ...]]:
+    """How many connection points ``block`` makes and what each is:
+    its ``X`` atoms, bare, or else one per donor it was drawn with."""
+    if block.connections:
+        return len(block.connections), ()
+    found = find(block)
+    return len(found), tuple(d.kind for d in found)

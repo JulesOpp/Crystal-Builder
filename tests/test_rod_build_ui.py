@@ -5,6 +5,7 @@ than typed, and the rhombus angle's empty box showing in grey the
 angle a build would use."""
 
 import shutil
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -106,8 +107,8 @@ def test_the_linker_can_be_drawn_and_is_then_chosen(dialog, monkeypatch):
     asked = {}
 
     def draw(cls, slot, folder, parent=None):
-        asked["slot"] = slot
-        target = dialog.blocks / "mine.xyz"
+        asked["slot"], asked["folder"] = slot, folder
+        target = Path(folder) / "mine.xyz"
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(database_root() / "bbs" / "E14.xyz", target)
         return target
@@ -119,6 +120,8 @@ def test_the_linker_can_be_drawn_and_is_then_chosen(dialog, monkeypatch):
     assert "this workspace" in dialog.linker.currentText()
     assert dialog.values()["linker"] == "mine"
     assert isinstance(asked["slot"], SimpleNamespace)
+    assert asked["slot"].donors
+    assert Path(asked["folder"]) == dialog.blocks / "rods" / "linkers"
 
 
 def test_a_rod_framework_offers_no_interpenetration(dialog):
@@ -209,3 +212,25 @@ def test_a_picked_linker_the_new_rod_cannot_take_gives_way_to_its_own(
     dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
     assert dialog.linker_name() == ""
     assert dialog.linker.currentText() == "The rod's own (dobdc)"
+
+
+def test_a_linker_drawn_whole_is_offered_beside_the_rods_and_not_to_pormake(
+        dialog):
+    """Saved under blocks/rods/linkers, it is listed for MOF-74 by its
+    four donors; PORMAKE's catalogue, which reads blocks/, never sees
+    it, where a four-point linker would be offered as a node."""
+    import shutil as copy
+
+    from xtal.mof import Catalog
+
+    folder = dialog.drawn_folder()
+    folder.mkdir(parents=True, exist_ok=True)
+    copy.copy(Path(__file__).parent / "data" / "rod_dobpdc_whole.xyz",
+              folder / "dobpdc-mine.xyz")
+    dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
+    labels = [dialog.linker.itemText(i)
+              for i in range(dialog.linker.count())]
+    assert "dobpdc-mine (this workspace)" in labels
+    names = {b.name for b in Catalog.default(
+        also_blocks=dialog.folders).building_blocks()}
+    assert "dobpdc-mine" not in names
