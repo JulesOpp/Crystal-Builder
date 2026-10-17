@@ -474,20 +474,39 @@ def _check(outcome) -> Table:
 #  RODS
 # ======================================================================
 
-def _rod_choices() -> tuple:
-    from xtal.mof.rod import shipped
+#: The ``blocks`` folder of the workspace the window has open, whose
+#: saved rods (Structure > Building blocks > Save rod as a block) the
+#: form offers beside the shipped ones.  Set by the window as it opens
+#: a workspace (:func:`offer_saved_rods`): the form has no workspace of
+#: its own to ask, and the run finds the same rods through its folder.
+_SAVED_RODS: list = []
 
-    return tuple((name, name.replace("_", " (") + ")")
-                 for name in shipped())
+
+def offer_saved_rods(blocks) -> None:
+    """Offer the rods saved under ``blocks`` (``None``: none)."""
+    _SAVED_RODS[:] = [] if blocks is None else [Path(blocks)]
+
+
+def _rod_choices() -> tuple:
+    from xtal.mof.rod import saved, shipped
+
+    choices = [(name, name.replace("_", " (") + ")")
+               for name in shipped()]
+    for folder in _SAVED_RODS:
+        choices += [(name, f"{name} (this workspace)")
+                    for name in saved(folder)]
+    return tuple(choices)
 
 
 ROD_PARAMS = (
     Param("rod", "Rod", kind="choice", default="MIL-53_Cr",
-          choices=_rod_choices(),
+          choices=_rod_choices,
           help="The 1-periodic building unit, cut from a crystal with "
                "its points of extension and the shape they make along "
                "it.  Metals other than the crystal's are swapped in "
-               "unrelaxed."),
+               "unrelaxed.  A rod saved from a structure in this "
+               "workspace is listed too, and builds with its own "
+               "linker."),
     Param("pattern", "Rod pattern", kind="choice", default="sql",
           choices=(("sql", "sql -- square or rhombic"),
                    ("hcb", "hcb -- honeycomb"),
@@ -538,8 +557,6 @@ def build_rod_framework(job) -> JobResult:
                                    job.param("angle", ""),
                                    job.param("repeat", ""),
                                    job.param("interpenetration", 1))
-        job.say(f"rods: building {request.title()}")
-        job.check()
         folders = ()
         if job.folder is not None:
             from xtal.workspace import Workspace
@@ -547,6 +564,9 @@ def build_rod_framework(job) -> JobResult:
             workspace = Workspace.find(job.folder.path)
             if workspace is not None:
                 folders = (workspace.blocks,)
+        request = request.resolved(folders)
+        job.say(f"rods: building {request.title()}")
+        job.check()
         outcome = build_rods(request, directory, log=job.say,
                              folders=folders)
         if job.cancelled:

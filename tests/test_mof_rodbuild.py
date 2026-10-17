@@ -187,3 +187,50 @@ def test_the_rod_entry_builds_from_its_parameters(tmp_path):
                                     "pattern": "hcb"}))
     assert not failed.ok and "must divide" in failed.message
     assert np.isfinite(float(result.report.blocks[2].rows[0].value))
+
+
+def test_a_rod_saved_from_ni2cl2btdd_rebuilds_its_own_framework(tmp_path):
+    """The deposited file, ConQuest's symmetry copies and all, cut from
+    a prepared copy: the rod and its linker go into the workspace's
+    blocks, and a build naming only the rod finds both, closes, and
+    reads back as the crystal's own etb with the rods 12.84 A apart.
+    A rod cut from the raw sites, or a linker taken from anywhere
+    else, would not meet the crystal's lengths."""
+    raw = read_cif(ROOT / "resources" / "samples" / "Ni2Cl2BTDD.cif")
+    before = raw.n_sites
+    saved = rod.save_block(raw, tmp_path, name="mine")
+    assert raw.n_sites == before                    # not touched
+    assert saved.path == tmp_path / "rods" / "mine.xyz"
+    assert saved.linker_path == tmp_path / "rods" / "linkers" / "mine.xyz"
+    assert any("symmetry copies" in s for s in saved.prepared)
+    assert rod.Rod.read(saved.path).linker == "mine"
+    assert "mine" in rod.saved(tmp_path)
+
+    outcome = rodbuild.build(RodRequest("mine", "hcb"),
+                             folders=(tmp_path,))
+    assert outcome.net_name == "etb"
+    assert outcome.placement.worst < 0.05
+    assert outcome.placement.spacing == pytest.approx(12.84, abs=0.05)
+    assert not outcome.overlaps
+    assert outcome.request.title() == "mine-hcb-mine"
+    # The run names the build before it builds: the rod's own linker
+    # has to be known by then, or the entry refused a saved rod.
+    request = RodRequest("mine", "hcb").resolved((tmp_path,))
+    assert request.title() == "mine-hcb-mine"
+
+
+def test_a_saved_rod_is_cut_where_the_seed_is_and_named_apart(tmp_path):
+    """The seed is carried through the prepared copy by where it is,
+    and a shipped rod's name is refused: a build naming it would take
+    the shipped one."""
+    structure = read_cif(PREPARED / "MIL-53.cif")
+    with pytest.raises(rod.RodError, match="shipped rod's name"):
+        rod.save_block(structure, tmp_path, name="MIL-53_Cr")
+    cell = p1.expand(structure)
+    last = max(i for i, s in enumerate(cell.elements) if s == "Cr")
+    saved = rod.save_block(structure, tmp_path, last, name="cr")
+    assert saved.rod.repeat == pytest.approx(
+        rod.Rod.read(rod.shipped()["MIL-53_Cr"]).repeat, abs=1e-3)
+    with pytest.raises(rod.RodError, match="not a metal"):
+        rod.save_block(structure, tmp_path,
+                       cell.elements.index("O"), name="o")

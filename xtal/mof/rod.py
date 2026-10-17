@@ -48,6 +48,9 @@ The file is an ``.xyz`` with the rod on its second line::
     0 7 S 0         bond: i, j, order, how many repeats up j is
     edge 40 41 1    PoE shape: two X atoms and the repeats between them
 
+A rod saved from a crystal (:func:`save_block`) also says
+``linker=NAME`` on its second line: the linker cut beside it.
+
 Numpy and the structure layer only: no Qt, no PORMAKE.
 """
 
@@ -95,6 +98,10 @@ class Rod:
     edges: list[tuple[int, int, int]] = field(default_factory=list)
     name: str = ""
     notes: tuple[str, ...] = ()
+    #: The linker cut beside it (:func:`save_block`), by name, for a
+    #: build that names none.  The shipped rods leave it empty and are
+    #: known by family (``rodbuild.OWN_LINKERS``).
+    linker: str = ""
 
     # ------------------------------------------------------- reading
 
@@ -199,6 +206,8 @@ class Rod:
         head = [f"rod repeat={self.repeat:.4f} axis=z"]
         if self.name:
             head.append(f"name={self.name}")
+        if self.linker:
+            head.append(f"linker={self.linker}")
         lines = [str(len(self.symbols)), " ".join(head)]
         for s, (x, y, z) in zip(self.symbols, self.positions,
                                 strict=True):
@@ -244,7 +253,8 @@ class Rod:
                               int(parts[3]) if len(parts) > 3 else 0))
         return cls(symbols, np.array(positions, dtype=float),
                    float(found["repeat"]), bonds, edges,
-                   found.get("name", ""), tuple(notes))
+                   found.get("name", ""), tuple(notes),
+                   found.get("linker", ""))
 
     @classmethod
     def read(cls, path) -> Rod:
@@ -498,6 +508,135 @@ def linker_from_structure(structure, seed: int | None = None, *,
     positions = np.array(positions)
     positions -= positions[connections].mean(axis=0)
     return Block(out_symbols, positions, sorted(bonds), connections)
+
+
+#: Under a workspace's ``blocks`` folder: rods saved from a structure,
+#: and beside them, in ``linkers``, the linker each was cut with.  A
+#: folder of their own because PORMAKE globs ``blocks/*.xyz`` as its
+#: own blocks, and a rod file is not one.
+SAVED = "rods"
+
+
+@dataclass
+class Saved:
+    """A rod and its linker, written by :func:`save_block`."""
+
+    rod: Rod
+    path: Path
+    linker_path: Path
+    prepared: tuple[str, ...] = ()
+
+    def sentence(self) -> str:
+        n = len(self.rod.connections)
+        hand = self.rod.hand
+        return (f"saved rod {self.rod.name}: {len(self.rod.metals)} "
+                f"metal(s) and {n} point(s) of extension a "
+                f"{self.rod.repeat:.2f} A repeat, "
+                f"{'achiral' if hand is None else hand + '-handed'}, "
+                f"with its linker {self.linker_path.stem}")
+
+
+def save_block(structure, blocks, seed: int | None = None, *,
+               name: str = "", shape="rng", rules=None,
+               prepared: bool = True) -> Saved:
+    """Cut a rod and its linker out of ``structure`` and write both
+    under ``blocks`` (a workspace's ``blocks`` folder): the rod as
+    ``rods/<name>.xyz``, naming its linker, and the linker as
+    ``rods/linkers/<name>.xyz``.
+
+    ``seed`` is a metal in the P1 cell's numbering of ``structure``;
+    ``None`` is its first metal.  With ``prepared`` the cut is from a
+    copy run through :func:`xtal.core.prepare.run` first -- a ConQuest
+    export writes symmetry copies as sites (Ni2Cl2BTDD's 1152 atoms on
+    378 places), and a rod walked through those is not one -- and the
+    seed is carried to the prepared cell by where it is.  The structure
+    itself is not touched.
+
+    The linker is the crystal's first; a rod MOF with one linker, which
+    is every rod MOF here, has no other.  Cut beside the rod, it meets
+    it at the crystal's own lengths (:func:`linker_from_structure`), so
+    the rod rebuilds its own framework.
+    """
+    from xtal.core import p1
+    from xtal.workspace import safe_name
+
+    steps = ()
+    cell = p1.expand(structure)
+    if seed is None:
+        seed = _first_metal(cell.elements)
+    if not 0 <= seed < len(cell.elements) \
+            or not el.element(cell.elements[seed]).is_metal:
+        raise RodError(f"atom {seed} is not a metal, so no rod starts "
+                       f"there")
+    if prepared:
+        from xtal.core import prepare
+
+        at = np.asarray(cell.lattice.to_cart(cell.frac[seed]), float)
+        outcome = prepare.run(structure)
+        structure, steps = outcome.structure, tuple(outcome.said)
+        seed = _nearest(p1.expand(structure), cell.elements[seed], at)
+    name = safe_name(name or default_name(structure), "rod")
+    if name in shipped():
+        raise RodError(f"{name} is a shipped rod's name, and a build "
+                       f"naming it would take the shipped one: call "
+                       f"this one something else")
+    cut = from_structure(structure, seed, shape=shape, rules=rules,
+                         name=name)
+    linker = linker_from_structure(structure, rules=rules)
+    cut = replace(cut, linker=name)
+    folder = Path(blocks) / SAVED
+    path = cut.write(folder / f"{name}.xyz")
+    linker_path = folder / "linkers" / f"{name}.xyz"
+    linker_path.parent.mkdir(parents=True, exist_ok=True)
+    from xtal.io.atomic import write_text
+
+    write_text(linker_path, linker.text())
+    return Saved(cut, path, linker_path, steps)
+
+
+def default_name(structure) -> str:
+    """The file ``structure`` came from, else its title, as a name --
+    ``""`` with neither."""
+    from xtal.workspace import safe_name
+
+    for key in ("source", "title"):
+        text = str(structure.meta.get(key, "") or "")
+        if text:
+            return safe_name(Path(text).stem, "rod")
+    return ""
+
+
+def saved(blocks) -> dict[str, Path]:
+    """Every rod saved under ``blocks``, by name."""
+    folder = Path(blocks) / SAVED
+    return {p.stem: p for p in sorted(folder.glob("*.xyz"))}
+
+
+def _nearest(cell, symbol, at) -> int:
+    """The atom ``symbol`` of ``cell`` nearest ``at`` (Cartesian), over
+    the cell's images: where a seed went when the cell was prepared,
+    which renumbers it and may change it (a centred cell's primitive
+    one)."""
+    frac = np.asarray(cell.lattice.to_frac(at), float)
+    best, found = math.inf, None
+    for i, s in enumerate(cell.elements):
+        if s != symbol:
+            continue
+        gap = cell.frac[i] - frac
+        gap -= np.round(gap)
+        d = float(np.linalg.norm(cell.lattice.to_cart(gap)))
+        if d < best:
+            best, found = d, i
+    if found is None:
+        raise RodError(f"the prepared cell has no {symbol} left")
+    return found
+
+
+def _first_metal(symbols) -> int:
+    for i, s in enumerate(symbols):
+        if s != "X" and el.element(s).is_metal:
+            return i
+    raise RodError("there is no metal here, so no rod")
 
 
 @dataclass
@@ -768,6 +907,7 @@ def shipped_linkers() -> dict[str, Path]:
     return {p.stem: p for p in sorted(LINKERS.glob("*.xyz"))}
 
 
-__all__ = ["LIBRARY", "LINKERS", "MATCH", "Rod", "RodError",
-           "from_structure", "linker_from_structure", "shipped",
+__all__ = ["LIBRARY", "LINKERS", "MATCH", "SAVED", "Rod", "RodError",
+           "Saved", "default_name", "from_structure",
+           "linker_from_structure", "save_block", "saved", "shipped",
            "shipped_linkers"]

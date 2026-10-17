@@ -438,7 +438,7 @@ class ShellRefresh:
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell", "slab",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
-             "save_building_block",
+             "save_building_block", "save_rod",
              "single_point", "optimize", "dftb_single_point",
              "dftb_optimize", "recompute_bonds", "reset_bonds",
              "assign_eqeq_charges", "keep_shown_charges",

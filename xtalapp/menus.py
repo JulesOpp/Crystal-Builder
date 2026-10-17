@@ -382,6 +382,12 @@ def build_actions(window):
             "dialog says what is missing.")
     add("save_monomer", "Save as a mo&nomer...", window.save_monomer,
         tip=SAVE_MONOMER_TIP)
+    add("save_rod", "Save the &rod as a block...", window.save_rod,
+        tip="Cut the rod holding the selected metal (or the first "
+            "metal) out of this crystal, with its linker, into the "
+            "workspace's blocks, so the rod builder can put it on any "
+            "pattern.  Cut from a prepared copy by default; the tab is "
+            "not changed.")
     add("mark_connection_points", "&Mark connection points",
         window.mark_connection_points,
         tip="Turn each selected atom that has exactly one bond into "
@@ -764,7 +770,7 @@ def build_menus(window):
     blocks_menu = submenu(structure_menu, "Building b&locks")
     window.actions_.fill_menu(blocks_menu, [
         "mark_connection_points", "mark_one_connection_point",
-        "save_building_block", "save_monomer"])
+        "save_building_block", "save_monomer", "save_rod"])
     window.actions_.fill_menu(structure_menu, [
         None, "topcryst", "prepare_simulation", None])
     # A submenu and not six flat entries: these are what the *mouse*

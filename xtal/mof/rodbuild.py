@@ -38,13 +38,20 @@ from __future__ import annotations
 
 import math
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from itertools import permutations
 from pathlib import Path
 
 import numpy as np
 
-from xtal.mof.rod import Rod, RodError, shipped, shipped_linkers
+from xtal.mof.rod import (
+    SAVED,
+    Rod,
+    RodError,
+    saved,
+    shipped,
+    shipped_linkers,
+)
 from xtal.mof.rodnet import (
     HANDS,
     PATTERNS,
@@ -126,14 +133,26 @@ class RodRequest:
                                 f"name one")
         return own
 
+    def resolved(self, folders=()) -> RodRequest:
+        """The request with the linker a saved rod names filled in,
+        when none was given (:func:`xtal.mof.rod.save_block`)."""
+        if self.linker:
+            return self
+        named = load_rod(self.rod, folders).linker
+        return replace(self, linker=named) if named else self
+
     def title(self) -> str:
         return (f"{Path(self.rod).stem}-{self.pattern}-"
                 f"{Path(self.linker_name).stem}")
 
 
-def load_rod(name: str) -> Rod:
-    """A shipped rod by name, or a rod file by path."""
+def load_rod(name: str, folders=()) -> Rod:
+    """A shipped rod by name, one saved under ``folders`` (a
+    workspace's blocks, :func:`xtal.mof.rod.save_block`), or a rod file
+    by path."""
     found = shipped().get(name)
+    for folder in folders:
+        found = found or saved(folder).get(name)
     path = found or Path(name)
     if not path.is_file():
         raise RodBuildError(f"no rod called {name}; the shipped rods "
@@ -151,6 +170,8 @@ def load_linker(name: str, folders=()):
     from xtal.mof.trimer import Block
 
     candidates = [Path(name), shipped_linkers().get(name)]
+    candidates += [Path(f) / SAVED / "linkers" / f"{name}.xyz"
+                   for f in folders]
     candidates += [Path(f) / f"{name}.xyz" for f in folders]
     root = database_root()
     if root is not None:
@@ -230,7 +251,8 @@ def build(request: RodRequest, directory=None, log=None,
     from xtal.mof.build import OVERLAP, _contacts, check_net
     from xtal.mof.build import closest_contact as closest
 
-    rod = load_rod(request.rod)
+    request = request.resolved(folders)
+    rod = load_rod(request.rod, folders)
     linker = load_linker(request.linker_name, folders)
     try:
         net = rod_net(request.pattern, rod, request.hands)
