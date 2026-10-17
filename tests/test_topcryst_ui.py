@@ -96,3 +96,10 @@ def test_the_dialog_states_the_daily_limit(qtbot, tmp_path):
                     for label in dialog.findChildren(QLabel))
     assert "10 structures a day" in text
     assert "1 dummy atom" in text
+
+
+def test_the_dialog_cites_topcryst(qtbot, tmp_path):
+    dialog = TopCrystDialog(tmp_path / "topcryst" / "rutile.cif", "")
+    qtbot.addWidget(dialog)
+    assert ("https://doi.org/10.1080/27660400.2022.2088041"
+            in dialog.sources.urls())

@@ -76,7 +76,14 @@ from xtal.modules.mof import PARAMS
 from xtal.mof import Catalog, decorate, merged
 from xtal.mof.build import BuildRequest
 from xtal.mof.catalog import matches_search
-from xtal.references import PORMAKE, RCSR, rcsr_net
+from xtal.references import (
+    MERGED_NETS,
+    PACS,
+    PORMAKE,
+    RCSR,
+    SUPERTETRAHEDRA,
+    rcsr_net,
+)
 from xtalapp import manual
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.linker_set_box import LinkerSetBox
@@ -146,6 +153,9 @@ class MofBuildDialog(QDialog):
     #: And the blocks on it, as ``BuildRequest`` spells them: ones its
     #: section is for, so it is live the moment the dialog opens.
     FIRST_BLOCKS = ("N16", "E14")
+    #: The papers an entry's own feature comes from, cited above
+    #: PORMAKE's and the RCSR's.
+    SOURCES: tuple = ()
 
     def __init__(self, module, action, parent=None, initial=None):
         super().__init__(parent)
@@ -404,7 +414,7 @@ class MofBuildDialog(QDialog):
 
         # Where the builder and its nets come from, outside the scroll
         # so that it is there whichever section is open.
-        self.sources = SourceLinks(PORMAKE + RCSR, self)
+        self.sources = SourceLinks(self.SOURCES + PORMAKE + RCSR, self)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.scroll, 1)
@@ -939,6 +949,7 @@ class PacsBuildDialog(MofBuildDialog):
     MODE = "pacs"
     FIRST = "acs"
     FIRST_BLOCKS = ("N589", "E14")
+    SOURCES = PACS
 
 
 class SupertetrahedraBuildDialog(MofBuildDialog):
@@ -948,6 +959,7 @@ class SupertetrahedraBuildDialog(MofBuildDialog):
     MODE = "st"
     FIRST = "sod"
     FIRST_BLOCKS = ("0=N589,1=N10", "")
+    SOURCES = SUPERTETRAHEDRA
 
 
 class LinkerSetBuildDialog(MofBuildDialog):
@@ -958,11 +970,18 @@ class LinkerSetBuildDialog(MofBuildDialog):
     MODE = "sets"
     FIRST = "sph"
     FIRST_BLOCKS = ("0=N573,1=N10,2=N419", "")
+    SOURCES = MERGED_NETS
 
 
 # ======================================================================
 #  ONE SLOT
 # ======================================================================
+
+#: The block a node slot of each count starts on when nothing chose
+#: one.  Taken from the top of the list it was a polydentate block --
+#: ``MFU4l_Kuratowski`` sorts first of the six-connected -- on every
+#: net a dialog opened that its entry did not name blocks for.
+DEFAULT_NODES = {6: "N589"}
 
 class _SlotRow(QWidget):
     """What goes in one slot: a label, a choice, and a picture.
@@ -1121,8 +1140,21 @@ class _SlotRow(QWidget):
                                block.name)
         self.combo.blockSignals(False)
         self.count.setText(f"{len(fitting)} block(s) fit")
+        if not kept and not self.slot.is_edge:
+            kept = self._default(fitting)
         self.set_block(kept)
         self._on_changed()
+
+    def _default(self, fitting) -> str:
+        """What a node row starts on: :data:`DEFAULT_NODES` where it is
+        offered, else the first monodentate block, else the first."""
+        names = [b.name for b in fitting]
+        chosen = DEFAULT_NODES.get(self.slot.coordination)
+        if chosen in names:
+            return chosen
+        mono = next((b.name for b in fitting
+                     if not b.is_polydentate), "")
+        return mono or (names[0] if names else "")
 
     def refresh(self, catalog: Catalog) -> None:
         """Reread against a catalogue that has changed -- a folder

@@ -47,8 +47,10 @@ from PySide6.QtWidgets import (
 
 from xtal.mof import rod as rods
 from xtal.mof.rodnet import PATTERNS
+from xtal.references import RCSR, RODS
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.mof_preview import BlockPreview
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: Shown in the angle box while the placement is being worked out.
@@ -256,6 +258,8 @@ class RodBuildDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.summary)
+        self.sources = SourceLinks(RODS + RCSR, self)
+        layout.addWidget(self.sources)
         layout.addWidget(buttons)
         self.resize(760, 560)
 

@@ -41,7 +41,9 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.mof import merged_nets
+from xtal.references import MERGED_NETS, RCSR
 from xtalapp.busy import busy
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The columns, in order.
@@ -156,9 +158,8 @@ class NetExplorer(QMainWindow):
         buttons.addStretch(1)
         buttons.addWidget(self.parts_button)
 
-        source = QLabel(merged_nets.SOURCE, self)
-        source.setWordWrap(True)
-        set_tone(source, HINT)
+        #: Where the table comes from, and the nets it names.
+        self.sources = SourceLinks(MERGED_NETS + RCSR, self)
 
         body = QWidget(self)
         layout = QVBoxLayout(body)
@@ -168,7 +169,7 @@ class NetExplorer(QMainWindow):
         layout.addWidget(self.table, 1)
         layout.addLayout(buttons)
         layout.addWidget(self.parts)
-        layout.addWidget(source)
+        layout.addWidget(self.sources)
         self.setCentralWidget(body)
         self.resize(980, 640)
 

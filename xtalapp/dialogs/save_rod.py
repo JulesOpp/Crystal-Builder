@@ -44,8 +44,10 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.mof import rod
+from xtal.references import RODS
 from xtal.workspace import safe_name
 from xtalapp.dialogs.answered import answered
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: The shapes offered, as :func:`xtal.mof.rod.from_structure` takes
@@ -121,6 +123,8 @@ class SaveRodDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.summary)
+        self.sources = SourceLinks(RODS, self)
+        layout.addWidget(self.sources)
         layout.addWidget(buttons)
         self.resize(520, 220)
         self._cut: rod.Saved | None = None

@@ -1662,3 +1662,46 @@ def _tpt_block_text():
     from xtal.mof import partition
 
     return partition.drawn("tpt").text()
+
+
+@needs_database
+def test_a_six_connected_slot_starts_on_n589_never_a_polydentate_block(
+        qtbot, window):
+    """Nothing named, a node row took the top of its list, and the top
+    of the six-connected list is MFU4l_Kuratowski, a chelating node:
+    every net an entry opened without blocks of its own started on
+    it.  Six-connected starts on N589, any other count on its first
+    monodentate block."""
+    built = _builder(qtbot, window, "build")
+    assert built._select("acs")
+    assert built._rows[0].block() == "N589"
+    assert built._select("tbo")
+    nodes = [r for r in built._rows if not r.slot.is_edge]
+    for row in nodes:
+        block = built.catalog.building_block(row.block())
+        assert not block.is_polydentate
+
+
+@needs_database
+@pytest.mark.parametrize("entry, doi", [
+    ("build", "10.1021/acsami.1c02471"),
+    ("pacs", "10.1021/ja512137t"),
+    ("pacs", "10.1021/acs.accounts.6b00526"),
+    ("supertetrahedra", "10.1038/s44160-023-00401-8"),
+    ("sets", "10.1021/jacs.8b04745"),
+    ("sets", "10.1126/science.ads7866"),
+])
+def test_each_builder_cites_the_papers_its_feature_comes_from(
+        qtbot, window, entry, doi):
+    """Each entry cites its own feature's papers above PORMAKE and the
+    RCSR, which every entry cites."""
+    urls = _builder(qtbot, window, entry).sources.urls()
+    assert f"https://doi.org/{doi}" in urls
+    assert "https://doi.org/10.1021/ar800124u" in urls
+
+
+@needs_merged
+def test_the_net_explorer_cites_the_merged_nets_papers(window):
+    urls = window.open_net_explorer().sources.urls()
+    assert "https://doi.org/10.1126/science.ads7866" in urls
+    assert "https://doi.org/10.1021/jacs.8b04745" in urls

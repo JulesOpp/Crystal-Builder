@@ -94,3 +94,21 @@ def test_the_dialog_says_what_the_rod_came_to_and_refuses_a_shipped_name(
 
 def test_save_rod_is_greyed_with_nothing_open(window):
     assert not window.actions_["save_rod"].isEnabled()
+
+
+def test_the_rod_dialogs_cite_the_rod_review(qtbot, tmp_path, window):
+    """Saving a rod and building on one both cite how a rod net is
+    read: Schoedel et al.'s review."""
+    from xtal.io import read_cif
+    from xtal.modules import MODULES
+    from xtalapp.dialogs.rod_build import RodBuildDialog
+
+    review = "https://doi.org/10.1021/acs.chemrev.6b00346"
+    saving = SaveRodDialog(read_cif(PREPARED / "MIL-53.cif"),
+                           tmp_path / "blocks")
+    qtbot.addWidget(saving)
+    assert review in saving.sources.urls()
+    module, action = MODULES.find("mof.rod")
+    building = RodBuildDialog(module, action, window)
+    qtbot.addWidget(building)
+    assert review in building.sources.urls()

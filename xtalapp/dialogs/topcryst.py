@@ -23,7 +23,9 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.io.export import TOPCRYST_DAILY_LIMIT, TOPCRYST_URL
+from xtal.references import TOPCRYST
 from xtalapp.dialogs.answered import answered
+from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, set_tone
 
 
@@ -52,6 +54,8 @@ class TopCrystDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(written)
         layout.addWidget(hint)
+        self.sources = SourceLinks(TOPCRYST, self)
+        layout.addWidget(self.sources)
         layout.addWidget(buttons)
 
     @classmethod
