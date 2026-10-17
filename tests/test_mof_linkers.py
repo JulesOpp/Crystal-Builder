@@ -108,6 +108,8 @@ def test_every_stored_series_value_is_what_its_smiles_embeds():
         assert generated[c.name] == c.smiles
         value, formula = linkers.measure_smiles(c.smiles)
         # RDKit embeds a 35 A chain 0.02 A apart on Linux, macOS and
-        # Windows; a span is asked for to within 0.3 A.
-        assert value == pytest.approx(c.value, abs=0.05), c.name
+        # Windows, and 0.1 A apart from 2026.03 to 2026.09; a span is
+        # asked for to within 0.3 A, so half that is still the same
+        # answer.
+        assert value == pytest.approx(c.value, abs=0.15), c.name
         assert formula == c.formula
