@@ -601,17 +601,21 @@ class MofBuildDialog(QDialog):
         and a row left over from the previous net is a row whose
         contents no longer fit anything.
 
-        Unparented before ``deleteLater``: the rows the dialog's
+        Hidden before ``deleteLater``: the rows the dialog's
         constructor makes are let go from inside the menu's handler,
         and a deferred delete posted there is not delivered by the
         modal loop ``exec`` runs -- the old row's picture stayed on
-        screen, a white box behind "Node 1, 6-connected".
+        screen, a white box behind "Node 1, 6-connected".  Hidden and
+        never unparented: a row with no parent belongs to its Python
+        wrapper, which ``self._rows = []`` then destroys at once, from
+        inside a signal of one of its own children and with the
+        deferred delete still queued for it -- a segfault on Linux.
         """
         while self.slots_layout.count():
             item = self.slots_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
-                widget.setParent(None)
+                widget.hide()
                 widget.deleteLater()
         self._rows = []
         try:

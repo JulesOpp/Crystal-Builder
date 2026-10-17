@@ -1412,17 +1412,17 @@ def test_the_supertetrahedra_builder_opens_on_a_nickel_trimer_and_btc(st):
 
 @needs_database
 def test_a_net_clicked_leaves_no_row_of_the_last_one_on_screen(st):
-    """The rows a net replaces are unparented at once: a deferred
-    delete posted before the modal loop starts is not delivered inside
-    it, and the old row's picture stayed as a white box behind "Node
-    1, 6-connected"."""
+    """The rows a net replaces are hidden at once: a deferred delete
+    posted before the modal loop starts is not delivered inside it,
+    and the old row's picture stayed as a white box behind "Node 1,
+    6-connected"."""
     from xtalapp.dialogs.mof_build import _SlotRow
 
     assert st._select("lta")
     assert st._select("sod")
-    left = [w for w in st.slots_box.findChildren(_SlotRow)
-            if w.parent() is st.slots_box]
-    assert left == st._rows
+    shown = [w for w in st.slots_box.findChildren(_SlotRow)
+             if not w.isHidden()]
+    assert shown == st._rows
 
 
 @needs_database
@@ -1578,9 +1578,22 @@ def test_no_builder_needs_scrolling_sideways(qtbot, window, entry):
     net list a scroll bar of its own; a laptop's dialog scrolled
     sideways for both."""
     from PySide6.QtCore import Qt
+    from PySide6.QtGui import QFontMetrics
+    from PySide6.QtWidgets import QWidget
 
     built = _builder(qtbot, window, entry)
-    assert built.scroll.widget().minimumSizeHint().width() <= 560
+    # 560 px with macOS's 13 pt system font, where this label is
+    # 125 px; held to the same text, not the same pixels, elsewhere.
+    label = QFontMetrics(built.font()).horizontalAdvance(
+        "Node 1, 6-connected")
+    limit = 560 * max(1.0, label / 125)
+    root = built.scroll.widget()
+    widest = sorted(((w.minimumSizeHint().width(), type(w).__name__,
+                      getattr(w, "text", lambda: "")()[:40]
+                      if callable(getattr(w, "text", None)) else "")
+                     for w in root.findChildren(QWidget)),
+                    reverse=True)[:8]
+    assert root.minimumSizeHint().width() <= limit, (label, widest)
     assert (built.topologies.horizontalScrollBarPolicy()
             == Qt.ScrollBarAlwaysOff)
     assert built.topologies.textElideMode() == Qt.ElideRight

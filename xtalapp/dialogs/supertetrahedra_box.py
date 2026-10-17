@@ -353,8 +353,9 @@ class SupertetrahedraBox(QWidget):
             item = self.grid.takeAt(0)
             widget = item.widget()
             if widget is not None:
-                # Unparented first, as the dialog's slot rows are.
-                widget.setParent(None)
+                # Hidden, never unparented, as the dialog's slot rows
+                # are (MofBuildDialog._rebuild_slots says why).
+                widget.hide()
                 widget.deleteLater()
         self._rows = {}
         self._notes = {}

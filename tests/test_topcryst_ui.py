@@ -2,6 +2,7 @@
 folder shown and the site opened -- and nothing uploaded from here."""
 
 import pytest
+from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QLabel, QWidget
 
@@ -61,7 +62,9 @@ def test_the_topcryst_action_opens_the_site_and_reveals_the_file(
     written = opened.entry.path / "topcryst" / "rutile.cif"
     assert asked == [written]
     assert written.is_file()
-    assert urls == [f"file://{written.parent}", TOPCRYST_URL]
+    # Qt's own spelling: file:///C:/... on Windows, not file://C:\...
+    folder = QUrl.fromLocalFile(str(written.parent)).toString()
+    assert urls == [folder, TOPCRYST_URL]
 
 
 def test_a_cancelled_topcryst_upload_opens_nothing(

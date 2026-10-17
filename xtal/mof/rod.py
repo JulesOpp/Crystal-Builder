@@ -240,8 +240,11 @@ class Rod:
         if self.face != 1:
             head.append(f"face={self.face}")
         lines = [str(len(self.symbols)), " ".join(head)]
-        for s, (x, y, z) in zip(self.symbols, self.positions,
-                                strict=True):
+        for s, xyz in zip(self.symbols, self.positions, strict=True):
+            # Adding 0.0 drops the sign of a zero: an atom on the axis
+            # is -1e-6 on one BLAS and +1e-6 on another, and the file
+            # is compared byte for byte with what the script writes.
+            x, y, z = (round(float(v), 4) + 0.0 for v in xyz)
             lines.append(f"{s:<4s} {x:.4f} {y:.4f} {z:.4f}")
         for i, j, letter, shift in self.bonds:
             lines.append(f"{i:4d} {j:4d} {letter} {shift}")
