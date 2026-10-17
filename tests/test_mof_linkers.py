@@ -107,9 +107,9 @@ def test_every_stored_series_value_is_what_its_smiles_embeds():
     for c in linkers.stored():
         assert generated[c.name] == c.smiles
         value, formula = linkers.measure_smiles(c.smiles)
-        # RDKit embeds a 35 A chain 0.02 A apart on Linux, macOS and
-        # Windows, and 0.1 A apart from 2026.03 to 2026.09; a span is
-        # asked for to within 0.3 A, so half that is still the same
-        # answer.
-        assert value == pytest.approx(c.value, abs=0.15), c.name
+        # A stale table is a unit out, 2-4 A.  RDKit's own spread is
+        # far less but not nothing: 0.1 A on a 37 A chain from
+        # 2026.03 to 2026.09, 0.25 A on 43 A under OpenBLAS (macOS
+        # Intel), so 1 %.
+        assert value == pytest.approx(c.value, rel=0.01), c.name
         assert formula == c.formula

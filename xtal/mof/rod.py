@@ -390,8 +390,11 @@ def from_structure(structure, seed: int, *, shape="rng", rules=None,
                     break
     where = {a: np.asarray(to_cart(cell.frac[a] + offset[a]), float)
              for a in offset}
+    # An anchor on the repeat's boundary is a rounding error from
+    # either side of it: on OpenBLAS MOF-74's first Zn was at z = 0
+    # and on Accelerate at z = repeat, and every bond's shift with it.
     ups = {a: math.floor(float((where[anchor[a]] - centre) @ axis)
-                         / length) for a in offset}
+                         / length + 1e-6) for a in offset}
     for a, k in ups.items():
         offset[a] = offset[a] - k * np.array(t)
         where[a] = where[a] - k * tc
