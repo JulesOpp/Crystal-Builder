@@ -23,7 +23,11 @@ said so in the file: MOF-74 Mg, Co, Ni; Ni2Cl2BTDD Co; MIL-53 Al, Fe.
 
 And from each crystal its linker, into ``rods/linkers``, cut by
 :func:`xtal.mof.rod.linker_from_structure` where the rod was cut, so the
-two meet at the crystal's own lengths: BDC, dobdc, BTDD and pzdc.
+two meet at the crystal's own lengths: BDC, dobdc, BTDD and pzdc.  A
+linker whose donors are all named (carboxylates, phenolates) is written
+whole, its donor groups kept, so each point a build makes of it says
+which donor it is; BTDD's triazolate is no named donor, and BTDD keeps
+its bare ``X``.
 """
 
 from __future__ import annotations
@@ -85,13 +89,23 @@ def rods(mof303) -> dict[str, rod.Rod]:
     return made
 
 
+def linker_text(structure, rules) -> str:
+    """A crystal's linker as the text of its file: whole when every
+    donor it meets is named, else with its bare ``X``."""
+    from xtal.mof import donors
+
+    bare = rod.linker_from_structure(structure, rules=rules)
+    whole = rod.linker_from_structure(structure, rules=rules, whole=True)
+    named = len(donors.find(whole)) == len(bare.connections)
+    return (whole if named else bare).text()
+
+
 def linkers(mof303) -> dict[str, str]:
     """Each crystal's linker, as the text of its file."""
     made = {}
     for _name, path, prepared, _shape, rules, _swaps, linker in RODS:
         source = Path(mof303) if path is None else path
-        made[linker] = rod.linker_from_structure(
-            crystal(source, prepared), rules=rules).text()
+        made[linker] = linker_text(crystal(source, prepared), rules)
     return made
 
 

@@ -232,3 +232,15 @@ def test_the_searchs_batched_cost_is_the_cost():
                               rng.uniform(-0.1, 0.1, 50)])
         one = [model.cost(x, 85.0) for x in xs]
         assert model.costs(xs, 85.0) == pytest.approx(one, rel=1e-9)
+
+
+def test_a_rhombus_that_fits_either_way_is_given_by_its_acute_angle():
+    """MIL-53's rhombus closes at 75 degrees and, from its other corner,
+    at 105: a tie, and a 1e-4 A rounding in BDC's file decided it.  The
+    smaller angle wins, so the dialog's best fit stays 75."""
+    from xtal.mof.rodbuild import load_linker, load_rod
+    from xtal.mof.rodnet import placement, rod_net
+
+    rod = load_rod("MIL-53_Cr")
+    placed = placement(rod_net("sql", rod, "auto"), rod, load_linker("BDC"))
+    assert 70 < placed.gamma < 80

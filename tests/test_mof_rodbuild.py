@@ -141,13 +141,27 @@ def test_a_rod_mof_repeats_along_its_rods_with_the_same_net():
 
 
 def test_a_shipped_linker_is_the_one_its_crystal_gives():
-    """BDC is cut out of MIL-53 where the rod was, so its X sits where
-    the rod's does: the joint is the crystal's C-C."""
+    """BDC is cut out of MIL-53 where the rod was and kept whole, its
+    carboxylates with it; made a linker, its X sits where the rod's
+    does, so the joint is the crystal's C-C."""
+    from xtal.mof import donors
+    from xtal.mof.trimer import Block
+
     crystal = read_cif(PREPARED / "MIL-53.cif")
-    cut = rod.linker_from_structure(crystal)
-    assert cut.text() == rod.shipped_linkers()["BDC"].read_text()
-    assert sorted(cut.symbols) == sorted(["C"] * 6 + ["H"] * 4
-                                         + ["X"] * 2)
+    whole = rod.linker_from_structure(crystal, whole=True)
+    assert whole.text() == rod.shipped_linkers()["BDC"].read_text()
+    assert sorted(whole.symbols) == sorted(["C"] * 8 + ["H"] * 4
+                                           + ["O"] * 4)
+    bare = rod.linker_from_structure(crystal)
+    made = donors.as_linker(Block.parse(whole.text()))
+    assert made.kinds == ("carboxylate", "carboxylate")
+
+    def xs(block):
+        at = np.asarray(block.positions)[block.connections]
+        return at - at.mean(axis=0)
+
+    gaps = np.linalg.norm(xs(made)[:, None] - xs(bare)[None], axis=2)
+    assert gaps.min(axis=1).max() < 2e-3
 
 
 def test_a_rod_without_a_linker_of_its_own_must_be_told_one(tmp_path):
@@ -307,8 +321,9 @@ def test_every_joint_pairs_a_linkers_points_the_same_way():
 def test_mof_74_with_dobdc_builds_as_it_did(mof_74):
     """dobdc's carboxylate and phenolate X were already paired the
     same way at every joint; one choice for the whole build keeps it,
-    joints at the crystal's 1.48 A."""
-    assert mof_74.longest_joint == pytest.approx(1.479, abs=0.002)
+    joints at the crystal's 1.46-1.48 A (the shipped dobdc is written
+    whole, and its X come back from its donors to 1e-3 A)."""
+    assert 1.45 < mof_74.longest_joint < 1.49
     assert mof_74.closest == pytest.approx(2.054, abs=0.002)
 
 

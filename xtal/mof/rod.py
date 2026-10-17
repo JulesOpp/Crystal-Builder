@@ -482,7 +482,7 @@ def _face_size(faced, length) -> int:
 
 
 def linker_from_structure(structure, seed: int | None = None, *,
-                          rules=None):
+                          rules=None, whole: bool = False):
     """The linker holding atom ``seed`` (any atom of it, in the P1
     cell's numbering; the first one when ``None``), cut where
     :func:`from_structure` cuts a rod: a
@@ -501,6 +501,12 @@ def linker_from_structure(structure, seed: int | None = None, *,
     E14 has 1.54 A ring bonds) reaches 0.3 A further across and puts
     the rods that much further apart; one cut from the crystal has
     the crystal's own lengths.
+
+    ``whole`` keeps the donor groups it meets instead of an ``X`` for
+    each -- the linker as a person would draw it, which
+    :func:`xtal.mof.donors.as_linker` turns back into these ``X``, each
+    named by its donor.  Only for carboxylates and phenolates: a group
+    no donor is called (BTDD's triazolate) would come back as nothing.
     """
     from xtal.mof.trimer import Block
 
@@ -529,6 +535,7 @@ def linker_from_structure(structure, seed: int | None = None, *,
     positions = [where[a] for a in atoms]
     bonds = []
     cuts = []                                # (group, member, partner)
+    reached = []                             # (group, i, j, j's frac)
     for i in atoms:
         for j, image in nbr[i]:
             if j in offset:
@@ -540,6 +547,8 @@ def linker_from_structure(structure, seed: int | None = None, *,
                 partner = np.asarray(to_cart(cell.frac[j] + offset[i]
                                              + image), float)
                 cuts.append((split.group_of[j], place[i], partner))
+                reached.append((split.group_of[j], i, j,
+                                cell.frac[j] + offset[i] + image))
     # One X per group *met*: a group reached by two of the linker's
     # atoms (a triazolate fused to a benzene) is one point standing for
     # both, and the same group seen through two cells is two points.
@@ -556,6 +565,9 @@ def linker_from_structure(structure, seed: int | None = None, *,
     if len(met) < 2:
         raise RodError("this linker meets fewer than two donor groups, "
                        "so it joins nothing")
+    if whole:
+        return _with_groups(split, reached, place, out_symbols,
+                            positions, bonds)
     connections = []
     for _group, members, partners in met:
         distinct = {tuple(np.round(q, 4)): q for q in partners}
@@ -572,6 +584,55 @@ def linker_from_structure(structure, seed: int | None = None, *,
     positions = np.array(positions)
     positions -= positions[connections].mean(axis=0)
     return Block(out_symbols, positions, sorted(bonds), connections)
+
+
+def _with_groups(split, reached, place, symbols, positions, bonds):
+    """The linker with each donor group it meets put back whole, at
+    the image it is met at, its hydrogens with it: a block with no
+    ``X``."""
+    from xtal.mof.trimer import Block
+
+    cell, nbr = split.cell, split.nbr
+    to_cart = cell.lattice.to_cart
+    symbols, positions, bonds = list(symbols), list(positions), list(bonds)
+    added = {}                               # (atom, rounded frac) -> k
+
+    def add(a, frac):
+        key = (a, tuple(np.round(frac, 3)))
+        if key not in added:
+            added[key] = len(symbols)
+            symbols.append(split.symbols[a])
+            positions.append(np.asarray(to_cart(frac), float))
+        return added[key]
+
+    seen: set = set()
+    for group, i, j, frac_j in reached:
+        k = add(j, frac_j)
+        bonds.append((place[i], k, BOND_LETTERS.get(
+            split.order_of[(i, j)], "S")))
+        queue = deque([(j, np.asarray(frac_j, float))])
+        while queue:
+            a, frac_a = queue.popleft()
+            ka = add(a, frac_a)
+            key_a = (a, tuple(np.round(frac_a, 3)))
+            if key_a in seen:
+                continue
+            seen.add(key_a)
+            for n, image in nbr[a]:
+                in_group = split.group_of.get(n) == group
+                hydrogen = (split.symbols[n] in ("H", "D")
+                            and split.symbols[a] not in ("H", "D"))
+                if not (in_group or hydrogen):
+                    continue
+                frac_n = frac_a - cell.frac[a] + cell.frac[n] + image
+                kn = add(n, frac_n)
+                if ka < kn:
+                    bonds.append((ka, kn, BOND_LETTERS.get(
+                        split.order_of[(a, n)], "S")))
+                queue.append((n, frac_n))
+    positions = np.array(positions)
+    positions -= positions.mean(axis=0)
+    return Block(symbols, positions, sorted(set(bonds)), [])
 
 
 #: Under a workspace's ``blocks`` folder: rods saved from a structure,

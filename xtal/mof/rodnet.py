@@ -578,6 +578,11 @@ _STARTS = 5
 _CHUNK = 4096
 #: The range a free angle stays in, degrees.
 FREE_ANGLES = (45.0, 135.0)
+#: Placements whose costs are within this, A^2, are a tie, and the
+#: smaller angle wins it.  A rhombus is the same at 75 degrees and at
+#: 105 from its other corner, and a 1e-4 A rounding in BDC's file
+#: was enough to send MIL-53 from one description to the other.
+TIE = 5e-5
 
 
 #: The turns about a bond between a linker's ends that are tried, in
@@ -818,6 +823,15 @@ def placement(net: RodNet, rod: Rod, linker, *,
                      model.matches(x, gamma), posed)
 
 
+def _better(found, best) -> bool:
+    """Whether placement ``found`` beats ``best``, each ``(cost, x,
+    gamma)``: cheaper, but between two angles that tie on cost
+    (:data:`TIE`) the smaller."""
+    if abs(found[2] - best[2]) < 1e-6 or abs(found[0] - best[0]) > TIE:
+        return found[0] < best[0]
+    return found[2] < best[2]
+
+
 class _Model:
     """The cost of a placement and its search.
 
@@ -1054,7 +1068,7 @@ class _Model:
             y = result.x
             found = (float(result.fun), y[:-1] if free else y,
                      float(y[-1]) if free else gamma)
-            if best is None or found[0] < best[0]:
+            if best is None or _better(found, best):
                 best = found
         cost, x, gamma = best
         return x, gamma, cost

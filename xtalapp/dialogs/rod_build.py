@@ -366,10 +366,12 @@ class RodBuildDialog(QDialog):
 
     def _shipped_count(self, name: str) -> int:
         if name not in self._shipped_points:
+            from xtal.mof import donors
             from xtal.mof.trimer import Block
 
             try:
-                block = Block.read(rods.shipped_linkers()[name])
+                block = donors.as_linker(
+                    Block.read(rods.shipped_linkers()[name]))
                 self._shipped_points[name] = len(block.connections)
             except (OSError, ValueError, IndexError):
                 self._shipped_points[name] = 0
