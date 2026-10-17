@@ -177,6 +177,10 @@ class RodBuildDialog(QDialog):
         #: Placements being worked out, so one asked twice runs once.
         self._running: set = set()
         self._asked = None
+        #: The rod in the box, or ``None`` while it cannot be read.
+        self._rod = None
+        #: Shipped rod linkers' point counts, read once.
+        self._shipped_points: dict[str, int] = {}
         given = dict(action.coerce(initial or {}))
 
         self.rod = QComboBox(self)
@@ -195,13 +199,7 @@ class RodBuildDialog(QDialog):
         self.linker_search.setPlaceholderText(
             "Search linkers by name or composition -- E14, 8C")
         self.linker = QComboBox(self)
-        self.linker.setToolTip(
-            "What joins one rod to the next.  The rod's own is the one "
-            "cut from its crystal beside it, which meets it at the "
-            "crystal's lengths; any two-ended block will do.")
         self.draw = QPushButton("Draw...", self)
-        self.draw.setToolTip("Draw a two-ended linker; it is saved in "
-                             "this workspace's blocks and chosen here")
         self.draw.clicked.connect(self._draw)
         self.rod_preview = BlockPreview(self, minimum=ROD_PREVIEW)
         self.rod_preview.setFixedSize(*ROD_PREVIEW)
@@ -280,8 +278,10 @@ class RodBuildDialog(QDialog):
             return ""
 
     def _linkers(self) -> list[tuple[str, str]]:
-        """``(value, label)`` for every linker there is: the rod's own,
-        the rod library's, then every two-ended block."""
+        """``(value, label)`` for every linker the rod can take: the
+        rod's own, the rod library's, then every block with the points
+        :meth:`points` asks for -- two, or four for MOF-74, where a
+        block with a metal is one of PORMAKE's nodes and left out."""
         from xtal.mof import Catalog
         from xtal.mof.catalog import matches_search
 
@@ -289,12 +289,17 @@ class RodBuildDialog(QDialog):
         own = self._own_linker()
         out = [("", f"The rod's own ({own})" if own
                 else "The rod's own (none: pick one)")]
+        points = self.points()
         for name in rods.shipped_linkers():
+            if self._shipped_count(name) != points:
+                continue
             if not query or query.lower() in name.lower():
                 out.append((name, f"{name} (cut from its crystal)"))
         catalog = Catalog.default(also_blocks=self.folders)
         for block in catalog.building_blocks():
-            if block.n_connections != 2:
+            if block.n_connections != points:
+                continue
+            if points > 2 and block.has_metal:
                 continue
             if query and not matches_search(block, query):
                 continue
@@ -323,7 +328,7 @@ class RodBuildDialog(QDialog):
                                  "has nowhere to go.")
             set_tone(self.summary, WARNING)
             return
-        slot = SimpleNamespace(label="Linker", coordination=2)
+        slot = SimpleNamespace(label="Linker", coordination=self.points())
         written = DrawBlockDialog.ask(slot, str(self.blocks), self)
         if written is not None:
             self.linker_search.blockSignals(True)
@@ -337,12 +342,52 @@ class RodBuildDialog(QDialog):
         from xtal.mof.rodbuild import load_rod
 
         try:
-            rod = load_rod(self.rod_name(), self.folders)
+            self._rod = load_rod(self.rod_name(), self.folders)
             self.rod_preview.set_block(drawn_rod(
-                rod, self.rod.currentText()))
+                self._rod, self.rod.currentText()))
         except Exception:                           # noqa: BLE001
+            self._rod = None
             self.rod_preview.set_block(None)
+        self._say_points()
         self._fill_linkers(keep=self.linker_name())
+
+    def points(self) -> int:
+        """How many points a linker for the rod in the box has: two,
+        or four for a rod a linker chelates (MOF-74)."""
+        from xtal.mof.rodnet import linker_points
+
+        return linker_points(self._rod) if self._rod is not None else 2
+
+    def _shipped_count(self, name: str) -> int:
+        if name not in self._shipped_points:
+            from xtal.mof.trimer import Block
+
+            try:
+                block = Block.read(rods.shipped_linkers()[name])
+                self._shipped_points[name] = len(block.connections)
+            except (OSError, ValueError, IndexError):
+                self._shipped_points[name] = 0
+        return self._shipped_points[name]
+
+    def _say_points(self) -> None:
+        """The linker's tooltips, in the rod's terms: what the list
+        holds and what Draw asks for both follow the rod."""
+        points = self.points()
+        if points == 2:
+            ends = "one point at each end"
+        else:
+            each = points // 2
+            ends = (f"{each} points at each end -- the rod holds the "
+                    f"donors, so an X goes on each linker atom that "
+                    f"joins one, as on dobdc's ring")
+        self.linker.setToolTip(
+            f"What joins one rod to the next.  The rod's own is the "
+            f"one cut from its crystal beside it, which meets it at the "
+            f"crystal's lengths.  This rod takes a linker with {points}"
+            f" connection points, {ends}; only those are listed.")
+        self.draw.setToolTip(
+            f"Draw a linker with {points} connection points ({ends}); "
+            f"it is saved in this workspace's blocks and chosen here")
 
     def _show_linker(self) -> None:
         from xtal.mof.rodbuild import load_linker

@@ -90,7 +90,7 @@ def test_the_linker_is_the_rods_own_unless_another_is_picked(dialog):
     assert dialog.values()["linker"] == ""
     names = [dialog.linker.itemData(i)
              for i in range(dialog.linker.count())]
-    assert {"BDC", "dobdc", "BTDD", "pzdc"} <= set(names)
+    assert {"BDC", "BTDD", "pzdc"} <= set(names)
     dialog.linker_search.setText("pzdc")
     assert [dialog.linker.itemData(i)
             for i in range(dialog.linker.count())] == ["", "pzdc"]
@@ -165,3 +165,47 @@ def test_build_is_greyed_for_what_cannot_be_built(qtbot, dialog):
     qtbot.waitUntil(lambda: "Predicted cell" in dialog.summary.text(),
                     timeout=60000)
     assert dialog.build_button.isEnabled()
+
+
+def test_the_linkers_offered_have_as_many_points_as_the_rod_meets(
+        dialog):
+    """MOF-74's rod is chelated -- a carboxylate and a phenolate at
+    each end of dobdc -- so it takes a linker with four points and no
+    other.  Listing BDC beside it, as every two-ended block was, built
+    nothing and said only that the joints were 2 A off."""
+    def names():
+        return {dialog.linker.itemData(i)
+                for i in range(dialog.linker.count())}
+
+    assert "dobdc" not in names() and "BDC" in names()
+    dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
+    assert "dobdc" in names() and "BDC" not in names()
+    assert "4 connection points" in dialog.linker.toolTip()
+    assert "2 points at each end" in dialog.draw.toolTip()
+
+
+def test_a_linker_drawn_for_mof_74_is_asked_for_four_points(
+        dialog, monkeypatch):
+    """Draw asks for the points the rod meets, so its footer says a
+    two-point drawing does not fit before it can be saved."""
+    from xtalapp.dialogs.draw_block import DrawBlockDialog
+
+    asked = {}
+
+    def draw(cls, slot, folder, parent=None):
+        asked["slot"] = slot
+
+    monkeypatch.setattr(DrawBlockDialog, "ask", classmethod(draw))
+    dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
+    dialog.draw.click()
+    assert asked["slot"].coordination == 4
+
+
+def test_a_picked_linker_the_new_rod_cannot_take_gives_way_to_its_own(
+        dialog):
+    """BDC picked for MIL-53 is not kept for MOF-74, which cannot take
+    it: the box goes back to the rod's own, dobdc."""
+    dialog.linker.setCurrentIndex(dialog.linker.findData("BDC"))
+    dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
+    assert dialog.linker_name() == ""
+    assert dialog.linker.currentText() == "The rod's own (dobdc)"

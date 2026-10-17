@@ -65,10 +65,14 @@ class Block:
     positions: np.ndarray
     bonds: list[tuple[int, int, str]]
     connections: list[int]
+    #: The file it was read from, for a refusal to name it by.
+    name: str = ""
 
     @classmethod
     def read(cls, path) -> Block:
-        return cls.parse(Path(path).read_text(encoding="utf-8"))
+        block = cls.parse(Path(path).read_text(encoding="utf-8"))
+        block.name = Path(path).stem
+        return block
 
     @classmethod
     def parse(cls, text: str) -> Block:

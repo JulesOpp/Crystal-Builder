@@ -234,3 +234,14 @@ def test_a_saved_rod_is_cut_where_the_seed_is_and_named_apart(tmp_path):
     with pytest.raises(rod.RodError, match="not a metal"):
         rod.save_block(structure, tmp_path,
                        cell.elements.index("O"), name="o")
+
+
+def test_a_linker_with_one_point_an_end_on_mof_74_is_refused_by_name():
+    """BDC on MOF-74 used to be placed, a carboxylate meeting one X of
+    each chelate, and fail at the joints 2 A off naming neither."""
+    with pytest.raises(RodBuildError,
+                       match="MOF-74_Zn meets each end of a linker at "
+                             "2 points.*BDC has 1 at each end"):
+        built("MOF-74_Zn", "hcb", linker="BDC")
+    with pytest.raises(RodBuildError, match="dobdc has 2 at each end"):
+        built("MIL-53_Cr", "sql", linker="dobdc")

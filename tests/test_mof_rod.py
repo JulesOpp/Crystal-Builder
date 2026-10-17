@@ -96,6 +96,20 @@ def test_a_rod_written_and_read_back_is_the_same_rod(tmp_path):
     assert back.name == r.name
 
 
+def test_a_rod_states_how_many_points_meet_one_end_of_a_linker(tmp_path):
+    """dobdc chelates MOF-74's rod -- its carboxylate and phenolate cut
+    at neighbouring ring carbons -- so two points meet one end; every
+    other shipped rod meets a linker end at one.  Cut from the crystal,
+    written and read back."""
+    faces = {name: Rod.read(path).face
+             for name, path in rod.shipped().items()}
+    assert {n for n, f in faces.items() if f == 2} == {
+        "MOF-74_Co", "MOF-74_Mg", "MOF-74_Ni", "MOF-74_Zn"}
+    assert set(faces.values()) == {1, 2}
+    back = Rod.read(shipped("MOF-74_Zn").write(tmp_path / "again.xyz"))
+    assert back.face == 2
+
+
 def test_each_shipped_rod_states_the_shape_its_net_needs():
     """The shape is chosen once, when the rod is cut, and the file is
     the record of it: every PoE meets one linker, so the shape's

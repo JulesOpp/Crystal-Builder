@@ -73,6 +73,11 @@ from xtal.mof.block import BOND_LETTERS, CONNECTION_DISTANCE
 #: bond.
 MATCH = 0.2
 
+#: Linker atoms nearer than this, A, are bonded, and two points cut at
+#: them meet one end of one linker (:func:`_face_size`).  A C-C bond is
+#: 1.54 at most; the next nearest across a ring is 2.4.
+FACE_BOND = 1.8
+
 #: How many shells a PoE shape is looked for in, either way along the
 #: rod.  Shapes reach two repeats at most in the four shipped rods.
 _REACH = 3
@@ -102,6 +107,11 @@ class Rod:
     #: build that names none.  The shipped rods leave it empty and are
     #: known by family (``rodbuild.OWN_LINKERS``).
     linker: str = ""
+    #: How many points one end of a linker meets: 1 for a carboxylate
+    #: or an azolate, 2 for dobdc's carboxylate and phenolate, which
+    #: chelate the rod together.  A linker for this rod has twice as
+    #: many points as this, half at each end.
+    face: int = 1
 
     # ------------------------------------------------------- reading
 
@@ -208,6 +218,8 @@ class Rod:
             head.append(f"name={self.name}")
         if self.linker:
             head.append(f"linker={self.linker}")
+        if self.face != 1:
+            head.append(f"face={self.face}")
         lines = [str(len(self.symbols)), " ".join(head)]
         for s, (x, y, z) in zip(self.symbols, self.positions,
                                 strict=True):
@@ -254,7 +266,7 @@ class Rod:
         return cls(symbols, np.array(positions, dtype=float),
                    float(found["repeat"]), bonds, edges,
                    found.get("name", ""), tuple(notes),
-                   found.get("linker", ""))
+                   found.get("linker", ""), int(found.get("face", 1)))
 
     @classmethod
     def read(cls, path) -> Rod:
@@ -394,7 +406,7 @@ def from_structure(structure, seed: int, *, shape="rng", rules=None,
                                              + image), float)
                 cuts[group_of[i]].append((i, frame @ (partner - centre)))
 
-    points = {}
+    points, faced = {}, {}
     for k in sorted(cuts):
         hung = cuts[k]
         members = sorted({place[i] for i, _ in hung})
@@ -407,14 +419,47 @@ def from_structure(structure, seed: int, *, shape="rng", rules=None,
         bonds.extend((m, x, "S", 0) for m in members)
         donors = [place[a] for a in groups[k] if a in donor]
         points[x] = np.mean([positions[d] for d in donors], axis=0)
+        faced[x] = [p for _, p in hung]
     if not points:
         raise RodError("no linker meets this rod")
 
     positions = np.array(positions)
     edges = _shape(points, length, shape)
     rod = Rod(out_symbols, positions, length, sorted(bonds), edges,
-              name, ())
+              name, (), face=_face_size(faced, length))
     return rod
+
+
+def _face_size(faced, length) -> int:
+    """How many points meet one end of one linker: those whose linker
+    atoms are one atom or bonded (dobdc's ring carbons under its
+    carboxylate and its phenolate), the next repeat counted.
+
+    Read off the crystal and never off the X atoms' spacing, which is
+    where the cut put them and says nothing about which linker each
+    faces.
+    """
+    xs = sorted(faced)
+    parent = {x: x for x in xs}
+
+    def root(a):
+        while parent[a] != a:
+            a = parent[a]
+        return a
+
+    rise = np.array([0.0, 0.0, length])
+    for i, a in enumerate(xs):
+        for b in xs[i + 1:]:
+            if any(np.linalg.norm(p + k * rise - q) < FACE_BOND
+                   for p in faced[a] for q in faced[b]
+                   for k in (-1, 0, 1)):
+                parent[root(b)] = root(a)
+    sizes = {len([x for x in xs if root(x) == r])
+             for r in {root(x) for x in xs}}
+    if len(sizes) != 1:
+        raise RodError(f"the linkers meet this rod by {sorted(sizes)} "
+                       f"points at an end, not one number for all")
+    return sizes.pop()
 
 
 def linker_from_structure(structure, seed: int | None = None, *,

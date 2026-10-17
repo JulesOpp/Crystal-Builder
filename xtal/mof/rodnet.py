@@ -369,6 +369,28 @@ def _twist(a, b, line) -> float:
     return _angle(a / na, b / nb)
 
 
+def linker_points(rod: Rod) -> int:
+    """How many points a linker for ``rod`` has: one face at each end."""
+    return 2 * rod.face
+
+
+def mismatch(rod: Rod, linker, size: int) -> str:
+    """Why ``linker``, ``size`` points at each end, does not fit
+    ``rod``, said by name.
+
+    Without it a two-point linker on MOF-74 was paired with one X of a
+    chelate each and failed at the joints, 2 A off, naming neither.
+    """
+    name = getattr(linker, "name", "") or "the linker"
+    each = "point" if rod.face == 1 else "points"
+    why = (" (a chelate: the rod holds the donors, so the linker's X "
+           "atoms go where they join it)" if rod.face > 1 else "")
+    return (f"{rod.name or 'the rod'} meets each end of a linker at "
+            f"{rod.face} {each}{why}, so its linker has "
+            f"{linker_points(rod)} in all; {name} has {size} at each "
+            f"end, {2 * size} in all")
+
+
 def faces(rod: Rod, size: int) -> list[Face]:
     """The rod's X atoms in faces of ``size``, nearest together first.
 
@@ -535,6 +557,8 @@ def placement(net: RodNet, rod: Rod, linker, *,
     one is refused.
     """
     ends = linker if isinstance(linker, Ends) else ends_of(linker)
+    if ends.size != rod.face:
+        raise RodNetError(mismatch(rod, linker, ends.size))
     p = net.pattern
     rod_faces = faces(rod, ends.size)
     degree = PATTERNS[p.name].degree
