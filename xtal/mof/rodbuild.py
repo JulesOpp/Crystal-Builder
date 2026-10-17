@@ -57,6 +57,8 @@ from xtal.mof.rodnet import (
     PATTERNS,
     Placement,
     RodNetError,
+    _about,
+    conformers,
     ends_of,
     faces,
     placement,
@@ -264,11 +266,10 @@ def build(request: RodRequest, directory=None, log=None,
         net = rod_net(request.pattern, rod, request.hands)
         _say(log, f"placing {rod.name or request.rod} on "
                   f"{request.pattern}, hands {net.hands}")
-        placed = placement(net, rod, linker, angle=request.angle)
+        placed, atoms = _best(net, rod, linker, request.angle)
     except RodNetError as exc:
         raise RodBuildError(str(exc)) from None
     _say(log, placed.sentence())
-    atoms = _assemble(placed, linker)
     atoms = atoms.tiled(request.repeat)
     structure = atoms.structure(f"{request.title()}")
     outcome = RodOutcome(structure, request, placed,
@@ -298,6 +299,31 @@ def build(request: RodRequest, directory=None, log=None,
     return outcome
 
 
+def best_placement(net, rod, linker, angle=None) -> Placement:
+    """The placement a build of these would use: for a linker that can
+    turn about the bonds between its ends, the best of its poses."""
+    return _best(net, rod, linker, angle)[0]
+
+
+def _best(net, rod, linker, angle):
+    """``(placement, atoms)``: each of the linker's poses placed and
+    assembled (:data:`xtal.mof.rodnet.POSES`, none for a linker that
+    cannot turn), the one whose joints miss and crowd least kept."""
+    from xtal.mof.rodnet import POSES
+
+    best = None
+    for pose in range(POSES):
+        placed = placement(net, rod, linker, angle=angle, pose=pose)
+        if pose and placed.posed is None:
+            break
+        atoms = _assemble(placed, linker)
+        if best is None or atoms.score < best[1].score - 1e-6:
+            best = (placed, atoms)
+        if placed.posed is None:
+            break
+    return best
+
+
 # =============================================================== assembly
 
 
@@ -318,6 +344,9 @@ class _Atoms:
     joint_bonds: int = 0
     longest_joint: float = 0.0
     rods: tuple = ()
+    #: How far the linkers' joints miss, and crowd and stretch where
+    #: the linker was turned: what :func:`_best` keeps the least of.
+    score: float = 0.0
 
     def add(self, symbol, xyz, owner) -> int:
         self.symbols.append(symbol)
@@ -423,6 +452,8 @@ def _assemble(placed: Placement, linker) -> _Atoms:
     rows = placed.rows
     atoms = _Atoms(rows)
     p = placed.net.pattern
+    if placed.posed is not None:
+        linker = placed.posed
     ends = ends_of(linker)
     size = ends.size
     rod_faces = [faces(r, size) for r in placed.rods]
@@ -488,7 +519,7 @@ def _assemble(placed: Placement, linker) -> _Atoms:
 
     skeleton = _skeleton(linker)
     places = _places(linker, ends)
-    fits = []
+    joined = []
     for u, f, v, g, shift in sorted(joints):
         sides = []
         for node, face, lattice in ((u, f, (0, 0, 0)), (v, g, shift)):
@@ -500,9 +531,38 @@ def _assemble(placed: Placement, linker) -> _Atoms:
                    for side in sides for n, x, s in side]
         kinds = [placed.rods[placed.net.colours[n]].kind(x)
                  for n, x, _s, _at in targets]
-        fits.append((targets, _fits(linker, ends, targets, placed,
-                                    index, atoms, places, kinds)))
-    pairing = _one_pairing([found for _targets, found in fits])
+        joined.append((targets, kinds))
+
+    def fitted(linker):
+        fits = [(targets, _fits(linker, ends, targets, placed, index,
+                                atoms, places, kinds))
+                for targets, kinds in joined]
+        pairing = _one_pairing([found for _targets, found in fits])
+        return sum(found[pairing][0] for _t, found in fits), pairing, fits
+
+    best = fitted(linker)
+    turns = list(conformers(linker, ends)) if ends.size > 1 else []
+    if turns:
+        rods_at = np.array(atoms.cart)
+
+        def scored(linker, tried):
+            total, pairing, fits = tried
+            chosen = [found[pairing] for _t, found in fits]
+            return total + CLASH_WEIGHT * (
+                _crowding(linker, chosen, rows, rods_at)
+                + _stretch(linker, chosen, [t for t, _f in fits],
+                           placed, index, atoms))
+
+        score = scored(linker, best)
+        for turned in turns:
+            tried = fitted(turned)
+            mine = scored(turned, tried)
+            if mine < score - 1e-6:
+                best, linker, score = tried, turned, mine
+        atoms.score = score
+    else:
+        atoms.score = best[0]
+    _total, pairing, fits = best
 
     longest, count = 0.0, 0
     for k, (targets, found) in enumerate(fits):
@@ -576,6 +636,83 @@ def _places(linker, ends) -> dict[int, int]:
     numbered = {sig: k for k, sig in enumerate(sorted(set(
         signatures.values())))}
     return {x: numbered[signatures[x]] for x in points}
+
+
+#: Atoms of different blocks nearer than this, A, crowd each other
+#: when a linker's turn is chosen -- below any contact in the shipped
+#: builds' crystals (2.05 A in MOF-74) yet above a clash.
+CROWDED = 2.0
+
+#: What a crowding of 1 A^2 costs against a joint's miss, A^2.
+CLASH_WEIGHT = 10.0
+
+
+#: A joint bond longer than this, A, is stretched when a linker's turn
+#: is chosen: a C-C between rings is 1.48, a C-O 1.36.
+STRETCHED = 1.6
+
+
+def _stretch(linker, chosen, targets, placed, index, atoms) -> float:
+    """How far the joints at ``chosen`` stretch: for each linker atom
+    a joint bonds, (d - :data:`STRETCHED`)^2 to its nearest rod atom
+    there, where d is over that.
+
+    Contacts alone let a turn of pc-dobpdc buy 0.06 A of room with
+    joints 2.05 A long."""
+    xs = np.asarray(linker.positions, float)
+    centre = xs[list(linker.connections)].mean(axis=0)
+    total = 0.0
+    for (_miss, order, rotation, origin), joint in zip(
+            chosen, targets, strict=True):
+        for x, (n, point, s, _at) in zip(order, joint, strict=True):
+            rod = placed.rods[placed.net.colours[n]]
+            ours = [atoms.at(index[n][m], np.add(s, (0, 0, up)))
+                    for m, up in rod.members(point)]
+            for a in linker.neighbours(x):
+                if linker.symbols[a] == "X" or not ours:
+                    continue
+                at = (xs[a] - centre) @ rotation.T + origin
+                d = min(float(np.linalg.norm(at - b)) for b in ours)
+                total += max(0.0, d - STRETCHED) ** 2
+    return total
+
+
+def _crowding(linker, chosen, rows, rods_at) -> float:
+    """How much the linkers placed at ``chosen`` -- each joint's
+    ``(miss, order, rotation, origin)`` -- crowd the rods and one
+    another: the sum of (:data:`CROWDED` - d)^2 over pairs closer than
+    that, over the cell's neighbours.  The atoms a linker joins the
+    rods by are left out, as their bonds put them close.
+    """
+    from scipy.spatial import cKDTree
+
+    xs = np.asarray(linker.positions, float)
+    centre = xs[list(linker.connections)].mean(axis=0)
+    joining = {a for x in linker.connections
+               for a in linker.neighbours(x)}
+    body = [a for a, s in enumerate(linker.symbols)
+            if s != "X" and a not in joining]
+    placed = [(xs[body] - centre) @ rotation.T + origin
+              for _miss, _order, rotation, origin in chosen]
+    owners = np.concatenate([np.full(len(rods_at), -1)]
+                            + [np.full(len(p), k)
+                               for k, p in enumerate(placed)])
+    every = np.vstack([rods_at, *placed])
+    shifts = np.array([(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1)
+                       for k in (-1, 0, 1)], float) @ rows
+    images = (every[None, :, :] + shifts[:, None, :]).reshape(-1, 3)
+    tree = cKDTree(images)
+    total = 0.0
+    n = len(every)
+    for k, block in enumerate(placed):
+        hits = tree.query_ball_point(block, CROWDED)
+        for a, found in enumerate(hits):
+            for j in found:
+                if owners[j % n] == k:
+                    continue
+                d = float(np.linalg.norm(images[j] - block[a]))
+                total += (CROWDED - d) ** 2
+    return total
 
 
 def _one_pairing(fits):
@@ -696,12 +833,6 @@ def _align(a, b) -> np.ndarray:
         return _about(axis / np.linalg.norm(axis), math.pi)
     k = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
     return np.eye(3) + k + k @ k / (1.0 + c)
-
-
-def _about(axis, angle) -> np.ndarray:
-    k = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]],
-                  [-axis[1], axis[0], 0]])
-    return np.eye(3) + math.sin(angle) * k + (1 - math.cos(angle)) * k @ k
 
 
 def _turn_into_plane(rotation, linker, order, source, targets, placed,

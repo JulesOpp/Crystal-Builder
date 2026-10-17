@@ -150,14 +150,20 @@ class _Fit(QObject):
 def fit(key, folders=()):
     """The placement for ``(rod, linker, pattern, hands)`` with the
     angle left free -- what a build of those would do."""
-    from xtal.mof.rodbuild import RodRequest, load_linker, load_rod
-    from xtal.mof.rodnet import placement, rod_net
+    from xtal.mof.rodbuild import (
+        RodRequest,
+        best_placement,
+        load_linker,
+        load_rod,
+    )
+    from xtal.mof.rodnet import rod_net
 
     name, linker, pattern, hands = key
     request = RodRequest(name, pattern, linker, hands).resolved(folders)
     rod = load_rod(request.rod, folders)
     net = rod_net(pattern, rod, hands)
-    return placement(net, rod, load_linker(request.linker_name, folders))
+    return best_placement(net, rod,
+                          load_linker(request.linker_name, folders))
 
 
 class RodBuildDialog(QDialog):

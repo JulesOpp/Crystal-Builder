@@ -292,6 +292,7 @@ def carboxylates_by_place(structure):
     return tuple(found)
 
 
+@pytest.mark.slow
 def test_every_joint_pairs_a_linkers_points_the_same_way():
     """A biphenyl core's C4 X is the carboxylate at every joint or at
     none: one isomer a framework.  Paired joint by joint, half the
@@ -311,17 +312,54 @@ def test_mof_74_with_dobdc_builds_as_it_did(mof_74):
     assert mof_74.closest == pytest.approx(2.054, abs=0.002)
 
 
-@pytest.mark.parametrize("name, place", [("dobpdc", (0, 6)),
-                                         ("pc_dobpdc", (6, 0))])
-def test_dobpdc_and_pc_dobpdc_drawn_whole_build_as_two_isomers(
-        name, place):
-    """Drawn with their carboxylates and phenols, each X goes on the
-    rod point of its own donor: dobpdc's carboxylates meta to the
-    biaryl bond at every joint, pc-dobpdc's para."""
+@pytest.fixture(scope="module", params=[("dobpdc", (0, 6)),
+                                        ("pc_dobpdc", (6, 0))],
+                ids=["dobpdc", "pc-dobpdc"])
+def drawn_whole(request):
+    """MOF-74's rod with each isomer as RDKit drew it, whole, and where
+    its carboxylates should come out."""
+    name, place = request.param
     outcome = built("MOF-74_Mg", "hcb",
                     linker=str(ROOT / "tests" / "data"
                                / f"rod_{name}_whole.xyz"))
+    return outcome, place
+
+
+@pytest.mark.slow
+def test_dobpdc_and_pc_dobpdc_drawn_whole_build_as_two_isomers(
+        drawn_whole):
+    """Drawn with their carboxylates and phenols, each X goes on the
+    rod point of its own donor: dobpdc's carboxylates meta to the
+    biaryl bond at every joint, pc-dobpdc's para."""
+    outcome, place = drawn_whole
     assert carboxylates_by_place(outcome.structure) == place
+
+
+@pytest.mark.slow
+def test_a_drawn_biphenyl_is_turned_to_join_the_rods_at_bond_lengths(
+        drawn_whole):
+    """RDKit drew dobpdc's rings 32 degrees apart and pc-dobpdc's donors
+    on one side: built so, the joints were 2.28 A and pc-dobpdc read a
+    net that is not in the RCSR.  Turned about the biaryl bond, both
+    are msg with joints of the crystal's lengths and nothing
+    overlapping."""
+    outcome, _place = drawn_whole
+    assert outcome.net_name == "msg"
+    assert outcome.longest_joint < 1.55
+    assert outcome.closest > 1.7 and not outcome.overlaps
+
+
+@pytest.mark.slow
+def test_a_linker_between_alternating_rods_is_placed_centrosymmetric(
+        drawn_whole):
+    """MOF-74's neighbouring rods are each other's mirror images, so a
+    linker between them sits on an inversion centre: its ends a half
+    turn apart, to within a turning step and the build's refinement."""
+    import math
+
+    outcome, _place = drawn_whole
+    assert outcome.placement.posed is not None
+    assert math.degrees(outcome.placement.linker.twist) > 170
 
 
 def test_a_linker_with_donors_the_rod_lacks_is_refused_by_name():

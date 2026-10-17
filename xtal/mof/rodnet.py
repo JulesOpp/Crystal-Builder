@@ -43,8 +43,8 @@ Numpy and scipy; no Qt, no PORMAKE.
 from __future__ import annotations
 
 import math
-from collections import deque
-from dataclasses import dataclass, field
+from collections import defaultdict, deque
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -514,6 +514,9 @@ class Placement:
     #: Which face meets which, one :class:`Match` per face of every
     #: node, so each joint is here twice -- once from either end.
     matches: list = field(default_factory=list)
+    #: The linker turned about the bonds between its ends as it was
+    #: placed (:func:`poses`), or ``None`` for as drawn.
+    posed: object = None
 
     @property
     def spacing(self) -> float:
@@ -577,19 +580,184 @@ _CHUNK = 4096
 FREE_ANGLES = (45.0, 135.0)
 
 
+#: The turns about a bond between a linker's ends that are tried, in
+#: degrees: every :data:`TURN_STEP` round, the drawing's own first.
+TURN_STEP = 10
+
+#: The finer step :func:`poses` turns by, degrees.
+POSE_STEP = 5
+
+#: How many turns nearest the symmetry's twist are placed and built,
+#: the best kept.  Placement is sensitive near it: pc-dobpdc posed at
+#: 179.5 degrees put a ring hydrogen 0.95 A from a rod oxygen, and at
+#: 178.7 built with joints of 1.47 A.
+POSES = 3
+
+#: Two atoms of a turned linker three or more bonds apart may come no
+#: closer than this, A; a planar biphenyl's ortho hydrogens are 2.0.
+TURN_CLEAR = 1.5
+
+
+def _turning_bonds(linker, ends) -> list[tuple[int, int]]:
+    """The single bonds on the path between the linker's two ends
+    that are in no ring: what a drawn linker may be turned about
+    (dobpdc's biaryl bond).  Each is ``(a, b)`` with ``b`` on the side
+    of the second end."""
+    near = defaultdict(set)
+    for i, j, _letter in linker.bonds:
+        near[i].add(j)
+        near[j].add(i)
+    start, goal = ends.ends[0][0], set(ends.ends[1])
+    back, queue = {start: None}, deque([start])
+    while queue:
+        a = queue.popleft()
+        for n in near[a]:
+            if n not in back:
+                back[n] = a
+                queue.append(n)
+    end = next((x for x in ends.ends[1] if x in back), None)
+    if end is None:
+        return []
+    path = [end]
+    while back[path[-1]] is not None:
+        path.append(back[path[-1]])
+    path.reverse()
+    single = {tuple(sorted((i, j))) for i, j, letter in linker.bonds
+              if letter == "S"}
+    found = []
+    for a, b in zip(path, path[1:], strict=False):
+        if tuple(sorted((a, b))) not in single:
+            continue
+        if len(near[a]) < 2 or len(near[b]) < 2:
+            continue
+        side = _side(near, b, a)
+        if goal <= side and not (side & set(ends.ends[0])):
+            found.append((a, b))
+    return found
+
+
+def _side(near, start, cut) -> set[int]:
+    """The atoms reached from ``start`` without crossing to ``cut``;
+    ``cut`` among them means the bond is in a ring."""
+    seen, queue = {start}, deque([start])
+    while queue:
+        a = queue.popleft()
+        for n in near[a]:
+            if n not in seen and not (a == start and n == cut):
+                seen.add(n)
+                queue.append(n)
+    return seen
+
+
+def conformers(linker, ends, step: int = TURN_STEP):
+    """The linker turned about each bond of :func:`_turning_bonds`, one
+    bond at a time, every ``step`` degrees, leaving out any
+    turn that brings two of its atoms within :data:`TURN_CLEAR`.
+
+    A drawing's turn is the embedder's, not the crystal's: RDKit
+    left dobpdc's rings 32 degrees apart and pc-dobpdc's donors on one
+    side.  :func:`poses` picks those placement starts from, and the
+    build refines it against the joints.
+    """
+    near = defaultdict(set)
+    for i, j, _letter in linker.bonds:
+        near[i].add(j)
+        near[j].add(i)
+    xyz = np.asarray(linker.positions, float)
+    far = _far_pairs(near, len(xyz))
+    for a, b in _turning_bonds(linker, ends):
+        side = sorted(_side(near, b, a))
+        axis = xyz[b] - xyz[a]
+        axis /= np.linalg.norm(axis)
+        for degrees in range(step, 360, step):
+            moved = xyz.copy()
+            turn = _about(axis, math.radians(degrees))
+            moved[side] = (xyz[side] - xyz[b]) @ turn.T + xyz[b]
+            gaps = np.linalg.norm(moved[far[:, 0]] - moved[far[:, 1]],
+                                  axis=1)
+            if len(gaps) and gaps.min() < TURN_CLEAR:
+                continue
+            yield replace(linker, positions=moved)
+
+
+def _far_pairs(near, n) -> np.ndarray:
+    """Every pair of atoms three or more bonds apart, ``X`` included."""
+    pairs = []
+    for a in range(n):
+        seen, frontier = {a}, {a}
+        for _ in range(2):
+            frontier = {m for f in frontier for m in near[f]} - seen
+            seen |= frontier
+        pairs.extend((a, b) for b in range(a + 1, n) if b not in seen)
+    return np.array(pairs, dtype=int).reshape(-1, 2)
+
+
+
+def _about(axis, angle) -> np.ndarray:
+    k = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]],
+                  [-axis[1], axis[0], 0]])
+    return np.eye(3) + math.sin(angle) * k + (1 - math.cos(angle)) * k @ k
+
+
+
+def poses(linker, ends: Ends, twist: float) -> list:
+    """Up to :data:`POSES` conformers of ``linker`` -- turned about the
+    bonds between its ends, :data:`POSE_STEP` apart -- whose ends'
+    :attr:`Ends.twist` is nearest ``twist`` (radians), nearest first,
+    each with its ``Ends``; empty when it cannot turn.
+
+    The turn decides the placement through the twist, and the
+    placement the net: dobpdc as RDKit drew it, 34 degrees, read msg
+    with joints of 2.28 A, and turned to 177 degrees, 1.43 A; pc-dobpdc
+    as drawn, 94 degrees, read a net that is not in the RCSR.  Placing
+    every turn costs 1.5 s each, so the turns tried are the ones the
+    joined rods' symmetry asks for (:func:`placement`).
+    """
+    found = [(_gap(its.twist, twist), k, turned, its)
+             for k, (turned, its) in enumerate(
+                 (t, ends_of(t)) for t in conformers(linker, ends,
+                                                       POSE_STEP))]
+    found.append((_gap(ends.twist, twist), -1, linker, ends))
+    found.sort(key=lambda row: (row[0], row[1]))
+    return [(turned, its) for _gap_, _k, turned, its in found[:POSES]]
+
+
+def wanted_twist(net, rod: Rod) -> float:
+    """The twist between a linker's ends that the rods it joins ask
+    for: it sits on what relates them -- an inversion centre where
+    neighbours alternate hands (MOF-74, R-3), its ends a half turn
+    apart; a two-fold axis where they are one hand, the same way
+    round."""
+    same = net.hands == "same" and rod.hand is not None
+    return 0.0 if same else math.pi
+
+
+def _gap(a: float, b: float) -> float:
+    return abs(math.remainder(a - b, 2 * math.pi))
+
+
+
 def placement(net: RodNet, rod: Rod, linker, *,
-              angle: float | None = None) -> Placement:
+              angle: float | None = None, pose: int = 0) -> Placement:
     """Solve the cell, and each rod's turn and rise, for ``rod`` on
     ``net`` joined by ``linker`` (a block, or :class:`Ends`).
 
     ``angle`` is sql's rhombus angle.  Given, it is used; ``None``, it
     is the one the rod's faces fit best, and :attr:`Placement.angle_from`
     says which.  For a pattern whose angle is fixed by symmetry, giving
-    one is refused.
+    one is refused.  ``pose`` is which of :func:`poses` a linker that
+    can turn about the bonds between its ends is placed in, the
+    nearest the rods' symmetry first; :func:`xtal.mof.rodbuild.
+    best_placement` tries each.
     """
     ends = linker if isinstance(linker, Ends) else ends_of(linker)
     if ends.size != rod.face:
         raise RodNetError(mismatch(rod, linker, ends.size))
+    posed = None
+    if not isinstance(linker, Ends) and ends.size > 1:
+        found = poses(linker, ends, wanted_twist(net, rod))
+        if pose < len(found) and found[pose][0] is not linker:
+            posed, ends = found[pose]
     p = net.pattern
     rod_faces = faces(rod, ends.size)
     unmet = unmet_kinds(rod, linker, ends, rod_faces)
@@ -647,7 +815,7 @@ def placement(net: RodNet, rod: Rod, linker, *,
     return Placement(net, (rod, second), ends, a, rod.repeat, gamma,
                      said, turns, rises, shears, cost, reach,
                      model.joints(x, gamma), over,
-                     model.matches(x, gamma))
+                     model.matches(x, gamma), posed)
 
 
 class _Model:
