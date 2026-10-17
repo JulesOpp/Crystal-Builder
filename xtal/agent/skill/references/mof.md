@@ -25,7 +25,7 @@ print(s.inspect())
 | `orientation` | `consistent` (default) or `as-found` (PORMAKE's own) |
 | `spacing`, `offset` | layer nets only: sheet spacing in Å (default 3.4) and stacking offset |
 | `interpenetration` | copies threaded through each other, where the most room is |
-| `partition` | `acs` with a trimer node only: a pyridyl partitioner on every channel (`tpt`, `tpb`, `tripp`, `tppb`, `tppm`, `tpa`, `tpvb`, `tpeb`, `tppa`, `tppt`, or `auto`) |
+| `partition` | `acs` with a trimer node only: a pyridyl partitioner on every channel (`tpt`, `tpb`, `tripp`, `tppb`, `tppm`, `tpa`, `tpvb`, `tpeb`, `tppa`, `tppt`, one drawn into `blocks/partitioners`, or `auto`) |
 
 ## Choosing blocks
 
@@ -79,6 +79,15 @@ A refused pair is a failed build with the same sentence, never a
 strained framework. The report's *Pore-space partition* table puts
 the predicted cell beside the built one, and the metal-N lengths as
 built. Relax before reading the cell as a material's.
+
+A partitioner of your own is a three-point block in the workspace's
+`blocks/partitioners/` folder (never `blocks/`, where PORMAKE would
+offer it as a node), each point on a pyridyl nitrogen 0.75 A out
+along its lone pair; `partition=<its file name>` builds with it and
+`partition.candidates(catalog)` ranks it with the shipped ten. In a
+SMILES the point is `*[n+]1ccccc1`; drawn in the window, the
+pyridines may be drawn bare and their free nitrogens become the
+points.
 
 ## Supertetrahedra on a zeolite net (sod-st)
 

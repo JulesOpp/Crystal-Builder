@@ -9,6 +9,17 @@ drawing says it, and :func:`as_linker` turns it into that core with each
 ``X`` named by the donor it stands for (``Block.kinds``), which a build
 pairs only with a rod point of the same kind.
 
+**An L-type donor is drawn bare too.**  A pyridyl meets its metal
+through the nitrogen's lone pair, and the point is a fourth bond on
+the nitrogen (``*[n+]``) that nobody draws by instinct.  Asked for
+(``pyridyls``, the MOF builder's slots and its partitioners, never a
+rod), a drawing with no carboxylate and no hydroxyl makes a point of
+each ring nitrogen with its lone pair free -- no hydrogen, and both
+ring neighbours bearing nothing but hydrogen -- with its ``X`` on the
+lone-pair line.  So tpt's three pyridyls are its points and its
+triazine nitrogens, each between two substituted carbons, are not;
+tripp's central pyridine and tppm's pyrimidine likewise.
+
 Read off the drawing's bonds and never its lengths, as a functional
 group is.  :mod:`xtal.core.groups` is not used: it reads a drawn
 ``[O-]`` on a ring carbon as a ketone, and a phenolate drawn as the
@@ -26,9 +37,14 @@ from xtal.mof.block import BOND_LETTERS, CONNECTION_DISTANCE
 
 CARBOXYLATE = "carboxylate"
 PHENOLATE = "phenolate"
+PYRIDYL = "pyridyl"
 
 #: What each kind is called in a sentence, many of them.
-PLURALS = {CARBOXYLATE: "carboxylates", PHENOLATE: "phenolates"}
+PLURALS = {CARBOXYLATE: "carboxylates", PHENOLATE: "phenolates",
+           PYRIDYL: "pyridyl nitrogens"}
+
+#: A bond letter's order, for a nitrogen's valence.
+_ORDER = {"S": 1.0, "D": 2.0, "T": 3.0, "A": 1.5}
 
 _HYDROGENS = ("H", "D")
 
@@ -44,12 +60,16 @@ class Donor:
 
     kind: str
     #: Every atom of the group, hydrogens included: what is dropped.
+    #: Empty for a pyridyl, whose nitrogen stays and carries the point.
     atoms: tuple[int, ...]
     #: The group's atom bonded to the linker -- the carboxylate's
-    #: carbon, the phenolate's oxygen -- where the rod's ``X`` hangs.
+    #: carbon, the phenolate's oxygen -- where the rod's ``X`` hangs;
+    #: a pyridyl's nitrogen.
     attach: int
-    #: The linker atom it is bonded to.
-    partner: int
+    #: The linker atom it is bonded to; for a pyridyl, the nitrogen's
+    #: two ring neighbours, whose middle the lone pair points away
+    #: from.
+    partner: int | tuple[int, int]
 
 
 def _neighbours(block) -> dict[int, list[int]]:
@@ -60,9 +80,11 @@ def _neighbours(block) -> dict[int, list[int]]:
     return near
 
 
-def find(block) -> list[Donor]:
+def find(block, pyridyls: bool = False) -> list[Donor]:
     """The carboxylates (acid or anion) and phenolates (phenol or
-    anion: an oxygen on one sp2 carbon) of ``block``, in atom order."""
+    anion: an oxygen on one sp2 carbon) of ``block``, in atom order;
+    with ``pyridyls``, and none of those, its free pyridyl nitrogens
+    (:func:`_pyridyls`)."""
     symbols = block.symbols
     near = _neighbours(block)
 
@@ -95,24 +117,66 @@ def find(block) -> list[Donor]:
             atoms = (o, *hydrogens(o))
             found.append(Donor(PHENOLATE, tuple(sorted(atoms)), o,
                                carbons[0]))
+    if pyridyls and not found:
+        found = _pyridyls(block, near, heavy, hydrogens)
     return sorted(found, key=lambda d: d.attach)
 
 
-def as_linker(block):
+def _pyridyls(block, near, heavy, hydrogens) -> list[Donor]:
+    """Each ring nitrogen whose lone pair is free: no hydrogen, two
+    neighbours by a single and a double or two aromatic bonds, each
+    bearing only hydrogen beside the ring -- so a triazine's nitrogen
+    between two arms is not one, and a pyrazine has two."""
+    symbols = block.symbols
+    order = defaultdict(float)
+    for i, j, letter in block.bonds:
+        order[i] += _ORDER.get(letter, 1.0)
+        order[j] += _ORDER.get(letter, 1.0)
+    found = []
+    for n, symbol in enumerate(symbols):
+        flanks = heavy(n)
+        if (symbol != "N" or hydrogens(n) or len(near[n]) != 2
+                or len(flanks) != 2 or order[n] != 3.0):
+            continue
+        a, b = flanks
+        if (len(heavy(a)) != 2 or len(heavy(b)) != 2
+                or not _ring_through(near, n, a, b)):
+            continue
+        found.append(Donor(PYRIDYL, (), n, (a, b)))
+    return found
+
+
+def _ring_through(near, n, a, b, limit: int = 7) -> bool:
+    """Whether ``a`` and ``b`` are joined other than through ``n``,
+    within a ring of ``limit`` atoms."""
+    seen, frontier = {n, a}, [a]
+    for _ in range(limit - 2):
+        frontier = [m for f in frontier for m in near[f]
+                    if m not in seen and not seen.add(m)]
+        if b in frontier:
+            return True
+    return False
+
+
+def as_linker(block, pyridyls: bool = False):
     """``block``, drawn whole, as the core a rod meets: each donor
     dropped and an ``X`` put :data:`CONNECTION_DISTANCE` from its
     attaching atom toward the linker -- where
     :func:`xtal.mof.rod.linker_from_structure` puts one, so a drawn
     linker and a cut one agree -- named by its kind in ``kinds``.
+    A pyridyl nitrogen is kept and its ``X`` put on its lone-pair
+    line, as ``*[n+]`` embeds one.
 
     A block that already has ``X`` atoms is handed back as it is.
     """
     if block.connections:
         return block
-    donors = find(block)
+    donors = find(block, pyridyls)
     if not donors:
-        raise DonorError("this linker has no connection points and no "
-                         "carboxylate or phenol to make them from")
+        what = ("carboxylate, phenol or pyridyl" if pyridyls
+                else "carboxylate or phenol")
+        raise DonorError(f"this linker has no connection points and no "
+                         f"{what} to make them from")
     drop = {a for d in donors for a in d.atoms}
     keep = [a for a in range(len(block.symbols)) if a not in drop]
     new = {a: k for k, a in enumerate(keep)}
@@ -123,12 +187,17 @@ def as_linker(block):
              if i in new and j in new]
     connections, kinds = [], []
     for d in donors:
-        step = xyz[d.partner] - xyz[d.attach]
+        if d.kind == PYRIDYL:
+            at = d.attach
+            step = xyz[at] - xyz[list(d.partner)].mean(axis=0)
+        else:
+            at = d.partner
+            step = xyz[d.partner] - xyz[d.attach]
         x = len(symbols)
         symbols.append("X")
         positions.append(xyz[d.attach] + CONNECTION_DISTANCE * step
                          / np.linalg.norm(step))
-        bonds.append((new[d.partner], x, "S"))
+        bonds.append((new[at], x, "S"))
         connections.append(x)
         kinds.append(d.kind)
     return replace(block, symbols=symbols,
@@ -168,10 +237,11 @@ def whole(molecule):
                  [i for i, s in enumerate(symbols) if s == "X"])
 
 
-def points(block) -> tuple[int, tuple[str, ...]]:
+def points(block, pyridyls: bool = False
+           ) -> tuple[int, tuple[str, ...]]:
     """How many connection points ``block`` makes and what each is:
     its ``X`` atoms, bare, or else one per donor it was drawn with."""
     if block.connections:
         return len(block.connections), ()
-    found = find(block)
+    found = find(block, pyridyls)
     return len(found), tuple(d.kind for d in found)

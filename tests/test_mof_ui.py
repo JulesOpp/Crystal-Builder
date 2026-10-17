@@ -1623,3 +1623,42 @@ def test_each_window_says_its_rough_size_on_the_blocks_chosen(st):
     assert "6-topic filler of ~5." in six
     box.set_blocks(st._topology, {})
     assert "rough" not in box._notes[6][0].text()
+
+
+@needs_database
+def test_a_partitioner_drawn_from_the_row_is_listed_and_chosen(
+        pacs, monkeypatch):
+    """Draw writes into the workspace's blocks/partitioners, never
+    blocks/ itself, and the drawing is then a row of the list,
+    ranked like the rest and selected."""
+    from pathlib import Path
+
+    from xtal.mof import partition
+    from xtalapp.dialogs.draw_block import DrawBlockDialog
+
+    box = _acs(pacs)
+    asked = {}
+
+    def ask(slot, folder, parent=None, smiles=""):
+        asked.update(slot=slot, folder=folder, smiles=smiles)
+        path = Path(folder) / "my-tpt.xyz"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_tpt_block_text())
+        return path
+
+    monkeypatch.setattr(DrawBlockDialog, "ask", staticmethod(ask))
+    box.set_value("tpt")
+    box.draw.click()
+    assert asked["slot"].coordination == 3 and asked["slot"].nitrogen
+    assert Path(asked["folder"]).name == partition.DRAWN
+    assert asked["smiles"] == partition.partitioner("tpt").smiles
+    assert box.value() == "my-tpt"
+    assert pacs.values()["partition"] == "my-tpt"
+    assert "my-tpt" in box.choice.currentText()
+
+
+def _tpt_block_text():
+    pytest.importorskip("rdkit")
+    from xtal.mof import partition
+
+    return partition.drawn("tpt").text()

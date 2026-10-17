@@ -323,6 +323,7 @@ class MofBuildDialog(QDialog):
         self.partition = PartitionBox(self)
         self.partition.use_linker.connect(self._use_linker)
         self.partition.use_node.connect(self._use_node)
+        self.partition.blocks_folder = self._draw_into
         self.linker_sets = LinkerSetBox(self)
         self.linker_sets.use_block.connect(self._use_block)
         self.supertetrahedra = SupertetrahedraBox(self)

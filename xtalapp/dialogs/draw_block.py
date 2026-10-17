@@ -42,6 +42,14 @@ are taken off and an ``X`` written where each joined, which is what
 PORMAKE's own blocks are -- BDC is E14, a benzene with an ``X`` at
 each carboxylate's carbon, because the cluster carries the
 carboxylates.  Drawn with stars it is saved as any block is.
+
+**So may an L-type one**, for any slot but a rod's: a drawing with no
+carboxylate and no hydroxyl makes a point of each pyridyl nitrogen
+whose lone pair is free (:func:`xtal.mof.donors.find`), and is saved
+with an ``X`` on that lone pair -- a window filler or a partitioner
+is a pyridyl, and its point is a fourth bond on the nitrogen that a
+person drawing pyridines does not think to draw.  A star drawn on the
+nitrogen is the same point (:func:`xtal.build.chem._charge_dative`).
 """
 
 from __future__ import annotations
@@ -184,15 +192,38 @@ class DrawBlockDialog(QDialog):
             return
         have, kinds = self._points(self.molecule)
         fits = have == self.slot.coordination
-        self._say(self._outcome(self.molecule, have, kinds, fits),
-                  ok=fits)
+        said = self._outcome(self.molecule, have, kinds, fits)
+        if fits and not self._on_nitrogens(self.molecule, kinds):
+            fits = False
+            said = (f"{said.split(' -- ')[0]} -- a {self.slot.label.lower()} "
+                    f"meets each metal through a pyridyl nitrogen: put "
+                    f"its points on ring nitrogens, or draw the "
+                    f"pyridines bare")
+        self._say(said, ok=fits)
+
+    def _on_nitrogens(self, molecule, kinds) -> bool:
+        """Whether every point is a nitrogen's, for a slot that asks
+        (a partitioner, whose points are dative); always, otherwise."""
+        if not getattr(self.slot, "nitrogen", False):
+            return True
+        if kinds:
+            return set(kinds) == {donors.PYRIDYL}
+        elements = molecule.elements
+        for x in molecule.connections:
+            partner = next((j if i == x else i
+                            for i, j, *_ in molecule.bonds
+                            if x in (i, j)), None)
+            if partner is None or elements[partner] != "N":
+                return False
+        return True
 
     def _points(self, molecule) -> tuple[int, tuple[str, ...]]:
         """The points ``molecule`` makes: its stars, or, drawn whole,
         one per donor."""
         if molecule.n_connections:
             return molecule.n_connections, ()
-        return donors.points(donors.whole(molecule))
+        return donors.points(donors.whole(molecule),
+                             pyridyls=not self.whole)
 
     def _outcome(self, molecule, have: int, kinds, fits: bool) -> str:
         need = self.slot.coordination
@@ -208,7 +239,7 @@ class DrawBlockDialog(QDialog):
             return f"{base} -- fits {self.slot.label.lower()}"
         if not have:
             what = ("carboxylates and phenols" if self.whole else
-                       "carboxylic acids or hydroxyls")
+                    "carboxylic acids, hydroxyls or pyridines")
             return (f"{base} -- draw its {what}, or mark its "
                     f"{need} points")
         return (f"{base} -- {self.slot.label} needs {need}, "
@@ -268,8 +299,11 @@ class DrawBlockDialog(QDialog):
         the form's real values, exactly once.
         """
         self._rebuild()
-        if (self.molecule is None or not self.folder or
-                self._points(self.molecule)[0] != self.slot.coordination):
+        if self.molecule is None or not self.folder:
+            return
+        have, kinds = self._points(self.molecule)
+        if (have != self.slot.coordination
+                or not self._on_nitrogens(self.molecule, kinds)):
             return
         values = self.action.coerce(self.form.values())
         stem = safe_name(str(values.get("name") or "") or
@@ -287,7 +321,7 @@ class DrawBlockDialog(QDialog):
 
                 drawn = donors.whole(final)
                 if not self.whole:
-                    drawn = donors.as_linker(drawn)
+                    drawn = donors.as_linker(drawn, pyridyls=True)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 write_text(path, drawn.text())
                 self.path = path

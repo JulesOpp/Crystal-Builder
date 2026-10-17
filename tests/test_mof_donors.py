@@ -90,3 +90,46 @@ def test_mof_74s_rod_names_its_carboxylate_and_phenolate_points():
     assert kinds == ["carboxylate"] * 3 + ["phenolate"] * 3
     btdd = Rod.read(shipped()["Ni2Cl2BTDD_Ni"])
     assert {btdd.kind(x) for x in btdd.connections} == {"CC"}
+
+
+def _bare(smiles):
+    pytest.importorskip("rdkit")
+    from xtal.build.molecule import from_smiles
+
+    return donors.whole(from_smiles(smiles, optimise=False))
+
+
+def test_a_pyridyl_drawn_bare_makes_its_free_nitrogens_its_points():
+    """tpt drawn as three pyridines on a triazine: the pyridines'
+    nitrogens are its three points and the triazine's, each between
+    two substituted carbons, are not; a pyrazine has two.  Asked for
+    only: a rod linker's nitrogens are the rod's business."""
+    tpt = _bare("c1cnccc1-c1nc(nc(n1)-c1ccncc1)-c1ccncc1")
+    assert donors.points(tpt, pyridyls=True) == (3, (donors.PYRIDYL,) * 3)
+    assert donors.points(tpt) == (0, ())
+    assert donors.points(_bare("c1cnccn1"), pyridyls=True)[0] == 2
+
+
+def test_a_drawing_with_carboxylates_keeps_its_ring_nitrogen():
+    """Pyridine-3,5-dicarboxylic acid is a two-point linker; its ring
+    nitrogen is not a third point."""
+    pydc = _bare("OC(=O)c1cncc(C(=O)O)c1")
+    assert donors.points(pydc, pyridyls=True) == (
+        2, (donors.CARBOXYLATE,) * 2)
+
+
+def test_a_pyridyl_point_is_on_the_lone_pair_line():
+    """The nitrogen stays and its X is 0.75 A out along the lone pair,
+    away from its two ring neighbours, as ``*[n+]`` embeds one."""
+    bare = _bare("c1ccncc1")
+    core = donors.as_linker(bare, pyridyls=True)
+    assert core.symbols.count("N") == 1 and core.kinds == ("pyridyl",)
+    (x,) = core.connections
+    (n,) = core.neighbours(x)
+    xyz = np.asarray(core.positions)
+    ring = [i for i in core.neighbours(n) if i != x]
+    out = xyz[n] - xyz[ring].mean(axis=0)
+    step = xyz[x] - xyz[n]
+    assert np.linalg.norm(step) == pytest.approx(CONNECTION_DISTANCE)
+    assert np.dot(out, step) / np.linalg.norm(out) / np.linalg.norm(
+        step) == pytest.approx(1.0, abs=1e-6)

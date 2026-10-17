@@ -446,3 +446,45 @@ def test_a_cancelled_draw_changes_nothing(built, monkeypatch):
     edge.draw_button.click()
 
     assert edge.block() == before
+
+
+def partitioner_slot():
+    """What the pacs builder's Partitioner row asks for."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(label="Partitioner", coordination=3,
+                           nitrogen=True)
+
+
+@needs_rdkit
+def test_a_partitioner_drawn_as_its_pyridines_is_saved_with_dative_points(
+        qtbot, tmp_path):
+    """tpt drawn as it is, with no X: its three free pyridyl nitrogens
+    are its points, and each is saved with an X on its lone pair -- the
+    point a person drawing pyridines does not think to draw."""
+    from xtal.mof.trimer import Block
+
+    dialog = DrawBlockDialog(partitioner_slot(), str(tmp_path))
+    qtbot.addWidget(dialog)
+    dialog.form.set_values({"name": "tpt-drawn"})
+    typed(dialog, qtbot, "c1cnccc1-c1nc(nc(n1)-c1ccncc1)-c1ccncc1")
+    assert "3 pyridyl nitrogens: 3 connection" in dialog.footer.text()
+    assert dialog.save_button.isEnabled()
+    dialog.accept()
+
+    block = Block.read(tmp_path / "tpt-drawn.xyz")
+    assert len(block.connections) == 3
+    assert {block.symbols[block.neighbours(x)[0]]
+            for x in block.connections} == {"N"}
+
+
+@needs_rdkit
+def test_a_partitioner_with_its_points_on_carbon_is_refused(qtbot,
+                                                            tmp_path):
+    """Three stars on a benzene fit the count and not the slot: a
+    partitioner meets each metal through a nitrogen."""
+    dialog = DrawBlockDialog(partitioner_slot(), str(tmp_path))
+    qtbot.addWidget(dialog)
+    typed(dialog, qtbot, "*c1cc(*)cc(*)c1")
+    assert "pyridyl nitrogen" in dialog.footer.text()
+    assert not dialog.save_button.isEnabled()

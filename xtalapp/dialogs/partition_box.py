@@ -14,9 +14,18 @@ partitioner asks for are offered the other way round.
 Greyed rather than hidden, as the stacking rows are: a section that
 comes and goes as the net list is scrolled moves the Build button
 under the cursor.
+
+*Draw...* is the slot rows' own dialog aimed at a tritopic pyridyl,
+saved into the workspace's ``blocks/partitioners``
+(:data:`xtal.mof.partition.DRAWN`), never ``blocks/`` itself, where
+PORMAKE would offer it to every three-connected node slot.  Drawn
+pyridines are enough: their free nitrogens are the points.
 """
 
 from __future__ import annotations
+
+from pathlib import Path
+from types import SimpleNamespace
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QStandardItemModel
@@ -89,6 +98,16 @@ class PartitionBox(QWidget):
             "two-connected block in the catalogue: the span that puts "
             "the linker at the elevation the pacs frameworks show")
         self.suggest.clicked.connect(self._suggest)
+        self.draw = QPushButton("Draw...", self)
+        self.draw.setToolTip(
+            "Draw a partitioner of your own: three pyridines on a C3 "
+            "core, drawn as they are -- each free ring nitrogen is a "
+            "point.  It is listed with the others and ranked by the "
+            "cell it makes.")
+        self.draw.clicked.connect(self._draw_one)
+        #: Where a drawn partitioner's folder is: a callable giving the
+        #: blocks folder the builder draws into, set by the dialog.
+        self.blocks_folder = None
         self.suggestions = QLabel(self)
         self.suggestions.setWordWrap(True)
         self.suggestions.setTextFormat(Qt.RichText)
@@ -101,11 +120,17 @@ class PartitionBox(QWidget):
         picker.setContentsMargins(0, 0, 0, 0)
         picker.addWidget(self.choice, 1)
         picker.addWidget(self.suggest)
+        # Under the choice, beside the count: a third button on its
+        # line made the builder scroll sideways at 560 px.
+        below = QHBoxLayout()
+        below.setContentsMargins(0, 0, 0, 0)
+        below.addWidget(self.count, 1)
+        below.addWidget(self.draw)
         grid = QGridLayout()
         grid.setContentsMargins(0, 4, 0, 4)
         grid.addWidget(QLabel("<b>Partitioner</b>", self), 0, 0)
         grid.addLayout(picker, 1, 0)
-        grid.addWidget(self.count, 2, 0)
+        grid.addLayout(below, 2, 0)
         grid.addWidget(self.picture, 0, 1, 3, 1)
         grid.setColumnStretch(0, 1)
         layout = QVBoxLayout(self)
@@ -120,6 +145,7 @@ class PartitionBox(QWidget):
         self._node = None
         self._linker = ""
         self._fits: dict[str, partition.Fit] = {}
+        self._framework = (None, "", "", "")
         self._fill([])
         self.set_framework(None, "", "", "")
 
@@ -128,6 +154,7 @@ class PartitionBox(QWidget):
     def set_framework(self, catalog, topology: str, node: str,
                       linker: str) -> None:
         """The net, trimer and linker chosen above, as names."""
+        self._framework = (catalog, topology, node, linker)
         if catalog is not self._catalog:
             self._compatible = None
         self._catalog = catalog
@@ -147,7 +174,7 @@ class PartitionBox(QWidget):
             except (TrimerError, KeyError, ValueError) as exc:
                 reason = f"{node} cannot be partitioned: {exc}"
         live = self._node is not None
-        for widget in (self.choice, self.suggest):
+        for widget in (self.choice, self.suggest, self.draw):
             widget.setEnabled(live)
         self.suggestions.clear()
         if not live:
@@ -158,7 +185,8 @@ class PartitionBox(QWidget):
         fits = []
         if linker:
             span = partition.linker_span(catalog.building_block(linker))
-            fits = partition.rank(self._node, linker, span)
+            fits = partition.rank(self._node, linker, span,
+                                  partition.candidates(catalog))
         self._fill(fits)
 
     def _say_nodes(self, chosen: str) -> None:
@@ -211,7 +239,7 @@ class PartitionBox(QWidget):
         self.choice.addItem("Best fit", partition.AUTO)
         model = self.choice.model()
         for fit in fits:
-            p = partition.partitioner(fit.partitioner)
+            p = partition.partitioner(fit.partitioner, self._catalog)
             self.choice.addItem(f"{p.name} -- {p.full_name}", p.name)
             at = self.choice.count() - 1
             self.choice.setItemData(at, fit.sentence(), Qt.ToolTipRole)
@@ -222,7 +250,8 @@ class PartitionBox(QWidget):
         closing = sum(f.ok for f in fits)
         self.count.setText(
             f"{closing} of {len(fits)} close the cell" if fits else
-            f"{len(partition.PARTITIONERS)} partitioners")
+            f"{len(partition.candidates(self._catalog))} "
+            f"partitioners")
         at = self.choice.findData(kept)
         self.choice.setCurrentIndex(at if at >= 0 and self._enabled(at)
                                     else 0)
@@ -251,7 +280,7 @@ class PartitionBox(QWidget):
         if name:
             try:
                 with busy():
-                    block = partition.drawn(name)
+                    block = partition.drawn(name, self._catalog)
             except Exception:                       # noqa: BLE001
                 block = None
         self.picture.set_block(drawn_linker(block, name)
@@ -294,8 +323,8 @@ class PartitionBox(QWidget):
         the nearest molecules for each, catalogue and generated."""
         fit = self._chosen_fit() if self.value() else None
         name = fit.partitioner if fit else "tpt"
-        need = partition.linker_requirement(self._node,
-                                            partition.partitioner(name))
+        need = partition.linker_requirement(
+            self._node, partition.partitioner(name, self._catalog))
         found = linkers.suggest(need, self._catalog, n=SUGGESTIONS,
                                 invent=True)
         lines = []
@@ -321,3 +350,55 @@ class PartitionBox(QWidget):
             lines.append(f"{self._linker} asks for {back.sentence()}"
                          f"{': ' + said if said else ''}.")
         self.suggestions.setText("<br>".join(lines))
+
+    # -- drawing one -----------------------------------------------------
+
+    def drawn_folder(self) -> Path | None:
+        """Where a drawn partitioner goes, ``None`` with nowhere."""
+        folder = self.blocks_folder() if self.blocks_folder else ""
+        return Path(folder) / partition.DRAWN if folder else None
+
+    def _start_smiles(self) -> str:
+        """The partitioner shown, as Draw starts from it."""
+        name = self.shown()
+        if not name:
+            return ""
+        try:
+            p = partition.partitioner(name, self._catalog)
+            if p.smiles:
+                return p.smiles
+            from xtal.build.chem import block_smiles
+
+            block = partition.drawn(name, self._catalog)
+            return block_smiles(block.symbols, block.bonds)
+        except Exception:                           # noqa: BLE001
+            return ""
+
+    def _draw_one(self) -> None:
+        from xtalapp.dialogs.draw_block import DrawBlockDialog
+
+        folder = self.drawn_folder()
+        if folder is None:
+            return
+        slot = SimpleNamespace(label="Partitioner", coordination=3,
+                               nitrogen=True)
+        written = DrawBlockDialog.ask(slot, str(folder), self,
+                                      smiles=self._start_smiles())
+        if written is None:
+            return
+        self.set_framework(*self._framework)
+        name = written.stem
+        if self.set_value(name):
+            return
+        if any(p.name == name for p in partition.PARTITIONERS):
+            said = (f"{name} is saved, but a shipped partitioner has "
+                    f"that name and is the one listed: draw it again "
+                    f"under another name.")
+        elif name in self._fits:
+            said = (f"{name} is saved, and cannot close this cell: "
+                    f"{self._fits[name].sentence()}.")
+        else:
+            said = (f"{name} is saved into {folder}, which this "
+                    f"catalogue does not read.")
+        self.status.setText(said)
+        set_tone(self.status, WARNING)

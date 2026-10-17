@@ -7,6 +7,7 @@ cell, or refuses one that can.
 """
 
 import math
+from pathlib import Path
 
 import pytest
 
@@ -121,3 +122,58 @@ def test_the_compatible_nodes_are_the_open_trimers(catalog):
     line = skill.split("Compatible nodes:")[1].split("--")[0]
     assert {w.strip(" ,\n") for w in line.split()
             if w.startswith("N")} == names
+
+
+def _draw(folder, name, catalog):
+    """tpt as the dialog saves a drawing: its block, in the
+    workspace's partitioners folder."""
+    target = folder / partition.DRAWN / f"{name}.xyz"
+    target.parent.mkdir(parents=True)
+    target.write_text(partition.drawn("tpt").text())
+    return Catalog(catalog.topology_dirs, catalog.bb_dirs + (folder,))
+
+
+@pytest.mark.skipif(not chem.installed(), reason="needs RDKit")
+def test_a_partitioner_drawn_in_a_workspace_is_ranked_and_built_from(
+        catalog, chromium, tmp_path):
+    """Drawn into ``blocks/partitioners``, it is a candidate with the
+    radius its nitrogens have, it is what its name builds, and the
+    run copies its own file; it is never one of PORMAKE's blocks."""
+    from xtal.mof.build import BuildRequest
+
+    blocks = tmp_path / "blocks"
+    wider = _draw(blocks, "my-tpt", catalog)
+    drawn = partition.partitioner("my-tpt", wider)
+    assert drawn.full_name == partition.DRAWN_NAME
+    # The picture's embed is unrelaxed, a few hundredths smaller.
+    assert drawn.radius == pytest.approx(
+        partition.partitioner("tpt").radius, abs=0.1)
+    names = [f.partitioner for f in partition.rank(
+        chromium, *_bdc(catalog), partition.candidates(wider))]
+    assert "my-tpt" in names
+    with pytest.raises(KeyError):
+        partition.partitioner("my-tpt", catalog)
+    with pytest.raises(Exception):  # noqa: B017
+        wider.building_block("my-tpt")
+
+    request = BuildRequest.parse("acs", "N536", "E14",
+                                 partition="my-tpt")
+    rewritten, _, fit = partition.partitioned(request, wider,
+                                              tmp_path / "run")
+    assert fit.partitioner == "my-tpt"
+    assert rewritten.nodes[1] == "pacs-my-tpt"
+    copied = tmp_path / "run" / "blocks" / "pacs-my-tpt.xyz"
+    assert copied.read_text() == (
+        blocks / partition.DRAWN / "my-tpt.xyz").read_text()
+
+
+def test_a_drawn_file_that_is_no_tritopic_pyridyl_is_not_listed(
+        catalog, tmp_path):
+    """Three points on carbons are an aryl node, not a partitioner."""
+    folder = tmp_path / "blocks" / partition.DRAWN
+    folder.mkdir(parents=True)
+    (folder / "aryl.xyz").write_text(
+        Path(catalog.building_block("N10").path).read_text())
+    wider = Catalog(catalog.topology_dirs,
+                    catalog.bb_dirs + (tmp_path / "blocks",))
+    assert partition.drawn_partitioners(wider) == ()

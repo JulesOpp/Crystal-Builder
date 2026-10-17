@@ -154,7 +154,7 @@ def embed(smiles: str, seed: int = 0xf00d, optimise: bool = True,
     # None, so the reason has to be captured or the user is told only
     # that something did not work.
     with rdBase.BlockLogs():
-        mol = Chem.MolFromSmiles(text)
+        mol = Chem.MolFromSmiles(text) or _dative(Chem, text)
     if mol is None:
         raise BuildError(f"{text!r} is not a SMILES string RDKit can "
                          f"read")
@@ -229,6 +229,48 @@ def _looks_like_xyz(text: str) -> bool:
         if run >= 3:
             return True
     return False
+
+
+def _dative(Chem, text: str):                       # noqa: N803
+    """``text`` read with every pyridyl nitrogen a connection point
+    hangs off made a cation (:func:`_charge_dative`), or ``None``."""
+    mol = Chem.MolFromSmiles(text, sanitize=False)
+    if mol is None or not _charge_dative(mol):
+        return None
+    try:
+        Chem.SanitizeMol(mol)
+    except Exception:                               # noqa: BLE001
+        return None
+    return mol
+
+
+def _charge_dative(mol) -> bool:
+    """Make each aromatic nitrogen a connection point hangs off the
+    cation it has to be, in place; whether any was.
+
+    A pyridyl meets its metal through the nitrogen's lone pair, so its
+    point is a fourth bond on that nitrogen: ``*[n+]1ccccc1``, as the
+    partitioners and the series write it.  Drawn on the canvas, a star
+    on a pyridine's nitrogen was refused for its valence ("too many
+    bonds") and typed as ``*n1ccccc1`` it was not a SMILES string at
+    all, so the one way to draw a dative point was to know to charge
+    the nitrogen first.
+    """
+    changed = False
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() != 0:
+            continue
+        for n in atom.GetNeighbors():
+            # Its two ring bonds are an aromatic pair or a single and
+            # a double, as the canvas draws them Kekule.
+            order = sum(b.GetBondTypeAsDouble() for b in n.GetBonds())
+            if (n.GetSymbol() == "N" and n.GetFormalCharge() == 0
+                    and n.GetNumExplicitHs() == 0
+                    and n.GetDegree() == 3 and order == 4):
+                n.SetFormalCharge(1)
+                n.SetNoImplicit(True)
+                changed = True
+    return changed
 
 
 def _dummies(mol) -> list[int]:
@@ -1070,6 +1112,7 @@ def sketch_mol(sketch, sanitize: bool = True):
             mol.GetAtomWithIdx(bond.b).SetIsAromatic(True)
             mol.GetBondBetweenAtoms(bond.a, bond.b).SetIsAromatic(True)
     mol = mol.GetMol()
+    _charge_dative(mol)
     if sanitize:
         with rdBase.BlockLogs():
             try:

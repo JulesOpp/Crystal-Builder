@@ -77,6 +77,10 @@ class Partitioner:
     lone-pair line.  ``radius`` is the donor nitrogens' distance from
     their centroid as embedded once by :func:`measure` and stored, so
     ranking needs no RDKit; a test holds the two equal.
+
+    A partitioner drawn in a workspace (:func:`drawn_partitioners`)
+    has no SMILES but the block it was saved as, ``path``, and its
+    radius is measured off that block's nitrogens.
     """
 
     name: str
@@ -84,6 +88,7 @@ class Partitioner:
     smiles: str
     radius: float
     topicity: int = 3
+    path: str = ""
 
 
 _PY = "c1cc[n+](*)cc1"
@@ -123,20 +128,88 @@ PARTITIONERS = (
 )
 
 
-def partitioner(name: str) -> Partitioner:
-    for p in PARTITIONERS:
-        if p.name == name:
-            return p
-    known = ", ".join(p.name for p in PARTITIONERS)
-    raise KeyError(f"no partitioner {name!r}; known: {known}")
+#: Under a workspace's ``blocks`` folder: the partitioners drawn there.
+#: A folder of their own because PORMAKE globs ``blocks/*.xyz`` as its
+#: own blocks, and a tritopic pyridyl there is offered to every
+#: three-connected node slot, which it is not.
+DRAWN = "partitioners"
+
+#: What a drawn partitioner is called beside its name.
+DRAWN_NAME = "drawn in this workspace"
+
+
+def candidates(catalog=None) -> tuple[Partitioner, ...]:
+    """The shipped partitioners, then any drawn into the folders of
+    ``catalog``."""
+    return PARTITIONERS + drawn_partitioners(catalog)
+
+
+def drawn_partitioners(catalog) -> tuple[Partitioner, ...]:
+    """Every partitioner drawn into a :data:`DRAWN` folder beside the
+    blocks ``catalog`` reads, in name order.  One named like a shipped
+    one is left out -- the shipped one is what that name builds -- and
+    a file that is no tritopic pyridyl is skipped."""
+    if catalog is None:
+        return ()
+    taken = {p.name for p in PARTITIONERS}
+    found = []
+    for folder in catalog.bb_dirs:
+        for path in sorted((Path(folder) / DRAWN).glob("*.xyz")):
+            if path.stem in taken:
+                continue
+            try:
+                p = _read_drawn(str(path), path.stat().st_mtime)
+            except (OSError, ValueError, IndexError):
+                continue
+            if p is not None:
+                found.append(p)
+                taken.add(p.name)
+    return tuple(found)
 
 
 @cache
-def drawn(name: str):
+def _read_drawn(path: str, _mtime: float) -> Partitioner | None:
+    """A drawn partitioner's block read once a version; ``None`` unless
+    it is three points each on a nitrogen."""
+    from xtal.mof.trimer import Block
+
+    block = Block.read(path)
+    if len(block.connections) != 3:
+        return None
+    donors = [_partner(block.bonds, x) for x in block.connections]
+    if any(block.symbols[d] != "N" for d in donors):
+        return None
+    cart = np.asarray(block.positions, dtype=float)
+    centre = cart[donors].mean(axis=0)
+    radius = float(np.mean([np.linalg.norm(cart[d] - centre)
+                            for d in donors]))
+    return Partitioner(Path(path).stem, DRAWN_NAME, "", radius,
+                       path=path)
+
+
+def partitioner(name: str, catalog=None) -> Partitioner:
+    for p in candidates(catalog):
+        if p.name == name:
+            return p
+    known = ", ".join(p.name for p in candidates(catalog))
+    raise KeyError(f"no partitioner {name!r}; known: {known}")
+
+
+def drawn(name: str, catalog=None):
     """A partitioner's molecule as a block (:class:`xtal.mof.trimer.
-    Block`, its ``X`` on the donor nitrogens), embedded once a
-    process, for the dialog's picture; ``None`` without the ``build``
-    extra."""
+    Block`, its ``X`` on the donor nitrogens), for the dialog's
+    picture: a drawn one's own file, a shipped one embedded once a
+    process; ``None`` without the ``build`` extra."""
+    p = partitioner(name, catalog)
+    if p.path:
+        from xtal.mof.trimer import Block
+
+        return Block.read(p.path)
+    return _embedded(name)
+
+
+@cache
+def _embedded(name: str):
     from xtal.build import chem
 
     if not chem.installed():
@@ -312,7 +385,8 @@ def predict(node: Node, linker_name: str, span: float,
 def rank(node: Node, linker_name: str, span: float,
          candidates=PARTITIONERS) -> list[Fit]:
     """Every candidate partitioner, buildable first, least strained
-    first."""
+    first.  The shipped ones by default; :func:`candidates` adds the
+    drawn."""
     order = {p.name: k for k, p in enumerate(candidates)}
     fits = [predict(node, linker_name, span, p) for p in candidates]
     return sorted(fits, key=lambda f: (not f.ok, _bucket(f),
@@ -447,20 +521,20 @@ def partitioned(request, catalog, folder):
     span = linker_span(linker)
 
     if request.partition == AUTO:
-        fits = rank(node, linker_name, span)
+        fits = rank(node, linker_name, span, candidates(catalog))
         if not fits[0].ok:
             raise MofError("no partitioner fits: " + "; ".join(
                 f.sentence() for f in fits))
         fit = fits[0]
     else:
         try:
-            chosen = partitioner(request.partition)
+            chosen = partitioner(request.partition, catalog)
         except KeyError as exc:
             raise MofError(str(exc.args[0])) from None
         fit = predict(node, linker_name, span, chosen)
         if not fit.ok:
             raise MofError(fit.sentence())
-    chosen = partitioner(fit.partitioner)
+    chosen = partitioner(fit.partitioner, catalog)
 
     folder = Path(folder) / "blocks"
     folder.mkdir(parents=True, exist_ok=True)
@@ -483,8 +557,9 @@ def partitioned(request, catalog, folder):
 
 
 def _write_partitioner(p: Partitioner, folder: Path, catalog) -> None:
-    """The partitioner's block, from its SMILES -- or the one a person
-    already put in the catalogue under the same name, which wins."""
+    """The partitioner's block, from its SMILES or the file it was
+    drawn as -- or the one a person already put in the catalogue under
+    the same name, which wins."""
     from xtal.build import chem
     from xtal.mof.build import MofError
     from xtal.mof.catalog import CatalogError
@@ -494,11 +569,16 @@ def _write_partitioner(p: Partitioner, folder: Path, catalog) -> None:
         return
     except CatalogError:
         pass
+    from xtal.io.atomic import write_text
+
+    if p.path:
+        write_text(folder / f"{block_name(p)}.xyz",
+                   Path(p.path).read_text(encoding="utf-8"))
+        return
     if not chem.installed():
         raise MofError(f"building {p.name} from its SMILES needs the "
                        f"'build' extra (RDKit)")
     from xtal.build.molecule import from_smiles
-    from xtal.io.atomic import write_text
     from xtal.mof.block import block_string
 
     molecule = from_smiles(p.smiles, name=p.name)

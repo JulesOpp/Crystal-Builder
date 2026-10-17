@@ -113,16 +113,6 @@ def available() -> Availability:
 #  PARAMETERS
 # ======================================================================
 
-def _partition_choices() -> tuple:
-    from xtal.mof.partition import AUTO, PARTITIONERS
-
-    return ((("", "None"), (AUTO, "Best fit"))
-            + tuple((p.name, f"{p.name} -- {p.full_name}")
-                    for p in PARTITIONERS))
-
-
-_PARTITION_CHOICES = _partition_choices()
-
 PARAMS = (
     Param("topology", "Topology", kind="text", default="pcu",
           help="The net to build on, by its RCSR name -- pcu, tbo, "
@@ -178,8 +168,7 @@ PARAMS = (
                "between them, and a framework too dense for any "
                "placement is refused rather than built crowded.  "
                "Structure > Interpenetrate lists every placement."),
-    Param("partition", "Partition the pores", kind="choice", default="",
-          choices=_PARTITION_CHOICES,
+    Param("partition", "Partition the pores", kind="text", default="",
           help="For a trimer on acs (MIL-88): a C3 pyridyl on the "
                "channel axis in every trimer layer, bonded to the "
                "trimers' open metal sites -- the pore-space-"
@@ -187,7 +176,10 @@ PARAMS = (
                "the cell's a and the linker its c, so not every pair "
                "fits; 'Best fit' takes the one that strains the "
                "linker least, and one that cannot close the cell is "
-               "refused with the reason."),
+               "refused with the reason.  Blank for none, 'auto', a "
+               "shipped one (tpt, tpb, tripp, tppb, tppm, tpa, tpvb, "
+               "tpeb, tppa, tppt) or one drawn into the workspace's "
+               "blocks/partitioners."),
     Param("topology_dir", "Extra topologies", kind="path",
           help="A folder of your own .cgd nets, read alongside the "
                "ones PORMAKE ships"),
@@ -394,12 +386,15 @@ def _partition(outcome) -> tuple:
     fit = outcome.partition
     if fit is None:
         return ()
-    from xtal.mof.partition import measured_dative, partitioner
+    from xtal.mof.partition import DRAWN_NAME, measured_dative, partitioner
 
     a, _b, c = outcome.structure.lattice.parameters[:3]
-    chosen = partitioner(fit.partitioner)
+    try:
+        full_name = partitioner(fit.partitioner).full_name
+    except KeyError:
+        full_name = DRAWN_NAME
     rows = (
-        Row("Partitioner", chosen.name, "", chosen.full_name),
+        Row("Partitioner", fit.partitioner, "", full_name),
         Row.number("Predicted a", fit.a, "A",
                    "the partitioner's donor radius, the dative bond "
                    "and the trimer, laid out from the channel axis",
