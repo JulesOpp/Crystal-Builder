@@ -919,12 +919,19 @@ def merged_topologies() -> tuple[Topology, ...]:
 @lru_cache(maxsize=1)
 def _pormake_folder() -> Path | None:
     root = database_root()
-    return (root / "topologies").resolve() if root else None
+    return _resolved(root / "topologies") if root else None
+
+
+@lru_cache(maxsize=64)
+def _resolved(folder: Path) -> Path:
+    """``folder.resolve()``, once a folder: the picker asks it of 2400
+    nets in a handful of folders, and each was a walk of the path."""
+    return folder.resolve()
 
 
 def _in_pormake(path: Path) -> bool:
     folder = _pormake_folder()
-    return folder is not None and path.parent.resolve() == folder
+    return folder is not None and _resolved(path.parent) == folder
 
 
 def _record_pormake_dimensions(topologies) -> None:
@@ -1249,11 +1256,20 @@ def _parsed(path: Path, reader):
     return _own_copy(held[1])
 
 
+#: What a net is *told* when it is made rather than asked of it, and so
+#: kept in every catalogue's copy: whether it is a layer.  Emptied with
+#: the rest, it cost every MOF builder dialog 5.5 s re-expanding the
+#: 823 RCSR and merged nets to answer the picker's 3-D / 2-D boxes.
+_TOLD = ("layer",)
+
+
 def _own_copy(item):
     """What a catalogue may change about an item, made its own: a net's
-    worked-out facts and a block's coordinates.  The rest is frozen."""
+    worked-out facts and a block's coordinates.  The rest is frozen,
+    and so is what the net was told (:data:`_TOLD`)."""
     if isinstance(item, Topology):
-        return replace(item, _cache={})
+        return replace(item, _cache={k: v for k, v in item._cache.items()
+                                     if k in _TOLD})
     if isinstance(item, BuildingBlock):
         return replace(item, positions=item.positions.copy())
     return item

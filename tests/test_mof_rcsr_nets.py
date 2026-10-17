@@ -87,3 +87,23 @@ def test_the_rejects_are_still_refused_and_sph_is_read(offered):
         reject = Topology(name, None, entry.group, (), text)
         with pytest.raises(Exception, match="Invalid cgd"):
             reject._pormake(pormake)
+
+
+@needs_database
+def test_a_fresh_catalogue_keeps_what_its_nets_were_told_and_expands_none(
+        monkeypatch):
+    """Every MOF builder dialog makes a catalogue, and the picker asks
+    every row whether it is a layer.  The RCSR's nets and the merged
+    nets are told the answer when they are made; a catalogue's copy
+    that dropped it expanded 823 nets on every open -- 5.5 s."""
+    Catalog.default().topologies()          # made once, as a dialog's
+
+    def expand(*_args, **_kw):
+        raise AssertionError("a net was expanded to ask if it is a layer")
+
+    monkeypatch.setattr(rcsr, "placement", expand)
+    fresh = Catalog.default()
+    told = [t for t in fresh.topologies() if t.text]
+    assert len(told) > 800
+    layers = sum(t.is_layer for t in told)
+    assert 0 < layers < len(told)
