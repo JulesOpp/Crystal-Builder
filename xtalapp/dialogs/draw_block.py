@@ -78,7 +78,7 @@ class DrawBlockDialog(QDialog):
     """A SMILES box and a canvas, aimed at one slot's coordination
     number."""
 
-    def __init__(self, slot, folder: str, parent=None):
+    def __init__(self, slot, folder: str, parent=None, smiles: str = ""):
         super().__init__(parent)
         self.slot = slot
         #: Whether a drawing with no stars is saved whole, donors and
@@ -97,6 +97,10 @@ class DrawBlockDialog(QDialog):
         # for one are already exactly right.
         self.action = BUILD.action("molecule")
         self.form = ParamForm(self.action.params, self)
+        if smiles:
+            # The block the row was showing, so Draw is an edit of it
+            # rather than a blank page.
+            self.form.set_values({"smiles": smiles})
         self.sketch = sketch_for(self, True)
         self.footer = QLabel(self)
         self.footer.setWordWrap(True)
@@ -107,6 +111,7 @@ class DrawBlockDialog(QDialog):
         self.note = QLabel(self._note(), self)
         set_tone(self.note, HINT)
         self.note.setWordWrap(True)
+        self.note.setVisible(bool(self._note()))
 
         self._quiet = QTimer(self)
         self._quiet.setSingleShot(True)
@@ -210,16 +215,14 @@ class DrawBlockDialog(QDialog):
                 f"not {have}")
 
     def _note(self) -> str:
-        if self.whole:
-            return ("No need to end each arm in X (*): draw the "
-                    "linker's carboxylic acids (C(=O)O) and hydroxyls "
-                    "as they are, and each is the rod point of its "
-                    "kind.")
-        return ("No need to end each arm in X (*): draw the "
-                "carboxylic acids (C(=O)O) or hydroxyls as they are, "
-                "and each becomes a connection point where it joins "
-                "the molecule -- BDC drawn as terephthalic acid is "
-                "saved as E14 is.")
+        """Said for a rod linker only: its donors are the rod's points
+        and their kinds, which is what drawing them is for."""
+        if not self.whole:
+            return ""
+        return ("No need to end each arm in X (*): draw the linker's "
+                "carboxylic acids (C(=O)O) and hydroxyls as they are, "
+                "and each is the rod point of its kind -- dobpdc and "
+                "pc-dobpdc are two drawings.")
 
     def _where(self) -> str:
         if not self.folder:
@@ -297,9 +300,11 @@ class DrawBlockDialog(QDialog):
         super().accept()
 
     @classmethod
-    def ask(cls, slot, folder: str, parent=None) -> Path | None:
-        """The path just written, or ``None`` if it was cancelled."""
-        with answered(cls(slot, folder, parent)) as dialog:
+    def ask(cls, slot, folder: str, parent=None,
+            smiles: str = "") -> Path | None:
+        """The path just written, or ``None`` if it was cancelled.
+        ``smiles`` is what the drawing starts as."""
+        with answered(cls(slot, folder, parent, smiles)) as dialog:
             if dialog.exec() != QDialog.Accepted:
                 return None
             return dialog.path

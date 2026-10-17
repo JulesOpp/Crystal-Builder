@@ -338,7 +338,7 @@ class RodBuildDialog(QDialog):
         slot = SimpleNamespace(label="Linker", coordination=self.points(),
                                donors=True)
         written = DrawBlockDialog.ask(slot, str(self.drawn_folder()),
-                                      self)
+                                      self, smiles=self.shown_smiles())
         if written is not None:
             self.linker_search.blockSignals(True)
             self.linker_search.clear()
@@ -429,6 +429,23 @@ class RodBuildDialog(QDialog):
             f"says which donor each point is -- dobpdc and pc-dobpdc "
             f"are two drawings -- or with its points marked.  It is "
             f"saved in this workspace's blocks and chosen here")
+
+    def shown_smiles(self) -> str:
+        """The linker in the picture as SMILES, as its file has it --
+        a linker drawn whole keeps its acids -- for Draw to start
+        from."""
+        from xtal.build.chem import block_smiles
+        from xtal.mof.rodbuild import linker_path
+        from xtal.mof.trimer import Block
+
+        name = self.linker_name() or self._own_linker()
+        if not name:
+            return ""
+        try:
+            block = Block.read(linker_path(name, self.folders))
+        except Exception:                           # noqa: BLE001
+            return ""
+        return block_smiles(block.symbols, block.bonds)
 
     def _show_linker(self) -> None:
         from xtal.mof.rodbuild import load_linker

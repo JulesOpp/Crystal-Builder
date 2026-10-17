@@ -22,7 +22,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
-    QFormLayout,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -32,6 +32,9 @@ from PySide6.QtWidgets import (
 
 from xtal.mof import linkers, partition
 from xtal.mof.trimer import TrimerError
+from xtalapp.busy import busy
+from xtalapp.dialogs.mof_preview import BlockPreview
+from xtalapp.dialogs.rod_build import PREVIEW, drawn_linker
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: How many linkers *Suggest linkers* lists.
@@ -54,7 +57,23 @@ class PartitionBox(QWidget):
             "trimers' open metal sites.  It sets the cell's a and the "
             "linker its c; one that cannot close the cell is listed "
             "greyed, with the reason.")
+        # A name and its full name is 60 characters: as wide as the
+        # row allows, never wider.
+        self.choice.setSizeAdjustPolicy(
+            QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.choice.setMinimumContentsLength(10)
         self.choice.currentIndexChanged.connect(self._say)
+        self.choice.currentIndexChanged.connect(self._draw)
+        #: The partitioner chosen, drawn: the molecule that will sit on
+        #: the channel axis, its three points on the donor nitrogens.
+        #: Laid out as a slot row is, so it sits in the column of the
+        #: node's and the linker's pictures; an empty box for None.
+        self.picture = BlockPreview(self, minimum=PREVIEW)
+        self.picture.setFixedSize(*PREVIEW)
+        self.picture.empty_text = "no partitioner"
+        self.count = QLabel(self)
+        self.count.setWordWrap(True)
+        set_tone(self.count, HINT)
         self.nodes = QLabel(self)
         self.nodes.setWordWrap(True)
         self.nodes.setTextFormat(Qt.RichText)
@@ -76,16 +95,22 @@ class PartitionBox(QWidget):
         self.suggestions.linkActivated.connect(self.use_linker)
         set_tone(self.suggestions, HINT)
 
-        row = QHBoxLayout()
-        row.setContentsMargins(0, 0, 0, 0)
-        row.addWidget(self.choice, 1)
-        row.addWidget(self.suggest)
-        form = QFormLayout()
-        form.setContentsMargins(0, 0, 0, 0)
-        form.addRow("Partitioner", row)
+        # The slot rows' shape: a heading, the choice and its button,
+        # a count, and the picture to the right of all three.
+        picker = QHBoxLayout()
+        picker.setContentsMargins(0, 0, 0, 0)
+        picker.addWidget(self.choice, 1)
+        picker.addWidget(self.suggest)
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 4, 0, 4)
+        grid.addWidget(QLabel("<b>Partitioner</b>", self), 0, 0)
+        grid.addLayout(picker, 1, 0)
+        grid.addWidget(self.count, 2, 0)
+        grid.addWidget(self.picture, 0, 1, 3, 1)
+        grid.setColumnStretch(0, 1)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addLayout(form)
+        layout.addLayout(grid)
         layout.addWidget(self.nodes)
         layout.addWidget(self.status)
         layout.addWidget(self.suggestions)
@@ -194,17 +219,43 @@ class PartitionBox(QWidget):
                 model.item(at).setEnabled(False)
         if fits and not any(f.ok for f in fits):
             model.item(1).setEnabled(False)
+        closing = sum(f.ok for f in fits)
+        self.count.setText(
+            f"{closing} of {len(fits)} close the cell" if fits else
+            f"{len(partition.PARTITIONERS)} partitioners")
         at = self.choice.findData(kept)
         self.choice.setCurrentIndex(at if at >= 0 and self._enabled(at)
                                     else 0)
         self.choice.blockSignals(False)
         self._say()
+        self._draw()
 
     def _enabled(self, at: int) -> bool:
         model = self.choice.model()
         if not isinstance(model, QStandardItemModel):
             return True
         return model.item(at).isEnabled()
+
+    def shown(self) -> str:
+        """The partitioner the picture is of, ``""`` for none: the one
+        chosen, or the one *Best fit* builds."""
+        value = self.value()
+        if value == partition.AUTO:
+            fit = self._chosen_fit()
+            return fit.partitioner if fit is not None else ""
+        return value
+
+    def _draw(self, *_args) -> None:
+        name = self.shown()
+        block = None
+        if name:
+            try:
+                with busy():
+                    block = partition.drawn(name)
+            except Exception:                       # noqa: BLE001
+                block = None
+        self.picture.set_block(drawn_linker(block, name)
+                               if block is not None else None)
 
     def _chosen_fit(self):
         value = self.value()

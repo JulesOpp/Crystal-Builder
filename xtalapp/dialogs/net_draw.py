@@ -40,7 +40,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QLabel,
-    QListWidget,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -53,7 +52,7 @@ from xtal.references import RCSR, rcsr_net
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.mof_preview import NetPreview, reset_view_row
 from xtalapp.widgets.links import SourceLinks
-from xtalapp.widgets.net_search import NetSearch, add_row
+from xtalapp.widgets.net_search import NetSearch, add_row, net_list
 
 #: The parameter the list answers, and so the one the form must not
 #: also ask about.  Everything else in ``PARAMS`` is a number and goes
@@ -112,7 +111,7 @@ class NetDrawDialog(QDialog):
         self.three_d = self.search.three_d
         self.two_d = self.search.two_d
 
-        self.nets = QListWidget(self)
+        self.nets = net_list(self)
         self.nets.currentItemChanged.connect(self._on_net_changed)
 
         self.preview = NetPreview(self, minimum=(260, 210))

@@ -1567,3 +1567,59 @@ def test_a_merged_net_drawn_by_the_net_builder_opens_with_its_groups(
     document = Document(result.structure)
     assert [g.name for g in document.atom_groups] == ["spn", "hxg"]
     assert all(g.color is not None for g in document.atom_groups)
+
+
+@needs_database
+@pytest.mark.parametrize("entry",
+                         ["build", "pacs", "supertetrahedra", "sets"])
+def test_no_builder_needs_scrolling_sideways(qtbot, window, entry):
+    """The rows' combo boxes sized to their longest block held every
+    builder at 715 px, and one net with a dozen vertex kinds gave the
+    net list a scroll bar of its own; a laptop's dialog scrolled
+    sideways for both."""
+    from PySide6.QtCore import Qt
+
+    built = _builder(qtbot, window, entry)
+    assert built.scroll.widget().minimumSizeHint().width() <= 560
+    assert (built.topologies.horizontalScrollBarPolicy()
+            == Qt.ScrollBarAlwaysOff)
+    assert built.topologies.textElideMode() == Qt.ElideRight
+
+
+@needs_database
+@pytest.mark.skipif(not __import__("xtal.build", fromlist=["installed"])
+                    .installed(), reason="needs the build extra")
+def test_the_chosen_partitioner_is_drawn(pacs):
+    """tpt picked: its molecule in the column of the node's and the
+    linker's pictures, three points on its nitrogens; None picked: the
+    same box, empty."""
+    box = _acs(pacs)
+    assert not box.picture.isHidden() and box.picture._block is None
+    assert box.set_value("tpt")
+    drawn = box.picture._block
+    assert drawn.name == "tpt" and len(drawn.connections) == 3
+    assert drawn.formula == "C18H12N6"
+    from PySide6.QtWidgets import QApplication
+
+    pacs.show()
+    QApplication.processEvents()
+    edge = next(r for r in pacs._rows if r.slot.is_edge)
+    right = box.picture.mapTo(pacs, box.picture.rect().topRight()).x()
+    assert right == edge.preview.mapTo(
+        pacs, edge.preview.rect().topRight()).x()
+    assert "close the cell" in box.count.text()
+    box.set_value("")
+    assert box.picture._block is None and not box.picture.isHidden()
+
+
+@needs_database
+def test_each_window_says_its_rough_size_on_the_blocks_chosen(st):
+    """sod on N589 and BTC: the 6-ring's trimers about 10 A out and a
+    hexatopic filler of about 5.6 A donor radius, said as rough; a
+    face with no trimer to measure says only the count."""
+    box = _sod(st)
+    six = box._notes[6][0].text()
+    assert "A from its middle" in six and "(rough)" in six
+    assert "6-topic filler of ~5." in six
+    box.set_blocks(st._topology, {})
+    assert "rough" not in box._notes[6][0].text()

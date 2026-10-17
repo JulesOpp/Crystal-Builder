@@ -70,6 +70,28 @@ def test_the_draw_footer_names_the_donors_it_found(qtbot, tmp_path):
 
 
 @needs_rdkit
+def test_only_a_rod_linker_is_told_it_may_be_drawn_as_its_acid(
+        qtbot, tmp_path):
+    rod = DrawBlockDialog(rod_slot(2), str(tmp_path))
+    plain = DrawBlockDialog(Slot("edge", (0, 0), 2), str(tmp_path))
+    qtbot.addWidget(rod)
+    qtbot.addWidget(plain)
+    assert "carboxylic acids" in rod.note.text()
+    assert not rod.note.isHidden()
+    assert plain.note.isHidden() and not plain.note.text()
+
+
+@needs_rdkit
+def test_draw_starts_from_the_smiles_it_is_given(qtbot, tmp_path):
+    """The row's block, so Draw edits what the preview showed."""
+    dialog = DrawBlockDialog(Slot("edge", (0, 0), 2), str(tmp_path),
+                             smiles="c1cc([*:2])ccc1[*:1]")
+    qtbot.addWidget(dialog)
+    assert dialog.form.widgets["smiles"].text() == "c1cc([*:2])ccc1[*:1]"
+    assert "2 connection point(s)" in dialog.footer.text()
+
+
+@needs_rdkit
 def test_a_linker_drawn_whole_is_saved_with_its_donors_and_no_x(
         qtbot, tmp_path):
     """Written as drawn, so the file says which donor each point is;
@@ -157,7 +179,7 @@ def test_a_linker_drawn_as_its_acid_is_saved_as_pormake_draws_it(
     """Terephthalic acid on an edge slot: two carboxylic acids are its
     two points, and the block written is E14's -- a benzene with an
     X where each carboxylate joined, 0.75 A out -- since the cluster
-    carries the carboxylates.  The dialog says it can be drawn so."""
+    carries the carboxylates.  The note saying so is the rod's alone."""
     import numpy as np
 
     from xtal.mof.trimer import Block
@@ -165,7 +187,7 @@ def test_a_linker_drawn_as_its_acid_is_saved_as_pormake_draws_it(
     slot = Slot("edge", (0, 0), 2)
     dialog = DrawBlockDialog(slot, str(tmp_path))
     qtbot.addWidget(dialog)
-    assert "carboxylic acids" in dialog.note.text()
+    assert dialog.note.isHidden()
     dialog.form.set_values({"name": "bdc"})
     typed(dialog, qtbot, "OC(=O)c1ccc(C(O)=O)cc1")
     assert "2 carboxylates: 2 connection" in dialog.footer.text()
@@ -286,7 +308,7 @@ def test_a_row_asks_the_sketcher_for_its_own_slot(built, tmp_path,
     check against -- the dialog is asked for it, not told afterwards."""
     seen = {}
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         seen["slot"] = slot
         seen["folder"] = folder
         return None
@@ -297,6 +319,23 @@ def test_a_row_asks_the_sketcher_for_its_own_slot(built, tmp_path,
 
     assert seen["slot"] is edge.slot
     assert seen["folder"] == str(built._blocks)
+
+
+@needs_database
+@needs_rdkit
+def test_draw_on_a_row_starts_from_the_block_it_shows(built,
+                                                      monkeypatch):
+    """E14 in the picture, so the sketch opens as E14: a benzene with a
+    point at each end, not a blank page."""
+    seen = {}
+    monkeypatch.setattr(
+        DrawBlockDialog, "ask",
+        classmethod(lambda cls, slot, folder, parent=None, smiles="":
+                    seen.update(smiles=smiles)))
+    edge = built._rows[-1]
+    assert edge.set_block("E14")
+    edge.draw_button.click()
+    assert seen["smiles"] == "c1cc([*:2])ccc1[*:1]"
 
 
 @needs_database
@@ -313,7 +352,7 @@ def test_a_block_is_drawn_into_the_workspace_and_read_back_from_it(
     assert built._blocks == blocks
     assert blocks not in [e.path for e in window.workspace.entries()]
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         path = Path(folder) / "U-drawn.xyz"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("4\n\nX 2 0 0\nC 0.7 0 0\n"
@@ -357,7 +396,7 @@ def test_drawing_a_block_selects_it_with_nothing_further_clicked(
     assert edge.slot.is_edge and edge.slot.coordination == 2
     written = tmp_path / "U-drawn.xyz"
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         written.write_text("4\n\nX 2 0 0\nC 0.7 0 0\n"
                            "C -0.7 0 0\nX -2 0 0\n")
         return written
@@ -381,7 +420,7 @@ def test_drawing_a_block_rereads_every_rows_catalogue(built,
     written = tmp_path / "U-drawn.xyz"
     old_catalog = built.catalog
 
-    def fake_ask(cls, slot, folder, parent=None):
+    def fake_ask(cls, slot, folder, parent=None, smiles=""):
         written.write_text("4\n\nX 2 0 0\nC 0.7 0 0\n"
                            "C -0.7 0 0\nX -2 0 0\n")
         return written
@@ -403,7 +442,7 @@ def test_a_cancelled_draw_changes_nothing(built, monkeypatch):
 
     monkeypatch.setattr(
         DrawBlockDialog, "ask",
-        classmethod(lambda cls, slot, folder, parent=None: None))
+        classmethod(lambda cls, slot, folder, parent=None, smiles="": None))
     edge.draw_button.click()
 
     assert edge.block() == before

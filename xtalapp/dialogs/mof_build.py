@@ -64,7 +64,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -92,7 +91,7 @@ from xtalapp.dialogs.supertetrahedra_box import OFFERED as ST_FIRST
 from xtalapp.dialogs.supertetrahedra_box import SupertetrahedraBox
 from xtalapp.docks.columns import Collapsible
 from xtalapp.widgets.links import SourceLinks
-from xtalapp.widgets.net_search import NetSearch, add_row
+from xtalapp.widgets.net_search import NetSearch, add_row, net_list
 from xtalapp.widgets.tone import HINT, set_tone
 
 #: What an edge slot offers instead of a linker.  A net has edges
@@ -146,7 +145,7 @@ class MofBuildDialog(QDialog):
     FIRST = "pcu"
     #: And the blocks on it, as ``BuildRequest`` spells them: ones its
     #: section is for, so it is live the moment the dialog opens.
-    FIRST_BLOCKS = ("", "")
+    FIRST_BLOCKS = ("N16", "E14")
 
     def __init__(self, module, action, parent=None, initial=None):
         super().__init__(parent)
@@ -205,7 +204,7 @@ class MofBuildDialog(QDialog):
         self.three_d = self.search.three_d
         self.two_d = self.search.two_d
 
-        self.topologies = QListWidget(self)
+        self.topologies = net_list(self)
         self.topologies.currentItemChanged.connect(
             self._on_topology_changed)
 
@@ -1000,6 +999,12 @@ class _SlotRow(QWidget):
         self._composition = str(composition or "")
         self._denticity = (bool(denticity[0]), bool(denticity[1]))
         self.combo = QComboBox(self)
+        # As wide as the row gives it, not as its longest entry: 212
+        # entries held every builder's rows at 715 px, past the
+        # dialog's width on a laptop.
+        self.combo.setSizeAdjustPolicy(
+            QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo.setMinimumContentsLength(16)
         self.draw_button = QPushButton("Draw...", self)
         self.draw_button.setToolTip(
             "Sketch a new building block for this slot -- checked "
@@ -1049,6 +1054,20 @@ class _SlotRow(QWidget):
         if query:
             found = [b for b in found if matches_search(b, query)]
         return _ordered(found)
+
+    def shown_smiles(self) -> str:
+        """The block in the picture as a starred SMILES, for Draw to
+        start from; ``""`` for none, or one RDKit cannot write."""
+        from xtal.build.chem import block_smiles
+
+        name = self.block()
+        if not name:
+            return ""
+        try:
+            block = self._catalog.building_block(name)
+        except Exception:                           # noqa: BLE001
+            return ""
+        return block_smiles(block.symbols, block.bonds)
 
     def _drawn_here(self, block) -> bool:
         if not self.folder:
@@ -1125,7 +1144,8 @@ class _SlotRow(QWidget):
 
     def _draw(self) -> None:
         from xtalapp.dialogs.draw_block import DrawBlockDialog
-        written = DrawBlockDialog.ask(self.slot, self.folder, self)
+        written = DrawBlockDialog.ask(self.slot, self.folder, self,
+                                      smiles=self.shown_smiles())
         if written is not None:
             self.drawn.emit(written.stem)
 

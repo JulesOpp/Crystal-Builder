@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from functools import cache
 from pathlib import Path
 
 import numpy as np
@@ -128,6 +129,26 @@ def partitioner(name: str) -> Partitioner:
             return p
     known = ", ".join(p.name for p in PARTITIONERS)
     raise KeyError(f"no partitioner {name!r}; known: {known}")
+
+
+@cache
+def drawn(name: str):
+    """A partitioner's molecule as a block (:class:`xtal.mof.trimer.
+    Block`, its ``X`` on the donor nitrogens), embedded once a
+    process, for the dialog's picture; ``None`` without the ``build``
+    extra."""
+    from xtal.build import chem
+
+    if not chem.installed():
+        return None
+    from xtal.build.molecule import from_smiles
+    from xtal.mof import donors
+
+    p = partitioner(name)
+    block = donors.whole(from_smiles(p.smiles, name=p.name,
+                                     optimise=False))
+    block.name = p.name
+    return block
 
 
 def measure(smiles: str) -> float:

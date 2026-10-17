@@ -171,8 +171,19 @@ def load_linker(name: str, folders=()):
     """A linker by path, by name in the rod library, in ``folders``
     (a workspace's blocks), or among PORMAKE's blocks."""
     from xtal.mof import donors
-    from xtal.mof.catalog import database_root
     from xtal.mof.trimer import Block
+
+    path = linker_path(name, folders)
+    try:
+        return donors.as_linker(Block.read(path))
+    except donors.DonorError as exc:
+        raise RodBuildError(f"{path.stem}: {exc}") from None
+
+
+def linker_path(name: str, folders=()) -> Path:
+    """The file :func:`load_linker` reads ``name`` from, as written --
+    a linker drawn whole still has its donors there."""
+    from xtal.mof.catalog import database_root
 
     candidates = [Path(name), shipped_linkers().get(name)]
     candidates += [Path(f) / SAVED / "linkers" / f"{name}.xyz"
@@ -183,10 +194,7 @@ def load_linker(name: str, folders=()):
         candidates.append(Path(root) / "bbs" / f"{name}.xyz")
     for path in candidates:
         if path is not None and path.is_file():
-            try:
-                return donors.as_linker(Block.read(path))
-            except donors.DonorError as exc:
-                raise RodBuildError(f"{path.stem}: {exc}") from None
+            return path
     raise RodBuildError(f"no linker called {name}; the rods' own are "
                         f"{', '.join(shipped_linkers())}, and any "
                         f"two-ended block of PORMAKE's will do")

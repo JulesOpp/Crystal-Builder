@@ -106,7 +106,7 @@ def test_the_linker_can_be_drawn_and_is_then_chosen(dialog, monkeypatch):
 
     asked = {}
 
-    def draw(cls, slot, folder, parent=None):
+    def draw(cls, slot, folder, parent=None, smiles=""):
         asked["slot"], asked["folder"] = slot, folder
         target = Path(folder) / "mine.xyz"
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -195,13 +195,17 @@ def test_a_linker_drawn_for_mof_74_is_asked_for_four_points(
 
     asked = {}
 
-    def draw(cls, slot, folder, parent=None):
-        asked["slot"] = slot
+    def draw(cls, slot, folder, parent=None, smiles=""):
+        asked["slot"], asked["smiles"] = slot, smiles
 
     monkeypatch.setattr(DrawBlockDialog, "ask", classmethod(draw))
     dialog.rod.setCurrentIndex(dialog.rod.findData("MOF-74_Zn"))
     dialog.draw.click()
     assert asked["slot"].coordination == 4
+    # The linker shown, as its file has it: dobdc drawn whole, so the
+    # sketch opens on its acids and phenols.
+    if dialog.linker_name() == "dobdc":
+        assert asked["smiles"].count("C(=O)O") == 2
 
 
 def test_a_picked_linker_the_new_rod_cannot_take_gives_way_to_its_own(

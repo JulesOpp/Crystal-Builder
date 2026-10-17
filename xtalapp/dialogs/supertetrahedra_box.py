@@ -128,6 +128,8 @@ class SupertetrahedraBox(QWidget):
         self._spec: list[tuple[int, int]] = []
         #: size -> (tick, every combo).
         self._rows: dict[int, tuple[QCheckBox, QComboBox]] = {}
+        #: size -> (its note, what the note says before a size).
+        self._notes: dict[int, tuple[QLabel, str]] = {}
         self._topology = None
         self._chosen: dict[int, str] = {}
         #: The fills still to be tried, ``(size, every)``, one a turn.
@@ -169,6 +171,36 @@ class SupertetrahedraBox(QWidget):
         self.suggest.setEnabled(live and bool(self._pair()))
         if self._decorated is not None and not installed():
             self.suggest.setToolTip("Needs PORMAKE's 'ase' extra")
+        self._say_sizes()
+
+    def _say_sizes(self) -> None:
+        """Each window's rough size on the trimer and face chosen:
+        how far its trimers sit from its middle and what a filler
+        must span, on the blocks' instant scale.  Instant, so it
+        follows every pick; 5-9 % out, so it says it is rough and
+        *Suggest fillers* gives the measured one."""
+        sizes = {}
+        pair = self._pair() if self._decorated is not None else ()
+        if pair and self._catalog is not None:
+            every = {size: int(combo.currentData() or 1)
+                     for size, (_tick, combo) in self._rows.items()}
+            try:
+                sizes = decorate.rough(self._decorated, self._catalog,
+                                       *pair, every)
+            except Exception:                       # noqa: BLE001
+                # A face or trimer this cannot measure: no size, and
+                # the build says why.
+                sizes = {}
+        for size, (note, said) in self._notes.items():
+            if size not in sizes:
+                note.setText(said)
+                continue
+            radius, wanted = sizes[size]
+            text = f"{said}; trimers ~{radius:.0f} A from its middle"
+            if wanted is not None:
+                text += (f", so a {wanted.topicity}-topic filler of "
+                         f"~{wanted.value:.1f} A {wanted.measure}")
+            note.setText(text + " (rough)")
 
     # -- what it hands back --------------------------------------------
 
@@ -325,6 +357,7 @@ class SupertetrahedraBox(QWidget):
                 widget.setParent(None)
                 widget.deleteLater()
         self._rows = {}
+        self._notes = {}
 
     def _fill_rows(self, offered: dict) -> None:
         """A row per window size, every fill listed; each is tried
@@ -341,13 +374,14 @@ class SupertetrahedraBox(QWidget):
                 self._untried.append((size, every))
             count = sum(k.count for k in same)
             facing = min(k.inward for k in same)
-            note = QLabel(f"{count} a cell"
-                          + (f", {len(same)} kinds" if len(same) > 1
-                             else "")
-                          + ("" if facing == size else
-                             f", {facing} of {size} sites face in"),
-                          self.windows)
+            said = (f"{count} a cell"
+                    + (f", {len(same)} kinds" if len(same) > 1 else "")
+                    + ("" if facing == size else
+                       f", {facing} of {size} sites face in"))
+            note = QLabel(said, self.windows)
+            note.setWordWrap(True)
             set_tone(note, HINT)
+            self._notes[size] = (note, said)
             tick.toggled.connect(self._apply)
             combo.currentIndexChanged.connect(self._on_every)
             self.grid.addWidget(tick, line, 0)
@@ -355,6 +389,7 @@ class SupertetrahedraBox(QWidget):
             self.grid.addWidget(note, line, 2)
             self._rows[size] = (tick, combo)
         self.grid.setColumnStretch(2, 1)
+        self._say_sizes()
         if self._untried:
             self._trying.start()
 
@@ -364,6 +399,7 @@ class SupertetrahedraBox(QWidget):
                 if tick.isChecked()]
 
     def _on_every(self, *_args) -> None:
+        self._say_sizes()
         if self._wanted() != self._spec:
             self._apply()
 

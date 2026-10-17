@@ -1498,6 +1498,34 @@ def asked(decorated: Decoration, catalog, trimer: str, face: str,
     return placed, out
 
 
+def rough(decorated: Decoration, catalog, trimer: str, face: str,
+          every: dict | None = None) -> dict:
+    """size -> ``(radius, requirement or None)`` for each size of
+    window, on :func:`estimate`'s instant scale rather than a
+    :func:`trial`: how far its trimers sit from its middle, A, and
+    what fills it, both a rough size -- the scale is 5-9 % out, which
+    is what *Suggest fillers* is for.  The first kind of a size
+    stands for it; ``every`` as :func:`asked` takes it."""
+    from xtal.mof.partition import node_geometry
+    from xtal.mof.trimer import untwinned
+
+    every = every or {}
+    node = node_geometry(catalog.building_block(untwinned(trimer)))
+    placed = estimate(decorated, node, catalog.building_block(face))
+    out = {}
+    for kind in windows(decorated):
+        if kind.size in out:
+            continue
+        radius = _shape(decorated, kind.window, placed)[0]
+        try:
+            wanted = requirement(decorated, kind, node, placed,
+                                 int(every.get(kind.size, 1)))
+        except DecorationError:
+            wanted = None
+        out[kind.size] = (radius, wanted)
+    return out
+
+
 # ----------------------------------------------------------------------
 #  Building one
 # ----------------------------------------------------------------------
