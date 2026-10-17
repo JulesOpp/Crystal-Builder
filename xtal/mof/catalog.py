@@ -156,6 +156,23 @@ def library_root() -> Path | None:
     return _library("blocks")
 
 
+#: Our own nets that are an RCSR net's graph under another embedding,
+#: and the RCSR's name a build of one reads back as.
+NET_ALIASES = {"pacs": "nia-d"}
+
+
+def library_nets() -> Path | None:
+    """Our own ``topologies/``, or ``None``.
+
+    Nets PORMAKE cannot read as the RCSR embeds them: ``pacs`` is
+    ``nia-d``'s graph with *c* at the pore-space-partitioned
+    frameworks' own proportion, because at the RCSR's c = 0.48 the
+    trimers stacked along *c* are nearer than their neighbours along
+    an edge and PORMAKE's distance-based reading refuses the file.
+    """
+    return _library("topologies")
+
+
 def _library(folder: str) -> Path | None:
     try:
         spec = importlib.util.find_spec("xtal.mof.library")
@@ -631,18 +648,23 @@ class Topology:
         return topology * repeat
 
     def _pormake(self, pormake):
-        """PORMAKE's reading of this net, from a file either way.
+        """PORMAKE's reading of this net, from a file either way, with
+        :mod:`xtal.mof.midpoints`' reading where both of its own fail.
 
         It reads the file once, in its constructor, and keeps nothing
         but what it parsed, so a net held as text is written to a
         folder that is gone before the build begins.
         """
+        from xtal.mof import midpoints
+
+        reader = midpoints.reader(
+            pormake, lambda: midpoints.edge_ends(self.entry()))
         if not self.text:
-            return pormake.Topology(str(self.path))
+            return reader(str(self.path))
         with tempfile.TemporaryDirectory(prefix="xtal-net-") as folder:
             path = Path(folder) / f"{self.name}.cgd"
             path.write_text(self.text, encoding="utf-8")
-            return pormake.Topology(str(path))
+            return reader(str(path))
 
     @property
     def is_layer(self) -> bool:
@@ -738,10 +760,25 @@ def _entry_of_text(text: str, where: str = "the net") -> CgdEntry:
 #: The RCSR layer nets PORMAKE cannot build on: each fails its own
 #: ``check_validity``, the test that took its 3-D catalogue from 2726
 #: nets to 2405.  Listing a net whose every build fails is worse than
-#: a list four shorter, so they are left out, and
-#: ``test_the_four_pormake_rejects_are_left_out_and_still_fail`` is
-#: what keeps this from going stale.  The Net builder still draws them.
-PORMAKE_REJECTS = frozenset({"fzh", "mtb-a", "mtc-a", "sde"})
+#: a list one shorter, so it is left out, and
+#: ``test_every_rcsr_layer_is_recorded_as_a_layer_and_is_one`` is what
+#: keeps this from going stale.  The Net builder still draws it.  It
+#: was four until the midpoint reading (:mod:`xtal.mof.midpoints`)
+#: read fzh, mtb-a and mtc-a.
+PORMAKE_REJECTS = frozenset({"sde"})
+
+
+#: The RCSR 3-periodic nets PORMAKE cannot read as the RCSR embeds
+#: them: 2 of the 346 the catalogue lacked, measured by
+#: ``scripts/rcsr_net_rejects.py``.  Each fails PORMAKE's own
+#: validity check by distance and by nearest pair -- an embedding in
+#: which some non-edge is shorter than an edge, as ``nia-d``'s was
+#: (which is why pacs has a file of its own) -- and the midpoint
+#: reading as well (:mod:`xtal.mof.midpoints`), which rescued the 11
+#: others that list held: anl, crd, css-a, jkz, kcz, lvs, mjh, nso,
+#: nts-d, tam and tap.  A slow test re-reads every one; three more
+#: (cys, nts, ssp) have no cell to read.
+RCSR_REJECTS = frozenset({"dng", "sph-a"})
 
 
 def rcsr_layers() -> tuple[Topology, ...]:
@@ -774,6 +811,66 @@ def rcsr_layers() -> tuple[Topology, ...]:
     return tuple(found)
 
 
+def rcsr_nets() -> tuple[Topology, ...]:
+    """Every 3-periodic RCSR net the catalogue does not already have,
+    as topologies: ``sph``, ``kgd``'s 3-D relatives and the merged
+    nets PORMAKE never shipped.
+
+    Only the names PORMAKE's folder and ours lack -- a name in both
+    catalogues is one net (``Topology.identify``), and offering it
+    twice would make the picker's two rows disagree about nothing.
+    Written by :func:`xtal.analysis.rcsr.as_net` with the group's
+    setting named, told they are 3-periodic as PORMAKE's are, and
+    without the ones PORMAKE cannot read as the RCSR embeds them
+    (:data:`RCSR_REJECTS`).  Kept once made: resolving the settings of
+    every net is an expansion each.
+    """
+    return _rcsr_nets(_names_in(_pormake_folder()) | _names_in(
+        library_nets()))
+
+
+@lru_cache(maxsize=4)
+def _rcsr_nets(have: frozenset) -> tuple[Topology, ...]:
+    from xtal.analysis import rcsr
+
+    found = []
+    for entry in rcsr.nets():
+        if (entry.dimension != 3 or entry.name in have
+                or entry.name in RCSR_REJECTS or not entry.cell
+                or len(entry.cell) != 6):
+            continue
+        try:
+            written = rcsr.as_net(entry)
+        except rcsr.RcsrError:
+            continue
+        text = write_cgd_string([written]).rstrip() + "\n"
+        topology = Topology(
+            entry.name, None, written.group,
+            tuple(node.coordination for node in entry.nodes), text,
+            len(entry.edges))
+        topology._cache["layer"] = False
+        found.append(topology)
+    return tuple(found)
+
+
+def _names_in(folder) -> frozenset:
+    if folder is None or not Path(folder).is_dir():
+        return frozenset()
+    return frozenset(p.stem for p in _listing(Path(folder), "*.cgd"))
+
+
+class _Nets:
+    """Where :class:`Catalog` reads the RCSR's 3-periodic nets, as
+    :class:`_Layers` stands for its layers."""
+
+    def __str__(self) -> str:
+        return "the RCSR's 3-periodic nets"
+
+
+#: The one :class:`_Nets` a catalogue's ``topology_dirs`` holds.
+RCSR_NETS = _Nets()
+
+
 class _Layers:
     """Where :class:`Catalog` reads the RCSR layers, in the order of
     its folders.  Not a folder; it stands in the list so that a
@@ -787,15 +884,54 @@ class _Layers:
 RCSR_LAYERS = _Layers()
 
 
+class _Merged:
+    """Where :class:`Catalog` reads the merged nets of Jiang et al.
+    (Science 2024) that neither PORMAKE nor the RCSR has
+    (:mod:`xtal.mof.merged_nets`)."""
+
+    def __str__(self) -> str:
+        return "the merged nets of Jiang et al. (2024)"
+
+
+#: The one :class:`_Merged` a catalogue's ``topology_dirs`` holds.
+MERGED_NETS = _Merged()
+
+#: The stand-ins for a source that is not a folder.
+_SOURCES = (RCSR_LAYERS, RCSR_NETS, MERGED_NETS)
+
+
+def taken_names() -> frozenset:
+    """Every net name PORMAKE, our library or the RCSR already has:
+    what a merged net of the paper's is not offered under."""
+    from xtal.analysis import rcsr
+
+    return (_names_in(_pormake_folder()) | _names_in(library_nets())
+            | frozenset(e.name for e in rcsr.nets()))
+
+
+def merged_topologies() -> tuple[Topology, ...]:
+    """The paper's merged nets no other source has, as topologies."""
+    from xtal.mof import merged_nets
+
+    return merged_nets.topologies(taken_names())
+
+
 @lru_cache(maxsize=1)
 def _pormake_folder() -> Path | None:
     root = database_root()
-    return (root / "topologies").resolve() if root else None
+    return _resolved(root / "topologies") if root else None
+
+
+@lru_cache(maxsize=64)
+def _resolved(folder: Path) -> Path:
+    """``folder.resolve()``, once a folder: the picker asks it of 2400
+    nets in a handful of folders, and each was a walk of the path."""
+    return folder.resolve()
 
 
 def _in_pormake(path: Path) -> bool:
     folder = _pormake_folder()
-    return folder is not None and path.parent.resolve() == folder
+    return folder is not None and _resolved(path.parent) == folder
 
 
 def _record_pormake_dimensions(topologies) -> None:
@@ -879,11 +1015,12 @@ class Catalog:
 
     def __post_init__(self):
         self.topology_dirs = tuple(
-            p if p is RCSR_LAYERS else Path(p)
+            p if any(p is s for s in _SOURCES) else Path(p)
             for p in self.topology_dirs if p)
         self.bb_dirs = tuple(Path(p) for p in self.bb_dirs if p)
         self._topologies: dict[str, Topology] | None = None
         self._blocks: dict[str, BuildingBlock] | None = None
+        self._made: dict[str, Topology] = {}
         self._failures: list[str] = []
 
     @classmethod
@@ -901,14 +1038,20 @@ class Catalog:
         that is where it belongs rather than an accident of writing:
         our four are shipped, so a folder of the user's own must
         still win over them, and they are ours, so they may replace
-        one of PORMAKE's.  :data:`RCSR_LAYERS` goes between PORMAKE's
-        nets and the user's for the same reason.
+        one of PORMAKE's.  :data:`RCSR_LAYERS`, :data:`RCSR_NETS` and
+        :data:`MERGED_NETS` go between PORMAKE's nets and the user's
+        for the same reason.
         """
         root = database_root()
         ours = library_root()
         topologies = [root / "topologies"] if root else []
         blocks = [root / "bbs"] if root else []
         topologies.append(RCSR_LAYERS)
+        topologies.append(RCSR_NETS)
+        topologies.append(MERGED_NETS)
+        our_nets = library_nets()
+        if our_nets:
+            topologies.append(our_nets)
         if ours:
             blocks.append(ours)
         if topology_dir:
@@ -933,14 +1076,59 @@ class Catalog:
 
     def topology(self, name: str) -> Topology:
         self.topologies()
+        name = str(name)
+        if name in self._topologies:
+            return self._topologies[name]
+        derived = self._derived(name)
+        if derived is not None:
+            return derived
+        raise CatalogError(
+            f"no topology called {name!r}; "
+            f"{len(self._topologies)} were read from "
+            f"{', '.join(str(d) for d in self.topology_dirs)}")
+
+    def _derived(self, name: str) -> Topology | None:
+        """A net made from another by name: ``sod-st`` is ``sod``
+        decorated with supertetrahedra (:mod:`xtal.mof.decorate`),
+        ``sod-st-f4`` the same with its 4-ring windows filled, and
+        ``sph@-0.1250`` sph with its free coordinate moved to where a
+        linker set fits (:mod:`xtal.mof.merged`).
+
+        Made on asking and kept, never listed: the picker offers the
+        decoration beside its parent, and a request, a saved set or an
+        agent spelling it out still finds it here.  The parent is the
+        catalogue's own net first, the RCSR's if there is none.
+        """
+        from xtal.mof import decorate, merged
+
+        if name in self._made:
+            return self._made[name]
+        moved = merged.parse(name)
+        if moved is not None:
+            # ``sph@-0.1250``: a net of this catalogue (or the RCSR's
+            # list) with its free coordinates where a linker set fits.
+            try:
+                made = merged.derived(name, self.topology(moved[0]))
+            except merged.SetError as exc:
+                raise CatalogError(str(exc)) from None
+            self._made[name] = made
+            return made
+        spelled = decorate.parse(name)
+        if spelled is None:
+            return None
+        source = self._topologies.get(spelled[0], spelled[0])
         try:
-            return self._topologies[str(name)]
-        except KeyError:
-            raise CatalogError(
-                f"no topology called {name!r}; "
-                f"{len(self._topologies)} were read from "
-                f"{', '.join(str(d) for d in self.topology_dirs)}"
-            ) from None
+            if spelled[1]:
+                # Filled from the decoration this catalogue already
+                # holds, so its windows and fills are worked out once
+                # (a second on fau) rather than once a name.
+                source = decorate.made_from(
+                    self.topology(spelled[0] + decorate.SUFFIX))
+            made = decorate.derived(name, source)
+        except decorate.DecorationError as exc:
+            raise CatalogError(str(exc)) from None
+        self._made[name] = made
+        return made
 
     # -- building blocks -----------------------------------------------
 
@@ -988,10 +1176,13 @@ class Catalog:
     def _read(self, directories, pattern: str, reader) -> dict:
         out: dict = {}
         for directory in directories:
-            if directory is RCSR_LAYERS:
+            if any(directory is s for s in _SOURCES):
                 from xtal.analysis.rcsr import RcsrError
+                made = (rcsr_layers if directory is RCSR_LAYERS
+                        else rcsr_nets if directory is RCSR_NETS
+                        else merged_topologies)
                 try:
-                    out.update((t.name, t) for t in rcsr_layers())
+                    out.update((t.name, _own_copy(t)) for t in made())
                 except RcsrError as exc:
                     self._failures.append(f"{directory}: {exc}")
                 continue
@@ -1071,11 +1262,20 @@ def _parsed(path: Path, reader):
     return _own_copy(held[1])
 
 
+#: What a net is *told* when it is made rather than asked of it, and so
+#: kept in every catalogue's copy: whether it is a layer.  Emptied with
+#: the rest, it cost every MOF builder dialog 5.5 s re-expanding the
+#: 823 RCSR and merged nets to answer the picker's 3-D / 2-D boxes.
+_TOLD = ("layer",)
+
+
 def _own_copy(item):
     """What a catalogue may change about an item, made its own: a net's
-    worked-out facts and a block's coordinates.  The rest is frozen."""
+    worked-out facts and a block's coordinates.  The rest is frozen,
+    and so is what the net was told (:data:`_TOLD`)."""
     if isinstance(item, Topology):
-        return replace(item, _cache={})
+        return replace(item, _cache={k: v for k, v in item._cache.items()
+                                     if k in _TOLD})
     if isinstance(item, BuildingBlock):
         return replace(item, positions=item.positions.copy())
     return item

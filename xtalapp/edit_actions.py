@@ -215,6 +215,38 @@ class EditActions:
         self.show_status(f"wrote {written.name} -- it is in the polymer "
                          f"builder's library now")
 
+    def save_rod(self) -> None:
+        """Cut the rod holding the selected metal (or the first) out of
+        the crystal, with its linker, into the workspace's blocks for
+        the rod builder -- see :mod:`xtalapp.dialogs.save_rod`."""
+        document = self.current_document()
+        if document is None:
+            return
+        if self.workspace is None:
+            self.show_message("no workspace open, so there is nowhere "
+                              "for a rod to go")
+            return
+        from xtal.core import elements as el
+        from xtal.mof import rod
+        from xtalapp.dialogs.save_rod import SaveRodDialog
+        symbols = document.cell.elements
+        metals = [i for i in sorted(document.selection.atoms)
+                  if symbols[i] != "X" and el.element(symbols[i]).is_metal]
+        seed = metals[0] if metals else None
+        answer = SaveRodDialog.ask(document.structure,
+                                   self.workspace.blocks, seed, self)
+        if answer is None:
+            return
+        try:
+            saved = rod.save_block(document.structure,
+                                   self.workspace.blocks, **answer)
+        except (rod.RodError, ValueError, OSError) as exc:
+            self.show_message(f"could not save the rod: {exc}")
+            return
+        self.refresh_workspace()
+        self.show_status(f"{saved.sentence()} -- it is in Modules > MOF "
+                         f"> Build a rod framework now")
+
     def mark_connection_points(self) -> None:
         document = self.current_document()
         if document is not None:

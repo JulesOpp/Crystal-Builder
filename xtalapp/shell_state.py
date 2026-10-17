@@ -411,7 +411,7 @@ class ShellRefresh:
         document = self.current_document()
         has_document = document is not None
         self.actions_.set_enabled(
-            ["save", "save_as", "export", "export_image",
+            ["save", "save_as", "export", "export_image", "topcryst",
              "clear_overlays", "show_all",
              "close_tab", "close_all_tabs", "reset_view", "view_a",
              "view_b", "view_c", "view_hkl"],
@@ -438,7 +438,7 @@ class ShellRefresh:
              "primitive", "wyckoff", "merge_duplicates", "subgroup",
              "invert", "supercell", "slab",
              "edit_cell", "niggli", "delaunay", "wrap_cell",
-             "save_building_block",
+             "save_building_block", "save_rod",
              "single_point", "optimize", "dftb_single_point",
              "dftb_optimize", "recompute_bonds", "reset_bonds",
              "assign_eqeq_charges", "keep_shown_charges",

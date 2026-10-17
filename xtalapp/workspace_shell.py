@@ -184,7 +184,10 @@ class WorkspaceShell:
             return None
 
     def _adopt(self, workspace) -> None:
+        from xtal.modules.mof import offer_saved_rods
+
         self.workspace = workspace
+        offer_saved_rods(workspace.blocks)
         self.window.settings.last_workspace = str(workspace.root)
         self.window.settings.add_recent_workspace(workspace.root)
         self.refresh_workspace()

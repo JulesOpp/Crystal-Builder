@@ -79,6 +79,35 @@ def test_a_fused_ring_goes_on_the_far_side():
         assert min(others) > 0.5 * BOND
 
 
+def _angle(sketch, a, b, c) -> float:
+    ax, ay = sketch.point(a)
+    bx, by = sketch.point(b)
+    cx, cy = sketch.point(c)
+    return abs(math.degrees(math.atan2(ay - by, ax - bx)
+                            - math.atan2(cy - by, cx - bx))) % 360
+
+
+def test_a_ring_on_a_ring_carbon_draws_biphenyl_at_120_degrees():
+    """The ring tool on one of benzene's carbons hangs a second ring
+    off it by a bond, straight on: every C-C-C at both linking
+    carbons is 120 degrees.  The new ring's centre used to follow the
+    chain's zigzag, putting the linking carbon's angles at 60 and
+    180."""
+    sketch = Sketch()
+    first = sketch.add_ring(6, True)
+    second = sketch.add_ring(6, True, atom=first[0])
+    link = second[0]
+    for centre, other in ((first[0], link), (link, first[0])):
+        for n in sketch.neighbours(centre):
+            if n != other:
+                angle = _angle(sketch, n, centre, other)
+                assert min(angle, 360 - angle) == pytest.approx(
+                    120.0, abs=0.5)
+    for k in second[1:]:
+        assert min(math.dist(sketch.point(k), sketch.point(j))
+                   for j in first) > 0.9 * BOND
+
+
 def test_element_names_are_read_strictly():
     assert symbol("cl") == "Cl"
     assert symbol("*") == "X"
@@ -189,3 +218,29 @@ def test_a_ring_on_a_bonded_atom_hangs_off_it():
     assert 1 not in ring
     assert len(sketch) == 8
     assert sketch.bond_between(1, ring[0]) is not None
+
+
+@needs_rdkit
+def test_a_block_is_written_as_the_smiles_draw_opens_on():
+    """E14's benzene with a point at each end; a rod linker written
+    with aromatic carboxylate C-O comes back as the acid; a pyridyl's
+    four-bond nitrogen as the cation the series spells; a bond written
+    twice is one bond.  What RDKit cannot write gives nothing, and
+    Draw opens blank."""
+    from xtal.build.chem import block_smiles
+
+    ring = ["C"] * 6 + ["X", "X"] + ["H"] * 4
+    bonds = [(k, (k + 1) % 6, "A") for k in range(6)]
+    bonds += [(0, 6, "S"), (3, 7, "S"), (1, 8, "S"), (2, 9, "S"),
+              (4, 10, "S"), (5, 11, "S")]
+    assert block_smiles(ring, bonds) == "c1cc([*:2])ccc1[*:1]"
+    acid = ["C", "O", "O", "C", "C", "O", "O", "C"]
+    assert block_smiles(acid, [(0, 1, "A"), (0, 2, "A"), (0, 3, "S"),
+                               (3, 4, "T"), (4, 7, "S"), (7, 5, "A"),
+                               (7, 6, "A"), (0, 3, "S")]) == (
+        "O=C(O)C#CC(=O)O")
+    pyridyl = ["N", "C", "C", "C", "C", "C", "X"] + ["H"] * 5
+    six = [(k, (k + 1) % 6, "A") for k in range(6)]
+    six += [(0, 6, "S")] + [(k, 6 + k, "S") for k in range(1, 6)]
+    assert "[n+]" in block_smiles(pyridyl, six)
+    assert block_smiles(["C", "C"], [(0, 1, "A")]) == ""

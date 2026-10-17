@@ -59,6 +59,40 @@ import numpy as np
 #: around 4 A, and still catches the mis-click in 95 % of the database.
 MAX_ATTACHMENT_SPAN = 5.0
 
+#: Metal to pyridyl-nitrogen distance in a dative joint, A.
+#:
+#: The one place a connection point is not 0.75 A from its atom.  A
+#: joint is two points made one, so the bond it leaves is the sum of
+#: the two ends' distances, and 0.75 on each side is a C-C or C-N
+#: bond.  A pyridine on a metal is 2.0-2.3 A, so its X keeps 0.75 and
+#: the metal's sits at the difference (:func:`dative_point`).  No
+#: shipped block has a point on a metal at all.  Typical M(III)-N(py)
+#: lengths in M3O trimers, rounded to 0.05 A; Mg and Co are the axial
+#: M-N measured in the deposited pacs frameworks (COD 4134050-4134054:
+#: Mg 2.23-2.30; 4518868-9: Co 2.19).
+DATIVE_MN = {
+    "Al": 2.05, "Sc": 2.25, "Ti": 2.15, "V": 2.15, "Cr": 2.10,
+    "Mn": 2.25, "Fe": 2.20, "Co": 2.20, "Ni": 2.10, "Zn": 2.15,
+    "Mg": 2.25, "Ga": 2.10, "In": 2.25,
+}
+
+
+def dative_point(metal: str, position, axis) -> np.ndarray:
+    """Where a metal's connection point goes for a pyridyl to land on it.
+
+    ``axis`` is the open site's direction.  The point sits so that the
+    other end's 0.75 A makes up :data:`DATIVE_MN`.
+    """
+    from xtal.mof.block import CONNECTION_DISTANCE
+
+    if metal not in DATIVE_MN:
+        raise KeyError(f"no dative M-N distance for {metal}")
+    axis = np.asarray(axis, dtype=float)
+    axis = axis / np.linalg.norm(axis)
+    reach = DATIVE_MN[metal] - CONNECTION_DISTANCE
+    return np.asarray(position, dtype=float) + reach * axis
+
+
 #: How far back along its bond a face's two virtual members sit, as a
 #: fraction of their reach: enough for ``Attachment.axis`` to have a
 #: direction, and a millionth of a radian of lean at worst.

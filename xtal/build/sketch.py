@@ -288,12 +288,20 @@ class Sketch:
                 px, py, qx, qy = qx, qy, qx + ex, qy + ey
                 ring.append(self.add_atom("C", qx, qy))
         elif atom is not None:
+            anchor = None
             if self.neighbours(atom):
                 # An atom with bonds gets the ring as a substituent --
                 # a phenyl on a nitrogen -- through a bond of its own.
-                atom = self.grow(atom, "C")
+                anchor, atom = atom, self.grow(atom, "C")
             x, y = self.point(atom)
-            out = self.free_direction(atom)
+            if anchor is None:
+                out = self.free_direction(atom)
+            else:
+                # Straight on along the new bond, never the zigzag a
+                # chain takes: on a ring's carbon that put biphenyl's
+                # linking carbon at 60 and 180 degrees, not 120.
+                ax, ay = self.point(anchor)
+                out = math.atan2(y - ay, x - ax)
             cx, cy = x + radius * math.cos(out), y + radius * math.sin(out)
             start = out + math.pi
             ring = [atom] + [self.add_atom(

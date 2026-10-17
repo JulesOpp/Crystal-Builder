@@ -768,6 +768,43 @@ class DocumentSet:
         self.window.show_message(
             f"wrote {written.name} -- run Systre on it for a second "
             f"opinion on the name")
+
+    def send_to_topcryst(self) -> None:
+        """Write the crystal for TopCryst, then show it and the site.
+
+        Into the entry, so the upload sits with the structure it is
+        of; with no entry, where the last export went.  The person
+        uploads it: nothing is sent from here.
+        """
+        document = self.current_document()
+        if document is None:
+            return
+        folder = (document.entry.path if document.entry is not None
+                  else Path(self.window.settings.last_directory))
+        try:
+            written = document.write_for_topcryst(folder)
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self.window, "Could not write the CIF",
+                                str(exc))
+            return
+        self.window.refresh_workspace()
+        from xtal.io.export import TOPCRYST_URL, what_is_dropped
+        from xtalapp.dialogs.topcryst import TopCrystDialog
+        if not TopCrystDialog.ask(written,
+                                  what_is_dropped(document.structure),
+                                  self.window):
+            self.window.show_message(f"wrote {written}")
+            return
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(written.parent)))
+        if QDesktopServices.openUrl(QUrl(TOPCRYST_URL)):
+            self.window.show_message(
+                f"upload {written.name} at TopCryst to have its "
+                f"topology named")
+        else:
+            self.window.show_message(
+                f"wrote {written}; open {TOPCRYST_URL} to upload it")
         self.window.refresh_workspace()
 
     def close_current(self) -> None:

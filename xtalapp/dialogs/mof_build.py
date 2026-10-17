@@ -64,7 +64,6 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -74,21 +73,32 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.modules.mof import PARAMS
-from xtal.mof import Catalog
+from xtal.mof import Catalog, decorate, merged
 from xtal.mof.build import BuildRequest
 from xtal.mof.catalog import matches_search
-from xtal.references import PORMAKE, RCSR, rcsr_net
+from xtal.references import (
+    MERGED_NETS,
+    PACS,
+    PORMAKE,
+    RCSR,
+    SUPERTETRAHEDRA,
+    rcsr_net,
+)
 from xtalapp import manual
 from xtalapp.dialogs.answered import answered
+from xtalapp.dialogs.linker_set_box import LinkerSetBox
 from xtalapp.dialogs.mof_preview import (
     ORBIT_COLORS,
     BlockPreview,
     NetPreview,
     reset_view_row,
 )
+from xtalapp.dialogs.partition_box import PartitionBox
+from xtalapp.dialogs.supertetrahedra_box import OFFERED as ST_FIRST
+from xtalapp.dialogs.supertetrahedra_box import SupertetrahedraBox
 from xtalapp.docks.columns import Collapsible
 from xtalapp.widgets.links import SourceLinks
-from xtalapp.widgets.net_search import NetSearch, add_row
+from xtalapp.widgets.net_search import NetSearch, add_row, net_list
 from xtalapp.widgets.tone import HINT, set_tone
 
 #: What an edge slot offers instead of a linker.  A net has edges
@@ -124,7 +134,28 @@ TOPOLOGY_HEIGHT = 280
 
 
 class MofBuildDialog(QDialog):
-    """A topology, a block per node slot, a linker per edge type."""
+    """A topology, a block per node slot, a linker per edge type.
+
+    One class for every MOF builder entry, each a subclass naming its
+    :attr:`MODE`: the general builder, and one each for pore
+    partitioning, supertetrahedra and linker sets.  A mode decides the
+    nets the list offers and the one section shown under the rows; the
+    rows, the folders and the values handed back are the same, so
+    every entry builds through :func:`xtal.modules.mof.build_framework`.
+    The sections were folds of the one dialog, where nobody found them
+    and a section left set on one net followed the user to the next.
+    """
+
+    #: ``"general"``, ``"pacs"``, ``"st"`` or ``"sets"``.
+    MODE = "general"
+    #: The net shown when nothing was picked before.
+    FIRST = "pcu"
+    #: And the blocks on it, as ``BuildRequest`` spells them: ones its
+    #: section is for, so it is live the moment the dialog opens.
+    FIRST_BLOCKS = ("N16", "E14")
+    #: The papers an entry's own feature comes from, cited above
+    #: PORMAKE's and the RCSR's.
+    SOURCES: tuple = ()
 
     def __init__(self, module, action, parent=None, initial=None):
         super().__init__(parent)
@@ -145,9 +176,17 @@ class MofBuildDialog(QDialog):
         #: draws in leaves no directory behind.
         self._scratch: str | None = None
         self._rows: list[_SlotRow] = []
+        #: The net built on, and the one picked in the list: the same
+        #: unless the supertetrahedra section decorated it.
         self._topology = None
+        self._listed = None
+        #: Set while one row's block is copied into its like rows.
+        self._propagating = False
 
         given = dict(action.coerce(initial or {}))
+        #: Whether a net was asked for, before the defaults filled one
+        #: in: with none, the mode's own net and blocks are shown.
+        self._fresh = not (initial or {}).get("topology")
         self.topology_dir = _FolderEdit(
             "Extra topologies", self,
             given.get("topology_dir") or self._remembered(
@@ -175,7 +214,7 @@ class MofBuildDialog(QDialog):
         self.three_d = self.search.three_d
         self.two_d = self.search.two_d
 
-        self.topologies = QListWidget(self)
+        self.topologies = net_list(self)
         self.topologies.currentItemChanged.connect(
             self._on_topology_changed)
 
@@ -189,7 +228,7 @@ class MofBuildDialog(QDialog):
         # net of somebody's own has a page there.
         self.net_links = SourceLinks((), self)
 
-        left = QWidget(self)
+        left = self.net_list = QWidget(self)
         column = QVBoxLayout(left)
         column.setContentsMargins(0, 0, 0, 0)
         column.addWidget(self.search)
@@ -291,6 +330,17 @@ class MofBuildDialog(QDialog):
         form.addRow("Stacking offset", self.offset)
         form.addRow("Interpenetration", self.interpenetration)
 
+        self.partition = PartitionBox(self)
+        self.partition.use_linker.connect(self._use_linker)
+        self.partition.use_node.connect(self._use_node)
+        self.partition.blocks_folder = self._draw_into
+        self.linker_sets = LinkerSetBox(self)
+        self.linker_sets.use_block.connect(self._use_block)
+        self.supertetrahedra = SupertetrahedraBox(self)
+        self.supertetrahedra.net_changed.connect(self._on_decoration)
+        self.supertetrahedra.use_block.connect(self._use_block)
+        self.supertetrahedra.use_net.connect(self._select)
+
         folders = QWidget(self)
         form = QFormLayout(folders)
         form.setContentsMargins(0, 0, 0, 0)
@@ -303,6 +353,12 @@ class MofBuildDialog(QDialog):
         self.blocks_fold = Collapsible("Building blocks", blocks,
                                        parent=self)
         self.how_fold = Collapsible("How it is built", how, parent=self)
+        self.partition_fold = Collapsible("Partition pores",
+                                          self.partition, parent=self)
+        self.sets_fold = Collapsible("Linker sets", self.linker_sets,
+                                     parent=self)
+        self.st_fold = Collapsible("Supertetrahedra",
+                                   self.supertetrahedra, parent=self)
         self.folders_fold = Collapsible(
             "Your own topologies and building blocks", folders,
             parent=self)
@@ -314,11 +370,26 @@ class MofBuildDialog(QDialog):
         self.folders_fold.set_open(bool(self.topology_dir.text()
                                         or self.bb_dir.text()))
 
+        feature = {"pacs": self.partition_fold, "st": self.st_fold,
+                   "sets": self.sets_fold}.get(self.MODE)
+        for fold in (self.partition_fold, self.st_fold, self.sets_fold):
+            if fold is not feature:
+                fold.hide()
+        if feature is not None:
+            feature.set_open(True)
+        if self.MODE == "pacs":
+            # One net: its picture and what it is, and no list.
+            self.net_list.hide()
+        if self.MODE == "st":
+            # Every net here is built of supertetrahedra.
+            self.supertetrahedra.decorate.hide()
+
         body = QWidget(self)
         sections = QVBoxLayout(body)
-        for fold in (self.topology_fold, self.blocks_fold,
+        for fold in (self.topology_fold, self.blocks_fold, feature,
                      self.how_fold, self.folders_fold):
-            sections.addWidget(fold)
+            if fold is not None:
+                sections.addWidget(fold)
         # The net list takes whatever height is spare while it is
         # open, and gives it back when it is folded away.
         sections.setStretchFactor(self.topology_fold, 1)
@@ -343,7 +414,7 @@ class MofBuildDialog(QDialog):
 
         # Where the builder and its nets come from, outside the scroll
         # so that it is there whichever section is open.
-        self.sources = SourceLinks(PORMAKE + RCSR, self)
+        self.sources = SourceLinks(self.SOURCES + PORMAKE + RCSR, self)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.scroll, 1)
@@ -446,9 +517,28 @@ class MofBuildDialog(QDialog):
 
     # -- the topology list ---------------------------------------------
 
+    def _offers(self, topology) -> bool:
+        """Whether this builder lists ``topology``: pacs is acs alone,
+        supertetrahedra stand on a 4-connected 3-periodic net, and a
+        linker set is worked out on the nets
+        :func:`xtal.mof.merged.set_nets` records."""
+        if self.MODE == "pacs":
+            return topology.name == "acs"
+        if self.MODE == "st":
+            return (set(topology.coordinations) == {4}
+                    and not topology.is_layer)
+        if self.MODE == "sets":
+            return topology.name in merged.set_nets()
+        return True
+
     def _fill_topologies(self) -> None:
         self.topologies.clear()
-        for topology in self.catalog.topologies():
+        offered = [t for t in self.catalog.topologies()
+                   if self._offers(t)]
+        if self.MODE == "st":
+            # The zeolites the decoration was measured on, first.
+            offered.sort(key=lambda t: t.name not in ST_FIRST)
+        for topology in offered:
             add_row(self.topologies,
                     f"{topology.name}    {topology.summary()}",
                     topology.facts(), topology.is_layer)
@@ -469,12 +559,35 @@ class MofBuildDialog(QDialog):
     def _on_topology_changed(self, current, _previous=None) -> None:
         if current is None:
             return
-        self._topology = self.catalog.topology(
-            current.data(Qt.UserRole))
-        self.net_preview.set_topology(self._topology)
-        self.net_links.set_references(_rcsr_page(self._topology))
+        self._listed = self.catalog.topology(current.data(Qt.UserRole))
+        self.net_links.set_references(_rcsr_page(self._listed))
+        self.supertetrahedra.set_net(self.catalog, self._listed)
+        if self.MODE == "st":
+            # Straight to the decoration: showing the net listed first
+            # built its rows only to throw them away.
+            self.supertetrahedra.decorate.setChecked(True)
+            if self.supertetrahedra.name():
+                return
+        self._show(self._listed)
+
+    def _on_decoration(self, name: str) -> None:
+        """The supertetrahedra section changed the net built on: its
+        decoration, a window filled, or back to the net listed.  The
+        rows keep their blocks where a slot of that number still takes
+        them -- a trimer and a face survive a window being filled."""
+        self._show(self.catalog.topology(name) if name else self._listed,
+                   carry=True)
+
+    def _show(self, topology, carry: bool = False) -> None:
+        """Build on ``topology``: its picture, its rows."""
+        kept = self._node_blocks() if carry else {}
+        self._topology = topology
+        self.net_preview.set_topology(topology)
         self._rebuild_slots()
-        layered = self._topology.is_layer
+        for row in self._rows:
+            if not row.slot.is_edge and row.slot.key in kept:
+                row.set_block(kept[row.slot.key])
+        layered = topology.is_layer
         self.spacing.setEnabled(layered)
         self.offset.setEnabled(layered)
 
@@ -487,11 +600,23 @@ class MofBuildDialog(QDialog):
         rows and what each may contain both change with the topology,
         and a row left over from the previous net is a row whose
         contents no longer fit anything.
+
+        Hidden before ``deleteLater``: the rows the dialog's
+        constructor makes are let go from inside the menu's handler,
+        and a deferred delete posted there is not delivered by the
+        modal loop ``exec`` runs -- the old row's picture stayed on
+        screen, a white box behind "Node 1, 6-connected".  Hidden and
+        never unparented: a row with no parent belongs to its Python
+        wrapper, which ``self._rows = []`` then destroys at once, from
+        inside a signal of one of its own children and with the
+        deferred delete still queued for it -- a segfault on Linux.
         """
         while self.slots_layout.count():
             item = self.slots_layout.takeAt(0)
-            if item.widget() is not None:
-                item.widget().deleteLater()
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.deleteLater()
         self._rows = []
         try:
             slots = self._topology.slots()
@@ -499,12 +624,21 @@ class MofBuildDialog(QDialog):
             self._refuse(f"{self._topology.name} cannot be built on: "
                          f"{exc}")
             return
+        roles = decorate.roles(self._topology)
         for slot in slots:
+            # A filled net's trimer is 7- to 9-connected, and the
+            # build makes that twin from the 6-c trimer picked here.
+            also = ((6,) if roles.get(slot.key) == "trimer"
+                    and slot.coordination > 6 else ())
+            # Its search and denticity given before the combo is
+            # filled, so 212 entries are added once a row, not twice.
             row = _SlotRow(slot, self.catalog, self._draw_into(),
-                           self.slots_box)
-            row.set_denticity(*self._denticity(), rebuild=False)
-            row.set_composition(self.composition.text())
+                           self.slots_box, also=also,
+                           composition=self.composition.text(),
+                           denticity=self._denticity(),
+                           only=self._only(slot))
             row.drawn.connect(self._on_block_drawn)
+            row.changed.connect(self._on_row_changed)
             self.slots_layout.addWidget(row)
             self._rows.append(row)
         # So that one row does not stretch to fill a box sized for
@@ -513,6 +647,118 @@ class MofBuildDialog(QDialog):
         self.slots_layout.addStretch(1)
         self._describe(slots)
         self.build_button.setEnabled(True)
+        self._update_partition()
+
+    def _only(self, slot) -> frozenset | None:
+        """The catalogue blocks a slot may offer, or ``None`` for every
+        one that fits its count.  pacs's trimer row offers only the
+        trimers a partitioned build can take
+        (:func:`xtal.mof.partition.compatible_nodes`): the other 200
+        six-connected blocks are refused at Build.  What is drawn on
+        the row is offered whatever it is."""
+        if self.MODE != "pacs" or slot.is_edge:
+            return None
+        from xtal.mof import partition
+
+        return frozenset(n.name for n in
+                         partition.compatible_nodes(self.catalog))
+
+    def _on_row_changed(self) -> None:
+        """A row's block changed: on a decorated net, the same block
+        in every other trimer or face slot when that is asked for."""
+        row = self.sender()
+        if (not self._propagating and isinstance(row, _SlotRow)
+                and self.supertetrahedra.same_blocks()):
+            roles = decorate.roles(self._topology)
+            role = roles.get(row.slot.key)
+            if role in ("trimer", "face") and not row.slot.is_edge:
+                self._propagating = True
+                try:
+                    for other in self._rows:
+                        if (other is not row and not other.slot.is_edge
+                                and roles.get(other.slot.key) == role):
+                            other.set_block(row.block())
+                finally:
+                    self._propagating = False
+        if not self._propagating:
+            self._update_partition()
+
+    def _update_partition(self) -> None:
+        """Tell the partition and linker-set sections what is chosen
+        above them."""
+        # Only the section this entry shows: a linker set's plan scans
+        # the net's free coordinates, 4 s on mtn-st, and the
+        # supertetrahedra builder was paying it on every click for a
+        # section nobody could see.
+        if self.MODE == "pacs":
+            node = next((r.block() for r in self._rows
+                         if not r.slot.is_edge), "")
+            linker = next((r.block() for r in self._rows
+                           if r.slot.is_edge), "")
+            self.partition.set_framework(
+                self.catalog,
+                self._topology.name if self._topology else "",
+                node, linker)
+        elif self.MODE == "sets":
+            self.linker_sets.set_framework(self.catalog, self._topology,
+                                           self._node_blocks())
+        elif self.MODE == "st":
+            self.supertetrahedra.set_blocks(self._topology,
+                                            self._node_blocks())
+
+    def _node_blocks(self) -> dict:
+        return {r.slot.key: r.block() for r in self._rows
+                if not r.slot.is_edge}
+
+    def _use_node(self, name: str) -> None:
+        """A compatible node was clicked: on acs, in the node row."""
+        if self._topology is None or self._topology.name != "acs":
+            self._select("acs")
+        for row in self._rows:
+            if not row.slot.is_edge:
+                row.set_block(name)
+                return
+
+    def _use_linker(self, name: str) -> None:
+        """A suggested linker was clicked: put it on the edge row.
+
+        A generated one is not a block yet, so it is built and written
+        where a drawn block would be, and every row reread -- the same
+        path as :meth:`_on_block_drawn`.
+        """
+        if not self._ensure_block(name):
+            return
+        for row in self._rows:
+            if row.slot.is_edge:
+                row.set_block(name)
+                return
+
+    def _use_block(self, key: int, name: str) -> None:
+        """A linker set's block was clicked: in its node row."""
+        if not self._ensure_block(name):
+            return
+        for row in self._rows:
+            if not row.slot.is_edge and row.slot.key == key:
+                row.set_block(name)
+                return
+
+    def _ensure_block(self, name: str) -> bool:
+        """Whether ``name`` is a block, writing a generated one where a
+        drawn block would go and rereading every row if it was not."""
+        from xtal.mof import linkers
+
+        try:
+            self.catalog.building_block(name)
+            return True
+        except Exception:                           # noqa: BLE001
+            made = linkers.generated(name)
+            if made is None:
+                return False
+            linkers.write_block(made, self._draw_into())
+            self.catalog = self._catalog()
+            for row in self._rows:
+                row.refresh(self.catalog)
+            return True
 
     def _refuse(self, why: str) -> None:
         self.details.setText(
@@ -556,11 +802,13 @@ class MofBuildDialog(QDialog):
         lines = [f"<b>{topology.name}</b> &nbsp; {topology.group}",
                  f"{net.n_vertices} vertices and {len(net.edges)} "
                  f"edges in the cell"]
+        roles = decorate.roles(topology)
         for index, coordination in enumerate(topology.coordinations):
             colour = ORBIT_COLORS[index % len(ORBIT_COLORS)].name()
             lines.append(
                 f"<span style='color:{colour}'>&#9679;</span> "
-                f"node {index + 1}: {coordination}-connected")
+                f"node {index + 1}: {coordination}-connected"
+                f"{_role(roles.get(index), coordination)}")
         edges = [s for s in slots if s.is_edge]
         lines.append(f"{len(edges)} kind(s) of edge")
         if topology.is_layer:
@@ -603,19 +851,41 @@ class MofBuildDialog(QDialog):
                  self.spacing.text() or self.offset.text())
             or fold > 1
             or self.orientation.currentData() != _ORIENTATIONS.default)
-        wanted = str(given.get("topology") or "pcu")
-        if not self._select(wanted) and not self._select("pcu"):
+        wanted = str((not self._fresh and given.get("topology"))
+                     or self.FIRST)
+        # A net re-embedded for a linker set is listed as its parent,
+        # and so is a net decorated with supertetrahedra.
+        moved = merged.parse(wanted)
+        spelled = decorate.parse(wanted)
+        listed = (moved[0] if moved else
+                  spelled[0] if spelled else wanted)
+        if not self._select(listed) and not self._select(self.FIRST):
             self.topologies.setCurrentRow(0)
+        built_on = listed
+        if (spelled and self.MODE == "st"
+                and self.supertetrahedra.set_value(wanted)):
+            built_on = wanted
+            self.st_fold.set_open(True)
+        elif self.MODE == "st" and self._topology is not None:
+            # Decorated as it was picked: the rows are its own.
+            built_on = self._topology.name
+        nodes, edges = given.get("nodes", ""), given.get("edges", "")
+        if self._fresh and not nodes and not edges:
+            nodes, edges = self.FIRST_BLOCKS
         try:
-            request = BuildRequest.parse(wanted,
-                                         given.get("nodes", ""),
-                                         given.get("edges", ""))
+            request = BuildRequest.parse(built_on, nodes, edges)
         except Exception:                           # noqa: BLE001
             return
-        if self._topology is None or self._topology.name != wanted:
+        if self._topology is None or self._topology.name != built_on:
             return
         for row in self._rows:
             row.set_block(request.block_for(row.slot))
+        if moved and self.MODE == "sets":
+            self.linker_sets.adopt(wanted, self._node_blocks())
+            self.sets_fold.set_open(True)
+            self._update_partition()
+        if self.MODE == "pacs":
+            self.partition.set_value(str(given.get("partition") or ""))
 
     def values(self) -> dict:
         nodes, edges = [], []
@@ -625,13 +895,19 @@ class MofBuildDialog(QDialog):
                 continue
             (edges if row.slot.is_edge else nodes).append(
                 f"{row.slot.token}={chosen}")
+        name = self._topology.name if self._topology else ""
+        if self.MODE == "sets":
+            name = (self.linker_sets.embedded(name, self._node_blocks())
+                    or name)
         return self.action.coerce({
-            "topology": self._topology.name if self._topology else "",
+            "topology": name,
             "nodes": ",".join(nodes),
             "edges": ",".join(edges),
             "repeat": self.repeat.text().strip() or "1x1x1",
             "orientation": self.orientation.currentData(),
             "interpenetration": self.interpenetration.value(),
+            "partition": (self.partition.value()
+                          if self.MODE == "pacs" else ""),
             # Only for a layer net, so that a spacing typed while hcb
             # was selected does not follow the user to pcu and get
             # the build refused for a box they can no longer edit.
@@ -670,9 +946,46 @@ class MofBuildDialog(QDialog):
             return dialog.values()
 
 
+class PacsBuildDialog(MofBuildDialog):
+    """A pore-partitioned MOF: an M3O trimer and a linker on acs, and a
+    pyridyl partitioner in its channels (nia-d)."""
+
+    MODE = "pacs"
+    FIRST = "acs"
+    FIRST_BLOCKS = ("N589", "E14")
+    SOURCES = PACS
+
+
+class SupertetrahedraBuildDialog(MofBuildDialog):
+    """A zeolitic MOF: any 4-connected net built of supertetrahedra,
+    its windows filled or left open."""
+
+    MODE = "st"
+    FIRST = "sod"
+    FIRST_BLOCKS = ("0=N589,1=N10", "")
+    SOURCES = SUPERTETRAHEDRA
+
+
+class LinkerSetBuildDialog(MofBuildDialog):
+    """A mixed-linker MOF: a net with more than one kind of edge round
+    one cluster (sph, a merged net), and a set of linkers that closes
+    every edge at one scale."""
+
+    MODE = "sets"
+    FIRST = "sph"
+    FIRST_BLOCKS = ("0=N573,1=N10,2=N419", "")
+    SOURCES = MERGED_NETS
+
+
 # ======================================================================
 #  ONE SLOT
 # ======================================================================
+
+#: The block a node slot of each count starts on when nothing chose
+#: one.  Taken from the top of the list it was a polydentate block --
+#: ``MFU4l_Kuratowski`` sorts first of the six-connected -- on every
+#: net a dialog opened that its entry did not name blocks for.
+DEFAULT_NODES = {6: "N589"}
 
 class _SlotRow(QWidget):
     """What goes in one slot: a label, a choice, and a picture.
@@ -690,16 +1003,32 @@ class _SlotRow(QWidget):
     #: A block was drawn and written for this row -- the name it was
     #: saved under, PORMAKE's key for it and the file's own stem.
     drawn = Signal(str)                              # noqa: N815
+    #: The block in this row changed.
+    changed = Signal()                               # noqa: N815
 
     def __init__(self, slot, catalog: Catalog, folder: str = "",
-                 parent=None):
+                 parent=None, also: tuple = (), composition: str = "",
+                 denticity: tuple = (True, True),
+                 only: frozenset | None = None):
         super().__init__(parent)
         self.slot = slot
+        #: The catalogue blocks offered, or ``None`` for all that fit;
+        #: one drawn into :attr:`folder` is offered either way.
+        self.only = only
+        #: Other connection counts this slot offers: a filled net's
+        #: trimer slot takes the 6-c trimer its twin is made from.
+        self.also = tuple(also)
         self.folder = str(folder or "")
         self._catalog = catalog
-        self._composition = ""
-        self._denticity = (True, True)
+        self._composition = str(composition or "")
+        self._denticity = (bool(denticity[0]), bool(denticity[1]))
         self.combo = QComboBox(self)
+        # As wide as the row gives it, not as its longest entry: 212
+        # entries held every builder's rows at 715 px, past the
+        # dialog's width on a laptop.
+        self.combo.setSizeAdjustPolicy(
+            QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.combo.setMinimumContentsLength(16)
         self.draw_button = QPushButton("Draw...", self)
         self.draw_button.setToolTip(
             "Sketch a new building block for this slot -- checked "
@@ -736,7 +1065,12 @@ class _SlotRow(QWidget):
         rule (:meth:`Catalog.fitting`), the search box and the
         denticity boxes are all "offer only what could be right", the
         same principle stated three times."""
-        found = self._catalog.fitting(self.slot.coordination)
+        found = list(self._catalog.fitting(self.slot.coordination))
+        for count in self.also:
+            found += self._catalog.fitting(count)
+        if self.only is not None:
+            found = [b for b in found
+                     if b.name in self.only or self._drawn_here(b)]
         mono, poly = self._denticity
         if not (mono and poly):
             found = [b for b in found if b.is_polydentate == poly]
@@ -745,10 +1079,34 @@ class _SlotRow(QWidget):
             found = [b for b in found if matches_search(b, query)]
         return _ordered(found)
 
+    def shown_smiles(self) -> str:
+        """The block in the picture as a starred SMILES, for Draw to
+        start from; ``""`` for none, or one RDKit cannot write."""
+        from xtal.build.chem import block_smiles
+
+        name = self.block()
+        if not name:
+            return ""
+        try:
+            block = self._catalog.building_block(name)
+        except Exception:                           # noqa: BLE001
+            return ""
+        return block_smiles(block.symbols, block.bonds)
+
+    def _drawn_here(self, block) -> bool:
+        if not self.folder:
+            return False
+        try:
+            return Path(block.path).resolve().is_relative_to(
+                Path(self.folder).resolve())
+        except (OSError, TypeError, ValueError):
+            return False
+
     def _on_changed(self, *_args) -> None:
         name = self.block()
         self.preview.set_block(
             self._catalog.building_block(name) if name else None)
+        self.changed.emit()
 
     def block(self) -> str:
         return str(self.combo.currentData() or "")
@@ -786,8 +1144,21 @@ class _SlotRow(QWidget):
                                block.name)
         self.combo.blockSignals(False)
         self.count.setText(f"{len(fitting)} block(s) fit")
+        if not kept and not self.slot.is_edge:
+            kept = self._default(fitting)
         self.set_block(kept)
         self._on_changed()
+
+    def _default(self, fitting) -> str:
+        """What a node row starts on: :data:`DEFAULT_NODES` where it is
+        offered, else the first monodentate block, else the first."""
+        names = [b.name for b in fitting]
+        chosen = DEFAULT_NODES.get(self.slot.coordination)
+        if chosen in names:
+            return chosen
+        mono = next((b.name for b in fitting
+                     if not b.is_polydentate), "")
+        return mono or (names[0] if names else "")
 
     def refresh(self, catalog: Catalog) -> None:
         """Reread against a catalogue that has changed -- a folder
@@ -810,9 +1181,23 @@ class _SlotRow(QWidget):
 
     def _draw(self) -> None:
         from xtalapp.dialogs.draw_block import DrawBlockDialog
-        written = DrawBlockDialog.ask(self.slot, self.folder, self)
+        written = DrawBlockDialog.ask(self.slot, self.folder, self,
+                                      smiles=self.shown_smiles())
         if written is not None:
             self.drawn.emit(written.stem)
+
+
+def _role(role: str | None, coordination: int) -> str:
+    """What a decorated net's node is, after its count."""
+    if role == "trimer":
+        return (" -- an M3O trimer" if coordination == 6 else
+                f" -- an M3O trimer, {coordination - 6} open site(s) "
+                f"taken: pick the 6-connected one")
+    if role == "face":
+        return " -- a supertetrahedron's face"
+    if role:
+        return f" -- fills the {role}s"
+    return ""
 
 
 def _rcsr_page(topology) -> tuple:

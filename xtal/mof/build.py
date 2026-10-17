@@ -132,12 +132,17 @@ class BuildRequest:
     #: :func:`xtal.analysis.interpenetrate.best` -- the placement with
     #: the most room -- and refused, by name, when none has any.
     interpenetration: int = 1
+    #: A pyridyl partitioner for an ``acs`` framework, by name, or
+    #: ``"auto"`` for the one :mod:`xtal.mof.partition` ranks first;
+    #: empty for none.  The build is then of the partitioned net,
+    #: ``pacs``, and this holds the partitioner it was made with.
+    partition: str = ""
 
     @classmethod
     def parse(cls, topology: str, nodes: str, edges: str,
               repeat: str = "", orientation: str = "",
               spacing: str = "", offset: str = "",
-              interpenetration="") -> BuildRequest:
+              interpenetration="", partition: str = "") -> BuildRequest:
         """The strings a parameter form and a command line both hand
         over.
 
@@ -164,7 +169,8 @@ class BuildRequest:
                    _repeat(repeat),
                    str(orientation or "").strip() or "consistent",
                    _spacing(spacing), _offset(offset),
-                   _interpenetration(interpenetration))
+                   _interpenetration(interpenetration),
+                   str(partition or "").strip())
 
     def spelled(self) -> tuple[str, str, str]:
         """Back to the three strings, for a log and for a saved set.
@@ -432,17 +438,48 @@ class BuildOutcome:
     #: as ``(distance, one atom, the other)`` -- each atom named with
     #: the block it came from.  See :func:`overlaps`.
     overlaps: tuple = ()
+    #: The partitioner's predicted fit (:class:`xtal.mof.partition.Fit`)
+    #: when the build partitioned an acs framework, else ``None``.
+    partition: object = None
+    #: What a build on a decorated net said about its T-O-T and its
+    #: dative bonds (:func:`xtal.mof.decorate.report`), else ``None``.
+    decoration: object = None
+    #: The asked net's own reading, for a net made from another
+    #: (``sod-st``): most have no RCSR name, so what the build is held
+    #: to is this, by invariants.  ``None`` for a net of a file.
+    asked_net: object = None
 
     @property
     def net_name(self) -> str:
         return self.identified.name if self.identified else ""
 
     @property
+    def rcsr_asked(self) -> str:
+        """The RCSR's name for the net asked for: one of our own nets
+        (:data:`xtal.mof.catalog.NET_ALIASES`) is another's graph,
+        re-embedded, and is read back under the RCSR's name."""
+        from xtal.mof.catalog import NET_ALIASES
+
+        if self.asked_net is not None and self.asked_net.name:
+            return self.asked_net.name
+        return NET_ALIASES.get(self.asked, self.asked)
+
+    @property
+    def _asked_said(self) -> str:
+        if self.rcsr_asked == self.asked:
+            return self.asked
+        return f"{self.asked} (the {self.rcsr_asked} net)"
+
+    @property
     def net_agrees(self) -> bool:
         """Whether what came out is the net that was asked for --
         and in as many copies as were asked for."""
-        return (bool(self.net_name) and self.net_name == self.asked
-                and self.copies == self.request.interpenetration)
+        if self.copies != self.request.interpenetration:
+            return False
+        if self.asked_net is not None and not self.asked_net.name:
+            return bool(self.identified) and _same_invariants(
+                self.identified, self.asked_net)
+        return bool(self.net_name) and self.net_name == self.rcsr_asked
 
     @property
     def copies(self) -> int:
@@ -468,8 +505,8 @@ class BuildOutcome:
             head = (f"the framework is {self.identified.headline()}, "
                     f"as asked")
         elif self.net_agrees:
-            head = f"the framework is {self.asked}, as asked"
-        elif self.net_name == self.asked:
+            head = f"the framework is {self._asked_said}, as asked"
+        elif self.net_name == self.rcsr_asked:
             asked = self.request.interpenetration
             head = (f"asked for {asked} "
                     f"cop{'y' if asked == 1 else 'ies'} of {self.asked} "
@@ -534,6 +571,18 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     """
     catalog = catalog or Catalog.default()
     directory = Path(directory)
+    predicted = None
+    if request.partition:
+        from xtal.mof.partition import partitioned
+
+        request, catalog, predicted = partitioned(request, catalog,
+                                                  directory)
+        _say(log, f"partitioning acs with {request.partition}: "
+                  f"predicted {predicted.sentence()}")
+    from xtal.mof import decorate
+
+    if decorate.parse(request.topology):
+        request, catalog = decorate.prepared(request, catalog, directory)
     topology, node_bbs, edge_bbs = _resolve(request, catalog)
     _say(log, f"topology {topology.name}: {topology.summary()}")
 
@@ -580,6 +629,17 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     state_bonds(structure, framework)
     outcome.closest = closest_contact(structure)
     outcome.overlaps = overlaps(structure, framework)
+    if decorate.parse(request.topology):
+        # After the bonds are stated: the dative ones are read off them.
+        outcome.decoration = decorate.report(topology, framework,
+                                             structure)
+    if outcome.decoration is not None:
+        for line in outcome.decoration.lines:
+            _say(log, line)
+        if outcome.decoration.warning:
+            _say(log, outcome.decoration.warning)
+            structure.meta.setdefault("warnings", []).append(
+                outcome.decoration.warning)
     _say(log, f"bonded {outcome.joints} joint(s) between blocks")
     if outcome.overlaps:
         _say(log, outcome.warning())
@@ -596,7 +656,16 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     if request.interpenetration > 1:
         structure = _interpenetrate(outcome, request.interpenetration,
                                     log)
-    outcome.identified = check_net(structure)
+    from xtal.mof import merged
+
+    derived = topology.path is None and bool(
+        decorate.parse(topology.name) or merged.parse(topology.name))
+    # A derived net is held to its invariants (`_reading`), so the
+    # built one's key would decide nothing: 25 s on sod-st-f6.
+    outcome.identified = check_net(structure, keyed=not derived)
+    outcome.partition = predicted
+    if derived:
+        outcome.asked_net = _reading(topology)
     _say(log, outcome.verdict())
     return outcome
 
@@ -1665,7 +1734,30 @@ def _contact_key(i: int, j: int, image) -> tuple:
     return (int(j), int(i), tuple(int(-v) for v in image))
 
 
-def check_net(structure):
+def _reading(topology):
+    """What a net made from another is, by its invariants alone.
+
+    A decoration the RCSR names by them -- ``mtn-st`` is ``moo`` --
+    is held to that name; one it has no name for is held to the
+    invariants themselves.  Never by canonical form: the built net is
+    keyed anyway, and keying the asked one too is the same twenty
+    seconds again on ``sod-st`` and a minute on moo.
+    """
+    from xtal.analysis import rcsr
+
+    fingerprint = topology.net().fingerprint()
+    names = rcsr.catalogue().lookup(fingerprint)
+    return rcsr.NetReport((rcsr.Identification(
+        fingerprint, names if len(names) == 1 else ()),))
+
+
+def _same_invariants(one, other) -> bool:
+    """Whether two reports' pieces walk and ring alike."""
+    return ({part.fingerprint.token() for part in one.parts}
+            == {part.fingerprint.token() for part in other.parts})
+
+
+def check_net(structure, keyed: bool = True):
     """What the net drawn on this framework actually is.
 
     Read back off the structure with the same two functions the Net
@@ -1674,7 +1766,7 @@ def check_net(structure):
     """
     from xtal.analysis import net_of, rcsr
 
-    return rcsr.describe(net_of(structure))
+    return rcsr.describe(net_of(structure), keyed=keyed)
 
 
 # ======================================================================

@@ -31,6 +31,11 @@ from __future__ import annotations
 #: step.  See :mod:`xtalapp.dialogs.build_molecule`.
 _BY_NAME = {
     "mof-build": ("xtalapp.dialogs.mof_build", "MofBuildDialog"),
+    "mof-pacs": ("xtalapp.dialogs.mof_build", "PacsBuildDialog"),
+    "mof-st": ("xtalapp.dialogs.mof_build",
+               "SupertetrahedraBuildDialog"),
+    "mof-sets": ("xtalapp.dialogs.mof_build", "LinkerSetBuildDialog"),
+    "mof-rod": ("xtalapp.dialogs.rod_build", "RodBuildDialog"),
     "build-molecule": ("xtalapp.dialogs.build_molecule",
                        "BuildMoleculeDialog"),
     "build-insert": ("xtalapp.dialogs.build_molecule",

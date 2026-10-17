@@ -168,6 +168,18 @@ PARAMS = (
                "between them, and a framework too dense for any "
                "placement is refused rather than built crowded.  "
                "Structure > Interpenetrate lists every placement."),
+    Param("partition", "Partition the pores", kind="text", default="",
+          help="For a trimer on acs (MIL-88): a C3 pyridyl on the "
+               "channel axis in every trimer layer, bonded to the "
+               "trimers' open metal sites -- the pore-space-"
+               "partitioned pacs frameworks.  The partitioner sets "
+               "the cell's a and the linker its c, so not every pair "
+               "fits; 'Best fit' takes the one that strains the "
+               "linker least, and one that cannot close the cell is "
+               "refused with the reason.  Blank for none, 'auto', a "
+               "shipped one (tpt, tpb, tripp, tppb, tppm, tpa, tpvb, "
+               "tpeb, tppa, tppt) or one drawn into the workspace's "
+               "blocks/partitioners."),
     Param("topology_dir", "Extra topologies", kind="path",
           help="A folder of your own .cgd nets, read alongside the "
                "ones PORMAKE ships"),
@@ -247,7 +259,8 @@ def build_framework(job) -> JobResult:
                                      job.param("orientation", ""),
                                      job.param("spacing", ""),
                                      job.param("offset", ""),
-                                     job.param("interpenetration", 1))
+                                     job.param("interpenetration", 1),
+                                     job.param("partition", ""))
         job.say(f"PORMAKE: building {request.title()}")
         job.check()
         # ``say`` for our own five lines, ``note`` for PORMAKE's
@@ -363,8 +376,50 @@ def _report(outcome) -> Report:
              "next table.")
     return Report(
         title=f"{outcome.request.title()}",
-        blocks=(what, fit, _check(outcome)),
+        blocks=(what, fit) + _partition(outcome) + (_check(outcome),),
         note=outcome.verdict())
+
+
+def _partition(outcome) -> tuple:
+    """The partitioner, and the cell it was predicted to make against
+    the cell built -- a table only when the build partitioned."""
+    fit = outcome.partition
+    if fit is None:
+        return ()
+    from xtal.mof.partition import DRAWN_NAME, measured_dative, partitioner
+
+    a, _b, c = outcome.structure.lattice.parameters[:3]
+    try:
+        full_name = partitioner(fit.partitioner).full_name
+    except KeyError:
+        full_name = DRAWN_NAME
+    rows = (
+        Row("Partitioner", fit.partitioner, "", full_name),
+        Row.number("Predicted a", fit.a, "A",
+                   "the partitioner's donor radius, the dative bond "
+                   "and the trimer, laid out from the channel axis",
+                   "", decimals=2),
+        Row.number("Built a", a, "A", "", "", decimals=2),
+        Row.number("Predicted c", fit.c, "A",
+                   "the linker's reach from one trimer layer to the "
+                   "next", "", decimals=2),
+        Row.number("Built c", c, "A", "", "", decimals=2),
+        Row.number("Linker elevation", fit.phi, "deg",
+                   "how far the linker climbs out of the trimer "
+                   "plane; the deposited pacs frameworks are 34-47",
+                   "", decimals=1),
+    )
+    lengths = measured_dative(outcome.structure)
+    if lengths:
+        rows += (Row("Metal-N as built",
+                     f"{min(lengths):.2f}-{max(lengths):.2f}", "A",
+                     f"{len(lengths)} dative bond(s) to the "
+                     f"partitioner"),)
+    return (Table(
+        title="Pore-space partition", rows=rows,
+        note="The prediction is arithmetic on the blocks; the build "
+             "is PORMAKE's cell relaxation.  Relax the framework "
+             "before reading the cell as a material's."),)
 
 
 def _overlap_rows(outcome) -> tuple:
@@ -411,6 +466,178 @@ def _check(outcome) -> Table:
 
 
 # ======================================================================
+#  RODS
+# ======================================================================
+
+#: The ``blocks`` folder of the workspace the window has open, whose
+#: saved rods (Structure > Building blocks > Save rod as a block) the
+#: form offers beside the shipped ones.  Set by the window as it opens
+#: a workspace (:func:`offer_saved_rods`): the form has no workspace of
+#: its own to ask, and the run finds the same rods through its folder.
+_SAVED_RODS: list = []
+
+
+def offer_saved_rods(blocks) -> None:
+    """Offer the rods saved under ``blocks`` (``None``: none)."""
+    _SAVED_RODS[:] = [] if blocks is None else [Path(blocks)]
+
+
+def _rod_choices() -> tuple:
+    from xtal.mof.rod import label, saved, shipped
+
+    choices = [(name, label(name)) for name in shipped()]
+    for folder in _SAVED_RODS:
+        choices += [(name, f"{name} (this workspace)")
+                    for name in saved(folder)]
+    return tuple(choices)
+
+
+ROD_PARAMS = (
+    Param("rod", "Rod", kind="choice", default="MIL-53_Cr",
+          choices=_rod_choices,
+          help="The 1-periodic building unit, cut from a crystal with "
+               "its points of extension and the shape they make along "
+               "it.  Metals other than the crystal's are swapped in "
+               "unrelaxed.  A rod saved from a structure in this "
+               "workspace is listed too, and builds with its own "
+               "linker."),
+    Param("pattern", "Rod pattern", kind="choice", default="sql",
+          choices=(("sql", "sql -- square or rhombic"),
+                   ("hcb", "hcb -- honeycomb"),
+                   ("hxl", "hxl -- triangular"),
+                   ("kgm", "kgm -- kagome")),
+          help="Where the rods cross a plane across them.  MIL-53 and "
+               "MOF-303 sit on sql, MOF-74 and Ni2Cl2BTDD on hcb."),
+    Param("linker", "Linker", kind="text",
+          help="Left empty, the linker cut from the rod's own crystal: "
+               "BDC, dobdc, BTDD or pzdc.  Otherwise any of those, a "
+               "two-ended block of PORMAKE's or your workspace's, or a "
+               "file."),
+    Param("hands", "Hands", kind="choice", default="auto",
+          choices=(("auto", "As in the crystal"),
+                   ("same", "All one hand"),
+                   ("alternating", "Alternating")),
+          help="Which hand each helical rod is.  It decides the net: "
+               "three-fold helices joined in threes are etb when "
+               "neighbours alternate and eta when all are one hand.  "
+               "Alternating needs a pattern with no triangles (sql, "
+               "hcb), and a rod with no hand (MIL-53, MOF-303) has "
+               "none to choose."),
+    Param("angle", "Rhombus angle", kind="text",
+          help="sql's angle, in degrees -- the coordinate MIL-53 "
+               "breathes along.  Left empty, it is the one the rod's "
+               "points of extension fit best, and the report says "
+               "so."),
+    Param("repeat", "Repeat", kind="text", default="1x1x1",
+          help="How many cells, '1x1x2' for two along the rods."),
+)
+
+
+def build_rod_framework(job) -> JobResult:
+    """Build a rod MOF: rods on a pattern, a linker on every joint."""
+    from xtal.mof.rodbuild import RodBuildError, RodRequest
+    from xtal.mof.rodbuild import build as build_rods
+
+    directory, holder = _prepare(job)
+    try:
+        request = RodRequest.parse(job.param("rod", ""),
+                                   job.param("pattern", ""),
+                                   job.param("linker", ""),
+                                   job.param("hands", ""),
+                                   job.param("angle", ""),
+                                   job.param("repeat", ""))
+        folders = ()
+        if job.folder is not None:
+            from xtal.workspace import Workspace
+
+            workspace = Workspace.find(job.folder.path)
+            if workspace is not None:
+                folders = (workspace.blocks,)
+        request = request.resolved(folders)
+        job.say(f"rods: building {request.title()}")
+        job.check()
+        outcome = build_rods(request, directory, log=job.say,
+                             folders=folders)
+        if job.cancelled:
+            return JobResult.stopped("stopped after the build "
+                                     "finished")
+        report = _rod_report(outcome)
+        job.note("")
+        job.note(report.as_text())
+        return JobResult(
+            message=f"{outcome.n_atoms} atoms; {outcome.verdict()}",
+            structure=outcome.structure, report=report,
+            artifacts=((outcome.cif,) if job.folder is not None
+                       and outcome.cif is not None else ()),
+            warnings=((("BUILD_OVERLAP", outcome.warning()),)
+                      if outcome.overlaps else ()))
+    except RodBuildError as exc:
+        return JobResult.failure(str(exc))
+    finally:
+        if holder is not None:
+            holder.cleanup()
+
+
+def _rod_report(outcome) -> Report:
+    """What was built, where each rod went, and the net read back."""
+    request, placed = outcome.request, outcome.placement
+    a, b, c, alpha, beta, gamma = outcome.structure.lattice.parameters
+    what = Table(
+        title="What was built",
+        rows=(
+            Row("Rod", request.rod),
+            Row("Linker", request.linker_name),
+            Row("Pattern", request.pattern, "",
+                f"{placed.net.nodes} rod(s) a cell"),
+            Row("Hands", placed.net.hands, "",
+                "; ".join(note for note in (
+                    "every other rod turned over" if placed.turned_over
+                    else "", outcome.other_hands) if note)),
+            Row.number("Pattern angle", placed.gamma, "deg",
+                       placed.angle_from, "", decimals=1),
+            Row.number("Rod spacing", placed.spacing, "A",
+                       f"the rods' reach of {placed.reach:.2f} A each "
+                       f"and the linker's span of "
+                       f"{placed.linker.span:.2f} A", "", decimals=3),
+            Row("Repeat", "x".join(str(n) for n in request.repeat)),
+            Row("Atoms", str(outcome.n_atoms)),
+            Row("Cell", f"{a:.3f} x {b:.3f} x {c:.3f} A", "",
+                f"{alpha:.2f}, {beta:.2f}, {gamma:.2f} deg"),
+        ))
+    rods = Table(
+        title="Each rod",
+        rows=tuple(Row(f"Rod {node}", hand, "",
+                       f"turned {turn:.1f} deg, raised {rise:.3f} A")
+                   for node, hand, turn, rise in outcome.rods))
+    fit = Table(
+        title="How well it closed",
+        rows=(
+            Row.number("Worst joint", placed.worst, "A",
+                       "how far a linker's far end is from where its "
+                       "rod's partner face sits", "", decimals=3),
+            Row.number("Longest joint bond", outcome.longest_joint, "A",
+                       "", "", decimals=3),
+            Row("Joint bonds", str(outcome.joints)),
+            Row.number("Closest contact", outcome.closest, "A",
+                       "the shortest distance between two atoms that "
+                       "are not bonded, the rods' own included", "",
+                       decimals=3),
+        ) + _overlap_rows(outcome))
+    identified = outcome.identified
+    net = Table(
+        title="The net that came out",
+        rows=(Row("Points of extension", identified.headline()
+                  if identified else "could not be read", "",
+                  "each rod's points of extension, its stated shape "
+                  "along it, and each linker's own skeleton, named "
+                  "against the RCSR"),),
+        note="The net is drawn on the framework, so the Net panel "
+             "names it too.")
+    return Report(title=request.title(), blocks=(what, rods, fit, net),
+                  note=outcome.verdict())
+
+
+# ======================================================================
 #  THE MODULE
 # ======================================================================
 
@@ -432,6 +659,46 @@ PORMAKE = Module(
                dialog="mof-build",
                params=PARAMS,
                run=build_framework),
+        Action(name="pacs",
+               label="Build a pore-partitioned MOF (pacs)...",
+               tip="An M3O trimer and a linker on acs, with a pyridyl "
+                   "partitioner across its channels: the pacs MOFs, "
+                   "nia-d",
+               kind="build",
+               needs_structure=False,
+               dialog="mof-pacs",
+               params=PARAMS,
+               run=build_framework),
+        Action(name="supertetrahedra",
+               label="Build a supertetrahedral MOF...",
+               tip="Any 4-connected net built of supertetrahedra -- "
+                   "four trimers and a tritopic face each, as MIL-100 "
+                   "and the sod-ZMOFs -- with its windows filled or "
+                   "left open",
+               kind="build",
+               needs_structure=False,
+               dialog="mof-st",
+               params=PARAMS,
+               run=build_framework),
+        Action(name="sets",
+               label="Build a mixed-linker MOF (merged net)...",
+               tip="A net with more than one kind of edge round one "
+                   "cluster -- sph, a merged net -- and a set of "
+                   "linkers that closes every edge at one scale",
+               kind="build",
+               needs_structure=False,
+               dialog="mof-sets",
+               params=PARAMS,
+               run=build_framework),
+        Action(name="rod", label="Build a rod framework...",
+               tip="Parallel rods (MIL-53, MOF-74, Ni2Cl2BTDD, MOF-303) "
+                   "on a pattern, joined by a linker; the net of the "
+                   "points of extension is read back",
+               kind="build",
+               needs_structure=False,
+               dialog="mof-rod",
+               params=ROD_PARAMS,
+               run=build_rod_framework),
     ),
 )
 
