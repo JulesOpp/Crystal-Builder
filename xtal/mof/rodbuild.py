@@ -168,6 +168,7 @@ def load_rod(name: str, folders=()) -> Rod:
 def load_linker(name: str, folders=()):
     """A linker by path, by name in the rod library, in ``folders``
     (a workspace's blocks), or among PORMAKE's blocks."""
+    from xtal.mof import donors
     from xtal.mof.catalog import database_root
     from xtal.mof.trimer import Block
 
@@ -180,7 +181,10 @@ def load_linker(name: str, folders=()):
         candidates.append(Path(root) / "bbs" / f"{name}.xyz")
     for path in candidates:
         if path is not None and path.is_file():
-            return Block.read(path)
+            try:
+                return donors.as_linker(Block.read(path))
+            except donors.DonorError as exc:
+                raise RodBuildError(f"{path.stem}: {exc}") from None
     raise RodBuildError(f"no linker called {name}; the rods' own are "
                         f"{', '.join(shipped_linkers())}, and any "
                         f"two-ended block of PORMAKE's will do")
@@ -494,7 +498,7 @@ def _assemble(placed: Placement, linker) -> _Atoms:
                 for x, up in rod_faces[colour][face].members])
         targets = [(n, x, s, xyz[n][x] + np.asarray(s, float) @ rows)
                    for side in sides for n, x, s in side]
-        kinds = [_point_kind(placed.rods[placed.net.colours[n]], x)
+        kinds = [placed.rods[placed.net.colours[n]].kind(x)
                  for n, x, _s, _at in targets]
         fits.append((targets, _fits(linker, ends, targets, placed,
                                     index, atoms, places, kinds)))
@@ -574,13 +578,6 @@ def _places(linker, ends) -> dict[int, int]:
     return {x: numbered[signatures[x]] for x in points}
 
 
-def _point_kind(rod, point) -> str:
-    """What a rod's point is, by the atoms it hangs off: ``C`` for a
-    carboxylate's carbon, ``O`` for a phenolate, ``CC`` for a
-    triazolate's two carbons."""
-    return "".join(sorted(rod.symbols[m] for m, _ in rod.members(point)))
-
-
 def _one_pairing(fits):
     """The pairing every joint takes: the one whose misses, each joint
     at its best within it, sum least.
@@ -602,10 +599,16 @@ def _one_pairing(fits):
 
 def _fits(linker, ends, targets, placed, index, atoms, places, kinds):
     """For each pairing, the joint's best ``(miss, order, rotation,
-    origin)`` under it."""
+    origin)`` under it.  A linker ``X`` named by its donor goes only on
+    a rod point of that kind; one drawn bare goes on any."""
+    named = dict(zip(linker.connections, getattr(linker, "kinds", ()),
+                     strict=False))
     best = {}
     for miss, order, rotation, origin in _candidates(
             linker, ends, targets, placed, index, atoms):
+        if any(named.get(x) and named[x] != kind
+               for x, kind in zip(order, kinds, strict=True)):
+            continue
         key = tuple(sorted({(places[x], kind)
                             for x, kind in zip(order, kinds,
                                                strict=True)}))

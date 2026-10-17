@@ -67,6 +67,10 @@ class Block:
     connections: list[int]
     #: The file it was read from, for a refusal to name it by.
     name: str = ""
+    #: The donor each connection point stands for, in the order of
+    #: ``connections`` (:mod:`xtal.mof.donors`); empty, or ``""`` for
+    #: a point drawn bare, which a rod build pairs with anything.
+    kinds: tuple[str, ...] = ()
 
     @classmethod
     def read(cls, path) -> Block:

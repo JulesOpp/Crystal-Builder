@@ -138,6 +138,25 @@ class Rod:
     def neighbours(self, atom: int) -> list[tuple[int, int]]:
         return self.members(atom)
 
+    def kind(self, point: int) -> str:
+        """The donor ``point`` stands for, by the atoms it hangs off
+        and their bonds: ``"carboxylate"`` for one carbon carrying two
+        oxygens, ``"phenolate"`` for one oxygen, and otherwise the
+        members' symbols (``"CC"``, a triazolate's two carbons), which
+        no drawn donor is called."""
+        from xtal.mof import donors
+
+        members = sorted({m for m, _ in self.members(point)})
+        if len(members) == 1:
+            m = members[0]
+            if self.symbols[m] == "O":
+                return donors.PHENOLATE
+            oxygens = {j for j, _ in self.neighbours(m)
+                       if self.symbols[j] == "O"}
+            if self.symbols[m] == "C" and len(oxygens) == 2:
+                return donors.CARBOXYLATE
+        return "".join(self.symbols[m] for m in members)
+
     # ------------------------------------------------------ symmetry
 
     def screw(self) -> tuple[int, float]:

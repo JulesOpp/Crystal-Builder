@@ -309,3 +309,27 @@ def test_mof_74_with_dobdc_builds_as_it_did(mof_74):
     joints at the crystal's 1.48 A."""
     assert mof_74.longest_joint == pytest.approx(1.479, abs=0.002)
     assert mof_74.closest == pytest.approx(2.054, abs=0.002)
+
+
+@pytest.mark.parametrize("name, place", [("dobpdc", (0, 6)),
+                                         ("pc_dobpdc", (6, 0))])
+def test_dobpdc_and_pc_dobpdc_drawn_whole_build_as_two_isomers(
+        name, place):
+    """Drawn with their carboxylates and phenols, each X goes on the
+    rod point of its own donor: dobpdc's carboxylates meta to the
+    biaryl bond at every joint, pc-dobpdc's para."""
+    outcome = built("MOF-74_Mg", "hcb",
+                    linker=str(ROOT / "tests" / "data"
+                               / f"rod_{name}_whole.xyz"))
+    assert carboxylates_by_place(outcome.structure) == place
+
+
+def test_a_linker_with_donors_the_rod_lacks_is_refused_by_name():
+    """Hydroquinone's phenolates on MIL-53's carboxylate points, said
+    before anything is fitted rather than as a joint with no pairing."""
+    linker = str(ROOT / "tests" / "data" / "rod_hydroquinone_whole.xyz")
+    with pytest.raises(RodBuildError,
+                       match="rod_hydroquinone_whole brings a "
+                             "phenolate to each end, where MIL-53_Cr "
+                             "has a carboxylate"):
+        built("MIL-53_Cr", "sql", linker=linker)

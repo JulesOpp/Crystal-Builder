@@ -391,6 +391,37 @@ def mismatch(rod: Rod, linker, size: int) -> str:
             f"end, {2 * size} in all")
 
 
+def unmet_kinds(rod: Rod, linker, ends: Ends, rod_faces) -> str:
+    """Why ``linker``'s named points cannot meet ``rod``'s, or ``""``.
+
+    An end's points named by their donor (:mod:`xtal.mof.donors`) must
+    each find a rod point of that kind in every face; a point drawn
+    bare finds any.  Said before anything is fitted, since a joint
+    with no pairing left has nothing to say for itself.
+    """
+    from xtal.mof import donors
+
+    named = dict(zip(getattr(linker, "connections", ()),
+                     getattr(linker, "kinds", ()), strict=False))
+    if not any(named.values()):
+        return ""
+    for face in rod_faces:
+        have = [rod.kind(x) for x, _up in face.members]
+        for end in ends.ends:
+            want = [named.get(x, "") for x in end]
+            spare = list(have)
+            for kind in want:
+                if not kind:
+                    continue
+                if kind not in spare:
+                    name = getattr(linker, "name", "") or "the linker"
+                    return (f"{name} brings {donors.described(want)} to "
+                            f"each end, where {rod.name or 'the rod'} "
+                            f"has {donors.described(have)}")
+                spare.remove(kind)
+    return ""
+
+
 def faces(rod: Rod, size: int) -> list[Face]:
     """The rod's X atoms in faces of ``size``, nearest together first.
 
@@ -561,6 +592,9 @@ def placement(net: RodNet, rod: Rod, linker, *,
         raise RodNetError(mismatch(rod, linker, ends.size))
     p = net.pattern
     rod_faces = faces(rod, ends.size)
+    unmet = unmet_kinds(rod, linker, ends, rod_faces)
+    if unmet:
+        raise RodNetError(unmet)
     degree = PATTERNS[p.name].degree
     if len(rod_faces) % degree:
         raise RodNetError(
