@@ -52,7 +52,7 @@ def test_every_sample_in_the_catalogue_is_a_file_that_is_there():
     missing = [s.label for s in samples.SAMPLES if s.path is None]
 
     assert missing == []
-    assert len(samples.SAMPLES) == 68
+    assert len(samples.SAMPLES) == 70
 
 
 def test_every_sample_is_a_structure_this_application_can_read():
@@ -305,6 +305,7 @@ COD_EXPECTED = {
     "cod_pcn224": ("Im-3m", 30, 2176),
     "cod_sifsix3ni": ("P4/mmm", 7, 44),
     "cod_sifsix1cu": ("P4/mmm", 12, 92),
+    "cod_cobdp": ("P4122", 15, 100),
 }
 
 
@@ -521,7 +522,7 @@ def test_every_file_in_the_samples_folder_is_named_in_provenance():
 
     unnamed = [f for f in files if f"`{f}`" not in provenance]
 
-    assert len(files) == 71
+    assert len(files) == 73
     assert unnamed == []
 
 

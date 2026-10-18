@@ -114,7 +114,7 @@ def test_each_shipped_rod_states_the_shape_its_net_needs():
     """The shape is chosen once, when the rod is cut, and the file is
     the record of it: every PoE meets one linker, so the shape's
     degrees are the net's coordination less one -- sra 4, msf 7 and 5,
-    etb 3, xhh 5."""
+    etb 3, xhh 5, snp 6."""
     assert set(degrees(shipped("MIL-53_Cr")).values()) == {3}
     mof74 = shipped("MOF-74_Zn")
     by_kind = {"".join(sorted(mof74.symbols[m]
@@ -123,6 +123,37 @@ def test_each_shipped_rod_states_the_shape_its_net_needs():
     assert by_kind == {"C": 6, "O": 4}
     assert set(degrees(shipped("Ni2Cl2BTDD_Ni")).values()) == {2}
     assert set(degrees(shipped("MOF-303_Al")).values()) == {4}
+    assert set(degrees(shipped("MBDP_Co")).values()) == {5}
+
+
+def test_co_bdps_rod_is_a_four_fold_helix_of_pyrazolate_bridged_metals():
+    """Each Co bridged to the next by two pyrazolates, which stay whole
+    on the rod as BTDD's triazolate does: four metals and eight points
+    a 14.35 A repeat, each point hanging off a ring's C4 alone."""
+    r = shipped("MBDP_Co")
+    assert [r.symbols[m] for m in r.metals] == ["Co"] * 4
+    assert r.repeat == pytest.approx(14.3502)
+    assert len(r.connections) == 8 and r.face == 1
+    assert r.screw() == (4, pytest.approx(90.0, abs=1.0))
+    for x in r.connections:
+        [(c, _)] = r.members(x)
+        assert r.symbols[c] == "C"
+    assert Counter(r.symbols)["N"] == 16
+
+
+def test_a_shipped_chiral_rod_says_how_its_crystal_handed_it(tmp_path):
+    """A rod cannot tell from itself whether its neighbours were its
+    hand or its mirror, so the file says: MOF-74's and Ni2Cl2BTDD's
+    alternate, Co(BDP)'s are one hand in P4_122.  An achiral rod has
+    nothing to say; a swapped metal says what its parent did."""
+    hands = {name: Rod.read(path).hands
+             for name, path in rod.shipped().items()}
+    assert {n for n, h in hands.items() if h == "same"} == {
+        "MBDP_Co", "MBDP_Zn"}
+    assert hands["MOF-74_Mg"] == hands["Ni2Cl2BTDD_Co"] == "alternating"
+    assert hands["MIL-53_Cr"] == hands["MOF-303_Al"] == ""
+    back = Rod.read(shipped("MBDP_Zn").write(tmp_path / "again.xyz"))
+    assert back.hands == "same"
 
 
 def test_btdds_triazolate_stays_whole_on_the_rod():
@@ -158,14 +189,17 @@ def test_a_rod_starts_at_a_metal(rutile):
 
 def test_the_shipped_rods_from_cod_samples_are_what_the_script_writes():
     """The files are written by ``scripts/rod_blocks.py`` and never by
-    hand.  MOF-303's crystal is not shipped, so only the samples'."""
+    hand.  MOF-303's crystal is not shipped, so only the samples' --
+    and of those, the ones cut with no preparation first."""
     spec = importlib.util.spec_from_file_location(
         "rod_blocks", ROOT / "scripts" / "rod_blocks.py")
     script = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(script)
-    for name, path, prepared, shape, rules, _swaps, linker in \
-            script.RODS[:2]:
-        made = script.cut(path, prepared, shape, rules, name)
+    for name, path, prepared, shape, rules, _swaps, linker, hands in \
+            script.RODS:
+        if path is None or name.startswith("Ni2Cl2BTDD"):
+            continue
+        made = script.cut(path, prepared, shape, rules, name, hands)
         assert made.text() == rod.shipped()[name].read_text()
         text = script.linker_text(script.crystal(path, prepared), rules)
         assert text == rod.shipped_linkers()[linker].read_text()

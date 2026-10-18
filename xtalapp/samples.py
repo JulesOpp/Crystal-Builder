@@ -408,6 +408,13 @@ SAMPLES = (
             "Burd et al., J. Am. Chem. Soc. 2012: Cu(4,4'-bipyridine)2 "
             "grids pillared by SiF6 in P4/mmm, the equatorial "
             "fluorines turned over three orientations")),
+    Sample(
+        "cod_cobdp", "cod/Co-BDP.cif", "Co(BDP)", group=COD,
+        cod_id=4131069, description=(
+            "Taylor et al., J. Am. Chem. Soc. 2016: Co(II) chains "
+            "bridged by pairs of pyrazolates, four-fold helices joined "
+            "by 1,4-benzenedipyrazolate into square channels, in "
+            "P4122 -- the rod Zn(BDP) is built from")),
 )
 
 
@@ -468,6 +475,8 @@ PREPARED_NOTES = {
     "SIFSIX-1-Cu": "one orientation of the SiF6's equatorial square "
                    "and of each bipyridine, in P1: Cu(bpy)2SiF6 "
                    "exactly",
+    "Co-BDP": "as deposited, in P4122: ordered, solvent-free and "
+              "charge-balanced already, so nothing was needed",
 }
 
 #: The COD frameworks again, prepared for simulation: ordered, the

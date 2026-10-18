@@ -66,6 +66,7 @@ ENTRIES = {
     4117561: "SIFSIX-1-Cu.cif",
     4132640: "UiO-67.cif",
     1558028: "PCN-224.cif",
+    4131069: "Co-BDP.cif",
 }
 
 #: COD ID -> a file of the first group, beside ``cod/``, that the COD

@@ -1,5 +1,5 @@
 21
-rod repeat=6.7962 axis=z name=MOF-74_Zn face=2
+rod repeat=6.7962 axis=z name=MOF-74_Zn face=2 hands=alternating
 Zn   1.1292 0.0000 0.0000
 Zn   -0.5646 -0.9779 4.5308
 Zn   -0.5646 0.9779 2.2654

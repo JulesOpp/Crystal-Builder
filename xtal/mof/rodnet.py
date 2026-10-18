@@ -244,9 +244,10 @@ class RodNet:
 def rod_net(name: str, rod: Rod, hands: str = "auto") -> RodNet:
     """The rods of ``rod`` on pattern ``name``, handed as asked.
 
-    ``auto`` alternates a chiral rod where the pattern allows -- both
-    chiral rods shipped alternate in their crystals (E0: MOF-74 and
-    Ni2Cl2BTDD on hcb) -- and is "same" otherwise.
+    ``auto`` is the rod's own crystal's arrangement (:attr:`Rod.hands`):
+    MOF-74 and Ni2Cl2BTDD alternate on hcb (E0), Co(BDP)'s four-fold
+    helices are all one hand in P4_122.  A rod that does not say
+    alternates where the pattern allows, and is "same" otherwise.
     """
     if hands not in HANDS:
         raise RodNetError(f"hands is one of {', '.join(HANDS)}, not "
@@ -263,7 +264,8 @@ def rod_net(name: str, rod: Rod, hands: str = "auto") -> RodNet:
         raise RodNetError(f"{name} has odd rings (triangles), so its "
                           f"rods cannot alternate hands; choose same")
     if hands == "auto":
-        hands = "alternating" if chiral and found is not None else "same"
+        hands = "alternating" if chiral and found is not None \
+            and rod.hands != "same" else "same"
     if hands == "same":
         return RodNet(p, "same", (0,) * len(p.nodes))
     cell, colours = found
