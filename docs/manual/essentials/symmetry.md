@@ -73,6 +73,15 @@ you say so.  Detection is spglib's {cite}`togo2024spglib`.
    structure back and a message, never a plausible wrong answer.  If
    the cell was re-expressed the view is reset, because the camera
    that framed the old setting frames the new one badly.
+
+   A loose tolerance can find a group whose special positions some
+   sites are tenths of an ångström off -- a phenyl ring twisted out
+   of a mirror the search accepted -- and the group then generates
+   each of those sites twice.  A warning names every such site with
+   the distance it would move.  **Snap onto positions** moves them
+   onto their positions and adopts the group, which flattens what was
+   twisted; **Refuse** leaves the structure as it is, and a tighter
+   tolerance finds the group the coordinates have.
 5. Press **Label Wyckoff only** to write the Wyckoff letters onto the
    sites and change nothing else -- the same as {ref}`Assign Wyckoff
    letters <cmd-wyckoff>` at this tolerance.

@@ -64,6 +64,10 @@ class SymmetryReport:
     #: Sites put back on the special position they had been moved off
     #: (:func:`merge_duplicates`).
     snapped: int = 0
+    #: Sites a refused :func:`asymmetrize` found off the special
+    #: position the group puts them on, as ``(name, Angstrom off)``,
+    #: furthest first: what ``snap=True`` would move.
+    off_position: list[tuple[str, float]] = field(default_factory=list)
     unmatched: list[int] = field(default_factory=list)
     #: The agent's diagnostic code for a refusal that has its own,
     #: such as ``SIZE_LIMIT``; empty for every other report.
@@ -510,7 +514,8 @@ def _standard_map(structure, info, rows, to_primitive: bool,
 
 def asymmetrize(structure: Structure,
                 symprec: float = DEFAULT_SYMPREC,
-                standardize_cell: bool = False
+                standardize_cell: bool = False,
+                snap: bool = False
                 ) -> tuple[Structure, SymmetryReport]:
     """Detect the symmetry and reduce the cell to its asymmetric unit.
 
@@ -523,6 +528,14 @@ def asymmetrize(structure: Structure,
     The result is verified by re-expansion: if the asymmetric unit does
     not regenerate the cell we started from, the original structure is
     returned with ``ok=False``.
+
+    A loose tolerance finds a group whose special positions some sites
+    are tenths of an Angstrom off -- a phenyl ring twisted out of the
+    mirror spglib accepts it in -- and a site is only special to the
+    expansion within ``p1.SPECIAL_POSITION_TOL``, so each of those is
+    generated twice.  The refusal names them (``off_position``);
+    ``snap=True`` puts them on the position instead, which is the
+    idealisation the loose tolerance asked for, and says how far.
     """
     info = detect(structure, symprec)
     work = structure
@@ -572,13 +585,35 @@ def asymmetrize(structure: Structure,
     # answer, which would make the tolerance control pointless: the
     # whole premise of a loose search is that atoms are that far from
     # their idealised positions.
-    ok, why, worst = _regenerates(out, cell, max(MATCH_TOL, symprec))
+    tol = max(MATCH_TOL, symprec)
+    ok, why, worst = _regenerates(out, cell, tol)
+    snapped = None
     if not ok:
+        snapped, moves = _snap_off_position(out, cell, tol)
+        if snapped is not None and snap:
+            out = snapped
+            ok, why, worst = _regenerates(out, cell, tol)
+    if not ok:
+        if snapped is None:
+            return structure, SymmetryReport(
+                ok=False,
+                message=f"could not reduce to an asymmetric unit: {why}",
+                warnings=["the structure is unchanged; reduce the "
+                          "tolerance or work in P1"],
+            )
+        named = _first_few([f"{name} {gap:.2f} A"
+                            for name, gap in moves])
         return structure, SymmetryReport(
             ok=False,
-            message=f"could not reduce to an asymmetric unit: {why}",
-            warnings=["the structure is unchanged; reduce the tolerance "
-                      "or work in P1"],
+            message=(f"could not reduce to an asymmetric unit: {why}, "
+                     f"because {len(moves)} "
+                     f"{'site is' if len(moves) == 1 else 'sites are'} "
+                     f"off the special positions "
+                     f"{info.international} puts them on ({named})"),
+            warnings=["the structure is unchanged; snap the sites onto "
+                      "their positions, reduce the tolerance or work "
+                      "in P1"],
+            off_position=moves,
         )
     if worst > MATCH_TOL:
         notes.append(
@@ -650,6 +685,34 @@ def _looser_group(structure: Structure, found: SymmetryInfo,
             f"written a rounding place off their ideal positions look "
             f"like a subgroup; if that is this file, run Find symmetry "
             f"again at {tol:g} A.")
+
+
+def _snap_off_position(candidate: Structure, original: p1.P1Cell,
+                       tol: float):
+    """The asymmetric unit with its sites put on the special positions
+    they are within ``tol`` of: ``(structure, [(name, Angstrom off),
+    ...])``, the structure ``None`` unless that makes it regenerate
+    the cell's count.
+
+    ``tol`` bounds a site's distance from its own image, which is what
+    spglib compared to find the group -- twice the distance to a
+    mirror, so a site the group was found with is always in reach.
+    The distance reported is the move, the one to the position.
+    """
+    snapped, snaps = snap_to_special_positions(candidate, tol)
+    if snapped is None:
+        return None, []
+    if p1.expand(snapped).n_atoms != original.n_atoms:
+        return None, []
+    matrix = candidate.lattice.matrix
+    moves = []
+    for i, _before, _after in snaps:
+        step = np.asarray(snapped.sites[i].frac, float) - \
+            np.asarray(candidate.sites[i].frac, float)
+        moves.append((_site_name(candidate, i),
+                      float(np.linalg.norm(step @ matrix))))
+    moves.sort(key=lambda move: -move[1])
+    return snapped, moves
 
 
 def _regenerates(candidate: Structure, original: p1.P1Cell, tol: float):

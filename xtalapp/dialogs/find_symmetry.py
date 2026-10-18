@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -48,6 +49,10 @@ TOLERANCES = ["1e-5", "1e-4", "1e-3", "1e-2", "0.05", "0.1"]
 # A published CIF still finds its group here; it is the tighter
 # presets that exist to tell two close groups apart.
 DEFAULT_TOLERANCE = "0.1"
+
+# Sites named in the snap question, furthest first: past a dozen the
+# box outgrows a laptop screen, and the rest are the smaller moves.
+LISTED = 12
 
 COLUMNS = ["Site", "El", "Wyckoff", "Site symmetry", "Mult"]
 
@@ -230,6 +235,12 @@ class FindSymmetryDialog(QDialog):
         standardize = self.standardize.isChecked()
         report = self.document.find_symmetry(self.symprec(),
                                              standardize)
+        if (report is not None and not report.ok
+                and report.off_position
+                and ask_to_snap(self.info.international,
+                                report.off_position, self)):
+            report = self.document.find_symmetry(
+                self.symprec(), standardize, snap=True)
         if report is not None and not report.ok:
             self.note.setText(report.message)
             self.note.show()
@@ -251,3 +262,41 @@ class FindSymmetryDialog(QDialog):
         """Returns whether the structure was changed."""
         with answered(cls(document, parent)) as dialog:
             return dialog.exec() == QDialog.Accepted
+
+
+def ask_to_snap(group: str, moves, parent=None) -> bool:
+    """Whether to put the sites a loose tolerance found off their
+    special positions onto them.
+
+    A question rather than a refusal because both answers are right
+    for somebody: a ring twisted 0.4 A out of the mirror is chemistry
+    the higher group would flatten, and 0.03 A off it is a coordinate
+    written a rounding place short.  Only the person knows which, so
+    every site is named with how far it would move.  Its own function
+    so a test can answer it.
+    """
+    rows = "\n".join(f"  {name}: {gap:.3f} A"
+                     for name, gap in moves[:LISTED])
+    if len(moves) > LISTED:
+        rows += f"\n  and {len(moves) - LISTED} more, each closer"
+    text = (f"{len(moves)} "
+            f"{'site is' if len(moves) == 1 else 'sites are'} off the "
+            f"special positions {group} puts them on, so the group "
+            f"generates each of them twice.")
+    with answered(QMessageBox(QMessageBox.Icon.Warning, "Find symmetry",
+                              text, QMessageBox.StandardButton.NoButton,
+                              parent)) as box:
+        box.setInformativeText(
+            "Snapping moves each onto its position -- the idealisation "
+            "a loose tolerance stands for, and a change to the "
+            "geometry. Refusing leaves the structure as it is; a "
+            "tighter tolerance finds the group these coordinates "
+            f"have.\n\nDistance each site would move:\n{rows}")
+        snap = box.addButton("Snap onto positions",
+                             QMessageBox.ButtonRole.AcceptRole)
+        refuse = box.addButton("Refuse",
+                               QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(refuse)
+        box.setEscapeButton(refuse)
+        box.exec()
+        return box.clickedButton() is snap
