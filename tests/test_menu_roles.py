@@ -61,3 +61,10 @@ def test_an_action_given_no_role_is_left_to_qt(qtbot):
     action = registry.add("plain", "&Plain")
 
     assert action.menuRole() == QAction.MenuRole.TextHeuristicRole
+
+
+def test_check_for_updates_goes_beside_about(window):
+    """Where every Mac application keeps it: in the application menu,
+    which Qt decides by role and not by the Help menu's list."""
+    assert window.actions_["check_updates"].menuRole() == \
+        QAction.MenuRole.ApplicationSpecificRole

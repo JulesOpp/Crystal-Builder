@@ -184,3 +184,101 @@ def test_the_about_box_links_the_notices_only_when_they_exist(
     monkeypatch.setattr(manual, "notices", lambda: None)
     window.show_about()
     assert "Third-party" not in shown[-1]
+
+
+RELEASE = (b'{"tag_name": "v1.1.0", "draft": false, "prerelease": false,'
+           b' "html_url": "https://github.com/JulesOpp/Crystal-Builder'
+           b'/releases/tag/v1.1.0"}')
+
+
+@pytest.fixture
+def updating(window, monkeypatch):
+    """The window with GitHub replaced: ``fetches`` collects each
+    request's callback, and ``reply`` answers the last one.  Nothing
+    in the suite may reach the network."""
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QMessageBox
+
+    import xtal
+
+    monkeypatch.setattr(xtal, "__version__", "1.0.0")
+    state = {"fetches": [], "opened": [], "asked": [], "told": [],
+             "answer": QMessageBox.Yes}
+    monkeypatch.setattr(window, "_fetch_release",
+                        lambda done: state["fetches"].append(done))
+    monkeypatch.setattr(
+        QDesktopServices, "openUrl",
+        staticmethod(lambda url: state["opened"].append(url.toString())
+                     or True))
+
+    def question(parent, title, text, *a, **k):
+        state["asked"].append(text)
+        return state["answer"]
+
+    monkeypatch.setattr(QMessageBox, "question", question)
+    monkeypatch.setattr(
+        QMessageBox, "information",
+        lambda parent, title, text, *a, **k: state["told"].append(text))
+
+    def reply(body=b"", error=""):
+        state["fetches"][-1](body, error)
+
+    state["reply"] = reply
+    return state
+
+
+def test_check_for_updates_is_in_the_help_menu(window):
+    help_menu = next(action.menu() for action in
+                     window.menuBar().actions()
+                     if action.text() == "&Help")
+    assert window.actions_["check_updates"] in help_menu.actions()
+
+
+def test_a_newer_release_asks_before_opening_its_page(window, updating):
+    window.check_for_updates()
+    updating["reply"](RELEASE)
+    assert "1.1.0" in updating["asked"][0]
+    assert updating["opened"] == [
+        "https://github.com/JulesOpp/Crystal-Builder/releases/tag/v1.1.0"]
+
+
+def test_declining_the_update_opens_nothing(window, updating):
+    from PySide6.QtWidgets import QMessageBox
+    updating["answer"] = QMessageBox.No
+    window.check_for_updates()
+    updating["reply"](RELEASE)
+    assert updating["asked"]
+    assert updating["opened"] == []
+
+
+def test_an_up_to_date_build_says_so_and_opens_nothing(
+        window, updating, monkeypatch):
+    import xtal
+    monkeypatch.setattr(xtal, "__version__", "1.1.0")
+    window.check_for_updates()
+    updating["reply"](RELEASE)
+    assert "latest release" in updating["told"][0]
+    assert updating["asked"] == []
+    assert updating["opened"] == []
+
+
+def test_no_connection_is_a_message_not_a_crash(window, updating):
+    """Offline is the ordinary case on a cluster's login node: it
+    says why and offers the page, and the entry works again after."""
+    window.check_for_updates()
+    updating["reply"](b"", "Host api.github.com not found")
+    assert "not found" in updating["asked"][0]
+    assert updating["opened"] == [
+        "https://github.com/JulesOpp/Crystal-Builder/releases/latest"]
+    assert window.actions_["check_updates"].isEnabled()
+
+
+def test_a_second_click_while_checking_sends_one_request(
+        window, updating):
+    window.check_for_updates()
+    window.actions_["check_updates"].trigger()
+    window.check_for_updates()
+    assert len(updating["fetches"]) == 1
+    updating["reply"](RELEASE)
+    window.check_for_updates()
+    assert len(updating["fetches"]) == 2
