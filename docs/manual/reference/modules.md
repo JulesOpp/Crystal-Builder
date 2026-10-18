@@ -28,8 +28,92 @@ Pick a net, a node and a linker; the framework opens in a new tab
 | **Interlayer spacing** | text |  | How far apart the sheets of a layer net are stacked, in Angstrom.  Left empty it is 3.4, which is where pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a layer net such as hcb, hxl, sql or kgm has sheets to stack, and a spacing given for any other net is refused. |
 | **Stacking offset** | text |  | Where each sheet sits over the one below, as two fractions of the net's own a and b -- '1/3, 2/3', or '0.5, 0'.  Left empty the sheets are eclipsed, one directly over the next.  Layer nets only, like the spacing. |
 | **Interpenetration** | int, 1 to 6 | `1` | How many copies of the framework, threaded through one another -- 2 for two-fold.  The copies go where the most room is, measured by the closest contact between them, and a framework too dense for any placement is refused rather than built crowded.  Structure > Interpenetrate lists every placement. |
+| **Partition the pores** | text |  | For a trimer on acs (MIL-88): a C3 pyridyl on the channel axis in every trimer layer, bonded to the trimers' open metal sites -- the pore-space-partitioned pacs frameworks.  The partitioner sets the cell's a and the linker its c, so not every pair fits; 'Best fit' takes the one that strains the linker least, and one that cannot close the cell is refused with the reason.  Blank for none, 'auto', a shipped one (tpt, tpb, tripp, tppb, tppm, tpa, tpvb, tpeb, tppa, tppt) or one drawn into the workspace's blocks/partitioners. |
 | **Extra topologies** | path |  | A folder of your own .cgd nets, read alongside the ones PORMAKE ships |
 | **Extra building blocks** | path |  | A folder of your own .xyz building blocks, whose connection points are listed on the second line |
+
+(mod-mof-pacs)=
+### Build a pore-partitioned MOF (pacs)...
+
+An M3O trimer and a linker on acs, with a pyridyl partitioner across its channels: the pacs MOFs, nia-d
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Topology** | text | `pcu` | The net to build on, by its RCSR name -- pcu, tbo, soc.  2399 of them ship with PORMAKE. |
+| **Node building blocks** | text |  | Which block goes in which node slot: 'N59' when the net has one kind of node, or '0=N19,1=N59' when it has more.  A block fits a slot only when it has as many connection points as the slot is coordinated. |
+| **Linkers** | text |  | Which linker goes on which kind of edge: 'E32', or '0-0=E32,0-1=E14'.  Left empty the nodes are joined directly, which is what PORMAKE builds for a net with no linker in it. |
+| **Repeat the net** | text | `1x1x1` | How many times to tile the net before anything is placed on it -- '2x2x2', or '2' for the same in all three.  A framework built on a repeated net is the same material in a larger cell, which is what a defect, a guest or an interpenetrated pair needs room for.  Leave it at 1x1x1 for the net itself. |
+| **Node orientation** | one of Consistent across every joint, As found by the fit | `consistent` | Which way round the node blocks go.  A symmetric node fits its slot equally well two dozen ways.  By default each node is turned so that the faces at the two ends of every linker agree -- carboxylate against carboxylate, chelate against chelate -- which is what makes MOF-5's clusters alternate on a 2x2x2 net, and only where that is measurably better than what the fit chose.  'As found' keeps whatever the fit reached first, exactly as PORMAKE builds it. |
+| **Interlayer spacing** | text |  | How far apart the sheets of a layer net are stacked, in Angstrom.  Left empty it is 3.4, which is where pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a layer net such as hcb, hxl, sql or kgm has sheets to stack, and a spacing given for any other net is refused. |
+| **Stacking offset** | text |  | Where each sheet sits over the one below, as two fractions of the net's own a and b -- '1/3, 2/3', or '0.5, 0'.  Left empty the sheets are eclipsed, one directly over the next.  Layer nets only, like the spacing. |
+| **Interpenetration** | int, 1 to 6 | `1` | How many copies of the framework, threaded through one another -- 2 for two-fold.  The copies go where the most room is, measured by the closest contact between them, and a framework too dense for any placement is refused rather than built crowded.  Structure > Interpenetrate lists every placement. |
+| **Partition the pores** | text |  | For a trimer on acs (MIL-88): a C3 pyridyl on the channel axis in every trimer layer, bonded to the trimers' open metal sites -- the pore-space-partitioned pacs frameworks.  The partitioner sets the cell's a and the linker its c, so not every pair fits; 'Best fit' takes the one that strains the linker least, and one that cannot close the cell is refused with the reason.  Blank for none, 'auto', a shipped one (tpt, tpb, tripp, tppb, tppm, tpa, tpvb, tpeb, tppa, tppt) or one drawn into the workspace's blocks/partitioners. |
+| **Extra topologies** | path |  | A folder of your own .cgd nets, read alongside the ones PORMAKE ships |
+| **Extra building blocks** | path |  | A folder of your own .xyz building blocks, whose connection points are listed on the second line |
+
+(mod-mof-supertetrahedra)=
+### Build a supertetrahedral MOF...
+
+Any 4-connected net built of supertetrahedra -- four trimers and a tritopic face each, as MIL-100 and the sod-ZMOFs -- with its windows filled or left open
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Topology** | text | `pcu` | The net to build on, by its RCSR name -- pcu, tbo, soc.  2399 of them ship with PORMAKE. |
+| **Node building blocks** | text |  | Which block goes in which node slot: 'N59' when the net has one kind of node, or '0=N19,1=N59' when it has more.  A block fits a slot only when it has as many connection points as the slot is coordinated. |
+| **Linkers** | text |  | Which linker goes on which kind of edge: 'E32', or '0-0=E32,0-1=E14'.  Left empty the nodes are joined directly, which is what PORMAKE builds for a net with no linker in it. |
+| **Repeat the net** | text | `1x1x1` | How many times to tile the net before anything is placed on it -- '2x2x2', or '2' for the same in all three.  A framework built on a repeated net is the same material in a larger cell, which is what a defect, a guest or an interpenetrated pair needs room for.  Leave it at 1x1x1 for the net itself. |
+| **Node orientation** | one of Consistent across every joint, As found by the fit | `consistent` | Which way round the node blocks go.  A symmetric node fits its slot equally well two dozen ways.  By default each node is turned so that the faces at the two ends of every linker agree -- carboxylate against carboxylate, chelate against chelate -- which is what makes MOF-5's clusters alternate on a 2x2x2 net, and only where that is measurably better than what the fit chose.  'As found' keeps whatever the fit reached first, exactly as PORMAKE builds it. |
+| **Interlayer spacing** | text |  | How far apart the sheets of a layer net are stacked, in Angstrom.  Left empty it is 3.4, which is where pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a layer net such as hcb, hxl, sql or kgm has sheets to stack, and a spacing given for any other net is refused. |
+| **Stacking offset** | text |  | Where each sheet sits over the one below, as two fractions of the net's own a and b -- '1/3, 2/3', or '0.5, 0'.  Left empty the sheets are eclipsed, one directly over the next.  Layer nets only, like the spacing. |
+| **Interpenetration** | int, 1 to 6 | `1` | How many copies of the framework, threaded through one another -- 2 for two-fold.  The copies go where the most room is, measured by the closest contact between them, and a framework too dense for any placement is refused rather than built crowded.  Structure > Interpenetrate lists every placement. |
+| **Partition the pores** | text |  | For a trimer on acs (MIL-88): a C3 pyridyl on the channel axis in every trimer layer, bonded to the trimers' open metal sites -- the pore-space-partitioned pacs frameworks.  The partitioner sets the cell's a and the linker its c, so not every pair fits; 'Best fit' takes the one that strains the linker least, and one that cannot close the cell is refused with the reason.  Blank for none, 'auto', a shipped one (tpt, tpb, tripp, tppb, tppm, tpa, tpvb, tpeb, tppa, tppt) or one drawn into the workspace's blocks/partitioners. |
+| **Extra topologies** | path |  | A folder of your own .cgd nets, read alongside the ones PORMAKE ships |
+| **Extra building blocks** | path |  | A folder of your own .xyz building blocks, whose connection points are listed on the second line |
+
+(mod-mof-sets)=
+### Build a mixed-linker MOF (merged net)...
+
+A net with more than one kind of edge round one cluster -- sph, a merged net -- and a set of linkers that closes every edge at one scale
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Topology** | text | `pcu` | The net to build on, by its RCSR name -- pcu, tbo, soc.  2399 of them ship with PORMAKE. |
+| **Node building blocks** | text |  | Which block goes in which node slot: 'N59' when the net has one kind of node, or '0=N19,1=N59' when it has more.  A block fits a slot only when it has as many connection points as the slot is coordinated. |
+| **Linkers** | text |  | Which linker goes on which kind of edge: 'E32', or '0-0=E32,0-1=E14'.  Left empty the nodes are joined directly, which is what PORMAKE builds for a net with no linker in it. |
+| **Repeat the net** | text | `1x1x1` | How many times to tile the net before anything is placed on it -- '2x2x2', or '2' for the same in all three.  A framework built on a repeated net is the same material in a larger cell, which is what a defect, a guest or an interpenetrated pair needs room for.  Leave it at 1x1x1 for the net itself. |
+| **Node orientation** | one of Consistent across every joint, As found by the fit | `consistent` | Which way round the node blocks go.  A symmetric node fits its slot equally well two dozen ways.  By default each node is turned so that the faces at the two ends of every linker agree -- carboxylate against carboxylate, chelate against chelate -- which is what makes MOF-5's clusters alternate on a 2x2x2 net, and only where that is measurably better than what the fit chose.  'As found' keeps whatever the fit reached first, exactly as PORMAKE builds it. |
+| **Interlayer spacing** | text |  | How far apart the sheets of a layer net are stacked, in Angstrom.  Left empty it is 3.4, which is where pi-stacked sheets sit -- Ni3(HITP)2 is 3.24.  Only a layer net such as hcb, hxl, sql or kgm has sheets to stack, and a spacing given for any other net is refused. |
+| **Stacking offset** | text |  | Where each sheet sits over the one below, as two fractions of the net's own a and b -- '1/3, 2/3', or '0.5, 0'.  Left empty the sheets are eclipsed, one directly over the next.  Layer nets only, like the spacing. |
+| **Interpenetration** | int, 1 to 6 | `1` | How many copies of the framework, threaded through one another -- 2 for two-fold.  The copies go where the most room is, measured by the closest contact between them, and a framework too dense for any placement is refused rather than built crowded.  Structure > Interpenetrate lists every placement. |
+| **Partition the pores** | text |  | For a trimer on acs (MIL-88): a C3 pyridyl on the channel axis in every trimer layer, bonded to the trimers' open metal sites -- the pore-space-partitioned pacs frameworks.  The partitioner sets the cell's a and the linker its c, so not every pair fits; 'Best fit' takes the one that strains the linker least, and one that cannot close the cell is refused with the reason.  Blank for none, 'auto', a shipped one (tpt, tpb, tripp, tppb, tppm, tpa, tpvb, tpeb, tppa, tppt) or one drawn into the workspace's blocks/partitioners. |
+| **Extra topologies** | path |  | A folder of your own .cgd nets, read alongside the ones PORMAKE ships |
+| **Extra building blocks** | path |  | A folder of your own .xyz building blocks, whose connection points are listed on the second line |
+
+(mod-mof-rod)=
+### Build a rod framework...
+
+Parallel rods (MIL-53, MOF-74, Ni2Cl2BTDD, MOF-303, Zn(BDP)) on a pattern, joined by a linker; the net of the points of extension is read back
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Rod** | one of Co(pz)2 -- Co(BDP), Zn(pz)2 -- Zn(BDP), Al(OH)(O2CR)2-trans, Cr(OH)(O2CR)2-trans, Fe(OH)(O2CR)2-trans, Al(OH)(O2CR)2-cis, MOF-74 SBU (Co), MOF-74 SBU (Mg), MOF-74 SBU (Ni), MOF-74 SBU (Zn), Co2Cl2(bta)2, Ni2Cl2(bta)2 | `MIL-53_Cr` | The 1-periodic building unit, cut from a crystal with its points of extension and the shape they make along it.  Metals other than the crystal's are swapped in unrelaxed.  A rod saved from a structure in this workspace is listed too, and builds with its own linker. |
+| **Rod pattern** | one of sql -- square or rhombic, hcb -- honeycomb, hxl -- triangular, kgm -- kagome | `sql` | Where the rods cross a plane across them.  MIL-53, MOF-303 and Zn(BDP) sit on sql, MOF-74 and Ni2Cl2BTDD on hcb. |
+| **Linker** | text |  | Left empty, the linker cut from the rod's own crystal: BDC, dobdc, BTDD, pzdc or BDP.  Otherwise any of those, a two-ended block of PORMAKE's or your workspace's, or a file. |
+| **Hands** | one of As in the crystal, All one hand, Alternating | `auto` | Which hand each helical rod is.  It decides the net: three-fold helices joined in threes are etb when neighbours alternate and eta when all are one hand.  As in the crystal is the rod's own crystal's: MOF-74's alternate, Zn(BDP)'s are all one hand.  Alternating needs a pattern with no triangles (sql, hcb), and a rod with no hand (MIL-53, MOF-303) has none to choose. |
+| **Rhombus angle** | text |  | sql's angle, in degrees -- the coordinate MIL-53 breathes along.  Left empty, it is the one the rod's points of extension fit best, and the report says so. |
+| **Repeat** | text | `1x1x1` | How many cells, '1x1x2' for two along the rods. |
 
 (mod-net)=
 ## Net builder
@@ -52,6 +136,13 @@ Draw a named RCSR net; it opens in a new tab
 | **Net** | text | `pcu` | The RCSR's own name for it -- pcu, dia, srs, acs, sod, rht, hcb.  2926 of them can be drawn, the 200 layers among them; the four with no cell cannot. |
 | **Cell scale** | float, 1 to 40 | `8.0` | The .cgd cells are normalised so an edge is about one unit long.  Eight puts the atoms along an edge about 1 A apart, which is what makes the edges read as rods. |
 | **Atoms per edge** | int, 2 to 24 | `8` | Counting the two nodes.  More is a smoother rod and a bigger structure; the atom next to a node is what a coordination polyhedron is drawn over, so there has to be at least one between them. |
+
+(mod-net-explore)=
+### Merged-net explorer...
+
+The merged nets of Jiang et al. (Science 2024): parents, coordination and edge ratio, each net drawn with its parents as groups
+
+No settings.
 
 (mod-build)=
 ## Molecule builder

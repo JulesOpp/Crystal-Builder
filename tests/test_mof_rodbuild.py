@@ -31,6 +31,11 @@ def mof_74():
     return built("MOF-74_Zn", "hcb")
 
 
+@pytest.fixture(scope="module")
+def zn_bdp():
+    return built("MBDP_Zn", "sql")
+
+
 def per_metal(structure, metal):
     count = sum(1 for e in p1.expand(structure).elements if e == metal)
     return structure.lattice.volume / count, \
@@ -44,6 +49,45 @@ def test_mil_53_on_sql_with_bdc_reads_back_as_sra(mil_53):
     assert mil_53.net_name == "sra"
     assert mil_53.placement.worst < 0.05
     assert "sra" in mil_53.verdict()
+
+
+def test_zn_bdp_is_built_in_co_bdps_own_cell(zn_bdp):
+    """Pyrazolate-bridged helices of one hand on sql, joined by the
+    phenylene cut beside them: the cell Co(BDP) was refined in
+    (Taylor et al. 2016, 13.2708 x 14.3502 A, P4_122), since the swap
+    to Zn moves no atom, and Zn4(BDP)4 in it."""
+    cell = p1.expand(zn_bdp.structure)
+    a, b, c, alpha, beta, gamma = zn_bdp.placement.cell
+    assert (a, b, c) == pytest.approx((13.2708, 13.2708, 14.3502),
+                                      abs=0.01)
+    assert (alpha, beta, gamma) == pytest.approx((90, 90, 90), abs=0.01)
+    assert sorted(cell.elements) == sorted(
+        ["Zn"] * 4 + ["C"] * 48 + ["H"] * 32 + ["N"] * 16)
+    assert zn_bdp.placement.net.hands == "same"
+    assert zn_bdp.net_name == "snp"
+    assert zn_bdp.placement.worst < 0.05 and not zn_bdp.overlaps
+
+
+def test_every_zn_of_zn_bdp_is_four_coordinate_on_one_framework(zn_bdp):
+    """Each Zn on four pyrazolate nitrogens, each N on its ring and a
+    Zn, and one connected framework: a joint that missed would leave a
+    phenylene loose and a Zn three-coordinate."""
+    graph = bonding.graph(zn_bdp.structure)
+    cell = p1.expand(zn_bdp.structure)
+    count = graph.coordination()
+    by = defaultdict(set)
+    for i, symbol in enumerate(cell.elements):
+        by[symbol].add(int(count[i]))
+    assert by == {"Zn": {4}, "N": {3}, "C": {3}, "H": {1}}
+    assert len(graph.fragments()) == 1
+
+
+def test_auto_says_the_alternating_build_it_did_not_make(zn_bdp):
+    """Auto made Co(BDP)'s rods one hand, as the crystal is; the other
+    arrangement is a framework too, so the report says so -- and the
+    same is said for neither an achiral rod nor a request by name."""
+    assert "hands=alternating" in zn_bdp.other_hands
+    assert built("MBDP_Zn", "sql", hands="same").other_hands == ""
 
 
 @pytest.mark.slow

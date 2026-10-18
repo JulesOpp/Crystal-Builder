@@ -105,6 +105,21 @@ def test_an_achiral_rod_has_no_hands_to_alternate():
     assert rodnet.rod_net("sql", rod("MIL-53_Cr")).hands == "same"
 
 
+def test_auto_hands_are_the_rods_own_crystals():
+    """Co(BDP)'s helices are all one hand, so auto keeps them so on
+    sql, where it could alternate; MOF-74's alternate as theirs do.  A
+    rod that says nothing (one saved from a structure) alternates
+    where the pattern allows, as auto always did."""
+    from dataclasses import replace
+
+    assert rodnet.rod_net("sql", rod("MBDP_Zn")).hands == "same"
+    assert rodnet.rod_net("sql", rod("MBDP_Zn"), "alternating").hands \
+        == "alternating"
+    assert rodnet.rod_net("hcb", rod("MOF-74_Zn")).hands == "alternating"
+    unsaid = replace(rod("MBDP_Zn"), hands="")
+    assert rodnet.rod_net("sql", unsaid).hands == "alternating"
+
+
 def test_sqls_checkerboard_is_coloured_in_a_supercell_of_two():
     """One rod a cell cannot alternate with itself, so alternating on
     sql doubles the cell -- and the doubled pattern is still sql."""

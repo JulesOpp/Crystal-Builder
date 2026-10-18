@@ -506,13 +506,14 @@ ROD_PARAMS = (
                    ("hcb", "hcb -- honeycomb"),
                    ("hxl", "hxl -- triangular"),
                    ("kgm", "kgm -- kagome")),
-          help="Where the rods cross a plane across them.  MIL-53 and "
-               "MOF-303 sit on sql, MOF-74 and Ni2Cl2BTDD on hcb."),
+          help="Where the rods cross a plane across them.  MIL-53, "
+               "MOF-303 and Zn(BDP) sit on sql, MOF-74 and Ni2Cl2BTDD "
+               "on hcb."),
     Param("linker", "Linker", kind="text",
           help="Left empty, the linker cut from the rod's own crystal: "
-               "BDC, dobdc, BTDD or pzdc.  Otherwise any of those, a "
-               "two-ended block of PORMAKE's or your workspace's, or a "
-               "file."),
+               "BDC, dobdc, BTDD, pzdc or BDP.  Otherwise any of those, "
+               "a two-ended block of PORMAKE's or your workspace's, or "
+               "a file."),
     Param("hands", "Hands", kind="choice", default="auto",
           choices=(("auto", "As in the crystal"),
                    ("same", "All one hand"),
@@ -520,6 +521,8 @@ ROD_PARAMS = (
           help="Which hand each helical rod is.  It decides the net: "
                "three-fold helices joined in threes are etb when "
                "neighbours alternate and eta when all are one hand.  "
+               "As in the crystal is the rod's own crystal's: MOF-74's "
+               "alternate, Zn(BDP)'s are all one hand.  "
                "Alternating needs a pattern with no triangles (sql, "
                "hcb), and a rod with no hand (MIL-53, MOF-303) has "
                "none to choose."),
@@ -691,7 +694,8 @@ PORMAKE = Module(
                params=PARAMS,
                run=build_framework),
         Action(name="rod", label="Build a rod framework...",
-               tip="Parallel rods (MIL-53, MOF-74, Ni2Cl2BTDD, MOF-303) "
+               tip="Parallel rods (MIL-53, MOF-74, Ni2Cl2BTDD, MOF-303, "
+                   "Zn(BDP)) "
                    "on a pattern, joined by a linker; the net of the "
                    "points of extension is read back",
                kind="build",

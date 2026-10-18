@@ -3,7 +3,7 @@
 Every file in this folder is named here, with its source and what may
 be done with it; `tests/test_samples.py` fails when one is not.  File
 ▸ Open Sample reads the catalogue in `xtalapp/samples.py`, which lists
-sixty-five of the sixty-eight.
+seventy of the seventy-three.
 
 ## From the COD (`cod/`)
 
@@ -15,7 +15,7 @@ and the SHELX `.res`/`.hkl` files and PLATON SQUEEZE report some
 depositions embed -- and every other byte as downloaded.
 `scripts/fetch_cod_samples.py` writes them; `--check` says whether the
 COD still agrees.  Fetched 2026-09-23; UiO-67, PCN-224, SIFSIX-3-Ni
-and SIFSIX-1-Cu 2026-09-29.
+and SIFSIX-1-Cu 2026-09-29; Co(BDP) 2026-10-18.
 
 | File | COD | Publication |
 |---|---|---|
@@ -39,6 +39,7 @@ and SIFSIX-1-Cu 2026-09-29.
 | `cod/PCN-224.cif` | [1558028](https://www.crystallography.net/cod/1558028.html) | Zee et al., *Chem. Sci.* **11**, 5447 (2020), [10.1039/D0SC01796E](https://doi.org/10.1039/D0SC01796E) |
 | `cod/SIFSIX-3-Ni.cif` | [1553650](https://www.crystallography.net/cod/1553650.html) | Elsaidi et al., *Chem. Sci.* **8**, 2373 (2017), under helium, [10.1039/C6SC05012C](https://doi.org/10.1039/C6SC05012C) |
 | `cod/SIFSIX-1-Cu.cif` | [4117561](https://www.crystallography.net/cod/4117561.html) | Burd et al., *J. Am. Chem. Soc.* **134**, 3663 (2012), [10.1021/ja211340t](https://doi.org/10.1021/ja211340t) |
+| `cod/Co-BDP.cif` | [4131069](https://www.crystallography.net/cod/4131069.html) | Taylor et al., *J. Am. Chem. Soc.* **138**, 15019 (2016), [10.1021/jacs.6b09155](https://doi.org/10.1021/jacs.6b09155); the rod the shipped `MBDP` rods are cut from (`scripts/rod_blocks.py`) |
 
 Not in the COD when looked for on 2026-09-23: MOF-303, Cu3(HHTP)2 and
 Cr-red-MOF-1 ([10.1021/jacs.5c16581](https://doi.org/10.1021/jacs.5c16581)).
@@ -155,6 +156,7 @@ framework rather than only for clashes:
 | `prepared/PCN-224.cif` | Zr6O4(OH)4(OAc)6(H2TCPP)1.5 as deposited, the primitive cell: one orientation of each acetate |
 | `prepared/SIFSIX-3-Ni.cif` | one orientation of each pyrazine, in P1 |
 | `prepared/SIFSIX-1-Cu.cif` | one orientation of the SiF6's equatorial square and of each bipyridine, in P1.  The Cu-F contact is 2.38 A, beyond the distance rule, so the SiF6 is perceived as its own fragment |
+| `prepared/Co-BDP.cif` | as deposited: ordered, solvent-free and charge-balanced already, so nothing was needed and it stays in P4122 |
 
 **Relaxed** means positions only, at the experimental cell, with
 ORB-v3 (`conservative-inf-omat`, float64) and D3(BJ) through

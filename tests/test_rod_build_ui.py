@@ -58,6 +58,7 @@ def test_rods_are_listed_by_their_chemistry(dialog):
     assert labels["MOF-303_Al"] == "Al(OH)(O2CR)2-cis"
     assert labels["Ni2Cl2BTDD_Ni"] == "Ni2Cl2(bta)2"
     assert labels["MOF-74_Zn"] == "MOF-74 SBU (Zn)"
+    assert labels["MBDP_Zn"] == "Zn(pz)2 -- Zn(BDP)"
 
 
 def test_the_angle_placeholder_is_the_angle_a_build_would_use(

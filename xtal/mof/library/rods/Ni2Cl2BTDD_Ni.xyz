@@ -1,5 +1,5 @@
 33
-rod repeat=8.1888 axis=z name=Ni2Cl2BTDD_Ni
+rod repeat=8.1888 axis=z name=Ni2Cl2BTDD_Ni hands=alternating
 N    -0.8296 0.0002 0.0000
 N    0.4150 0.7183 5.4592
 N    0.4146 -0.7185 2.7296

@@ -504,6 +504,16 @@ Burd et al., J. Am. Chem. Soc. 2012: Cu(4,4'-bipyridine)2 grids pillared by SiF6
 ```{index} SIFSIX-1-Cu
 ```
 
+(cmd-sample_cod_cobdp)=
+### Open Sample ▸ From the COD ▸ Co(BDP)
+
+`sample_cod_cobdp`
+
+Taylor et al., J. Am. Chem. Soc. 2016: Co(II) chains bridged by pairs of pyrazolates, four-fold helices joined by 1,4-benzenedipyrazolate into square channels, in P4122 -- the rod Zn(BDP) is built from
+
+```{index} Co(BDP)
+```
+
 (cmd-sample_prep_mof5)=
 ### Open Sample ▸ Prepared for simulation ▸ MOF-5
 
@@ -702,6 +712,16 @@ COD 1553650 prepared for simulation: one orientation of each pyrazine, in P1: Ni
 COD 4117561 prepared for simulation: one orientation of the SiF6's equatorial square and of each bipyridine, in P1: Cu(bpy)2SiF6 exactly
 
 ```{index} SIFSIX-1-Cu
+```
+
+(cmd-sample_prep_cobdp)=
+### Open Sample ▸ Prepared for simulation ▸ Co(BDP)
+
+`sample_prep_cobdp`
+
+COD 4131069 prepared for simulation: as deposited, in P4122: ordered, solvent-free and charge-balanced already, so nothing was needed
+
+```{index} Co(BDP)
 ```
 
 (cmd-save)=
@@ -1268,6 +1288,26 @@ Write this molecule into the folder the MOF builder reads, so it appears in the 
 Write this molecule into the workspace's monomers, so the polymer builder lists it beside its own.  Its two connection points are the head and the tail, and the dialog asks which is which.
 
 ```{index} Save as a monomer...
+```
+
+(cmd-save_rod)=
+### Building blocks ▸ Save the rod as a block...
+
+`save_rod`
+
+Cut the rod holding the selected metal (or the first metal) out of this crystal, with its linker, into the workspace's blocks, so the rod builder can put it on any pattern.  Cut from a prepared copy by default; the tab is not changed.
+
+```{index} Save the rod as a block...
+```
+
+(cmd-topcryst)=
+### Determine topology on TopCryst...
+
+`topcryst`
+
+Write this crystal as a CIF in the entry's topcryst folder -- no markers, no net edges -- show it, and open topcryst.com to upload it there.  Nothing is sent from here, and the site takes ten structures a day
+
+```{index} Determine topology on TopCryst...
 ```
 
 (cmd-prepare_simulation)=
@@ -1980,6 +2020,46 @@ Pick a net, a node and a linker; the framework opens in a new tab
 ```{index} Build a framework (MOF)...
 ```
 
+(cmd-module.mof.pacs)=
+### MOF builder ▸ Build a pore-partitioned MOF (pacs)...
+
+`module.mof.pacs`
+
+An M3O trimer and a linker on acs, with a pyridyl partitioner across its channels: the pacs MOFs, nia-d
+
+```{index} Build a pore-partitioned MOF (pacs)...
+```
+
+(cmd-module.mof.supertetrahedra)=
+### MOF builder ▸ Build a supertetrahedral MOF...
+
+`module.mof.supertetrahedra`
+
+Any 4-connected net built of supertetrahedra -- four trimers and a tritopic face each, as MIL-100 and the sod-ZMOFs -- with its windows filled or left open
+
+```{index} Build a supertetrahedral MOF...
+```
+
+(cmd-module.mof.sets)=
+### MOF builder ▸ Build a mixed-linker MOF (merged net)...
+
+`module.mof.sets`
+
+A net with more than one kind of edge round one cluster -- sph, a merged net -- and a set of linkers that closes every edge at one scale
+
+```{index} Build a mixed-linker MOF (merged net)...
+```
+
+(cmd-module.mof.rod)=
+### MOF builder ▸ Build a rod framework...
+
+`module.mof.rod`
+
+Parallel rods (MIL-53, MOF-74, Ni2Cl2BTDD, MOF-303, Zn(BDP)) on a pattern, joined by a linker; the net of the points of extension is read back
+
+```{index} Build a rod framework...
+```
+
 (cmd-module.net.draw)=
 ### Net builder ▸ Draw a net...
 
@@ -1988,6 +2068,16 @@ Pick a net, a node and a linker; the framework opens in a new tab
 Draw a named RCSR net; it opens in a new tab
 
 ```{index} Draw a net...
+```
+
+(cmd-net_explorer)=
+### Net builder ▸ Merged-net explorer...
+
+`net_explorer`
+
+The 352 merged nets of Jiang et al. (Science 2024) with the two nets each one merges; open one with its parents as atom groups, or build on it
+
+```{index} Merged-net explorer...
 ```
 
 (cmd-module.build.molecule)=

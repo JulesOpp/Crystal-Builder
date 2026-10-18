@@ -200,8 +200,9 @@ class RodBuildDialog(QDialog):
         for name in PATTERNS:
             self.pattern.addItem(PATTERN_LABELS.get(name, name), name)
         self.pattern.setToolTip(
-            "Where the rods cross a plane across them.  MIL-53 and "
-            "MOF-303 sit on sql, MOF-74 and Ni2Cl2BTDD on hcb.")
+            "Where the rods cross a plane across them.  MIL-53, "
+            "MOF-303 and Zn(BDP) sit on sql, MOF-74 and Ni2Cl2BTDD on "
+            "hcb.")
 
         self.linker_search = QLineEdit(self)
         self.linker_search.setPlaceholderText(
@@ -480,10 +481,11 @@ class RodBuildDialog(QDialog):
         self.hands.setToolTip(
             "Which hand each helical rod is.  It decides the net: "
             "three-fold helices are etb when neighbours alternate and "
-            "eta when all are one hand.  As in the crystal alternates "
-            "them where the pattern allows, as the rod's own crystal "
-            "does, whatever the linker; Zn2(dobpdc)'s rods are all one "
-            "hand, so choose All one hand for it." if chiral else
+            "eta when all are one hand.  As in the crystal is the "
+            "rod's own crystal's, whatever the linker: MOF-74's "
+            "alternate where the pattern allows, Zn(BDP)'s are all one "
+            "hand.  Zn2(dobpdc)'s rods are one hand where MOF-74's "
+            "alternate, so choose All one hand for it." if chiral else
             "This rod has no hand -- an improper operation maps it "
             "onto itself -- so there is none to choose.")
         alternating = self.hands.model().item(2)

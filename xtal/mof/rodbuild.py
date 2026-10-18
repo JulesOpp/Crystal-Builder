@@ -58,9 +58,11 @@ from xtal.mof.rodnet import (
     Placement,
     RodNetError,
     _about,
+    colouring,
     conformers,
     ends_of,
     faces,
+    pattern,
     placement,
     rod_net,
 )
@@ -68,7 +70,7 @@ from xtal.mof.rodnet import (
 #: Each family's own linker, the one cut from the same crystal: what a
 #: rod is built with when no linker is named.
 OWN_LINKERS = {"MIL-53": "BDC", "MOF-74": "dobdc", "Ni2Cl2BTDD": "BTDD",
-               "MOF-303": "pzdc"}
+               "MOF-303": "pzdc", "MBDP": "BDP"}
 
 
 class RodBuildError(ValueError):
@@ -221,6 +223,9 @@ class RodOutcome:
     cif: Path | None = None
     #: One ``(node, hand, turn, rise)`` per rod of the cell.
     rods: tuple = ()
+    #: Whether the rods could have alternated: a chiral rod on a
+    #: pattern with no odd rings.
+    could_alternate: bool = False
 
     @property
     def net_name(self) -> str:
@@ -255,13 +260,20 @@ class RodOutcome:
         dobpdc is one hand, as their crystals are -- but dobpdc only by
         0.02 against 0.15, BTDD ties, and IRMOF-74-II's own rod picks
         one hand where its crystal alternates; and the second build
-        doubles the time."""
-        if self.request.hands != "auto" \
-                or self.placement.net.hands != "alternating":
+        doubles the time.  Where the rod's crystal is one hand
+        (Co(BDP)), auto builds that, and says the other instead."""
+        if self.request.hands != "auto":
             return ""
-        return ("auto alternated the rods' hands, as MOF-74's are; rods "
-                "all of one hand are a framework too -- Zn2(dobpdc) is "
-                "built so, in P3_121 -- and hands=same builds it")
+        if self.placement.net.hands == "alternating":
+            return ("auto alternated the rods' hands, as MOF-74's are; "
+                    "rods all of one hand are a framework too -- "
+                    "Zn2(dobpdc) is built so, in P3_121 -- and "
+                    "hands=same builds it")
+        if not self.could_alternate:
+            return ""
+        return ("auto made the rods all one hand, as they are in the "
+                "rod's own crystal; rods of alternating hands are a "
+                "framework too, and hands=alternating builds it")
 
     def warning(self) -> str:
         if not self.overlaps:
@@ -300,7 +312,10 @@ def build(request: RodRequest, directory=None, log=None,
                          n_atoms=structure.n_sites,
                          joints=atoms.joint_bonds,
                          longest_joint=atoms.longest_joint,
-                         rods=atoms.rods)
+                         rods=atoms.rods,
+                         could_alternate=rod.hand is not None
+                         and colouring(pattern(request.pattern))
+                         is not None)
     outcome.closest = closest(structure)
     outcome.overlaps = tuple(
         (d, atoms.name(i), atoms.name(j))

@@ -2,7 +2,7 @@
 xtal.mof.rod
 ============
 A rod: a 1-periodic secondary building unit, as MOF-74, MIL-53,
-MOF-303 and Ni2Cl2BTDD are built from.
+MOF-303, Ni2Cl2BTDD and Co(BDP) are built from.
 
 **A rod is one block, not a chain of finite nodes.**  Cut into
 PORMAKE nodes, a rod would put metals on the edges of its net -- MOF-74's
@@ -49,7 +49,9 @@ The file is an ``.xyz`` with the rod on its second line::
     edge 40 41 1    PoE shape: two X atoms and the repeats between them
 
 A rod saved from a crystal (:func:`save_block`) also says
-``linker=NAME`` on its second line: the linker cut beside it.
+``linker=NAME`` on its second line: the linker cut beside it.  A shipped
+chiral rod says ``hands=same`` or ``hands=alternating``: how its
+neighbours sat in its crystal, which a rod cannot tell from itself.
 
 Numpy and the structure layer only: no Qt, no PORMAKE.
 """
@@ -112,6 +114,11 @@ class Rod:
     #: chelate the rod together.  A linker for this rod has twice as
     #: many points as this, half at each end.
     face: int = 1
+    #: How a chiral rod's neighbours sat in the crystal it was cut
+    #: from -- ``"same"`` hand or ``"alternating"`` -- which is what
+    #: ``hands="auto"`` builds (:func:`xtal.mof.rodnet.rod_net`).
+    #: Empty where nobody said, as for a rod saved from a structure.
+    hands: str = ""
 
     # ------------------------------------------------------- reading
 
@@ -239,6 +246,8 @@ class Rod:
             head.append(f"linker={self.linker}")
         if self.face != 1:
             head.append(f"face={self.face}")
+        if self.hands:
+            head.append(f"hands={self.hands}")
         lines = [str(len(self.symbols)), " ".join(head)]
         for s, xyz in zip(self.symbols, self.positions, strict=True):
             # Adding 0.0 drops the sign of a zero: an atom on the axis
@@ -288,7 +297,8 @@ class Rod:
         return cls(symbols, np.array(positions, dtype=float),
                    float(found["repeat"]), bonds, edges,
                    found.get("name", ""), tuple(notes),
-                   found.get("linker", ""), int(found.get("face", 1)))
+                   found.get("linker", ""), int(found.get("face", 1)),
+                   found.get("hands", ""))
 
     @classmethod
     def read(cls, path) -> Rod:
@@ -1037,6 +1047,7 @@ LABELS = {
     "MOF-303": "{M}(OH)(O2CR)2-cis",
     "Ni2Cl2BTDD": "{M}2Cl2(bta)2",
     "MOF-74": "MOF-74 SBU ({M})",
+    "MBDP": "{M}(pz)2 -- {M}(BDP)",
 }
 
 
