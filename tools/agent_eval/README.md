@@ -2,29 +2,63 @@
 
 `tests/test_agent_skill.py` holds the skill's *names* to the code.
 Nothing there checks that an agent given the skill *follows* it. This
-does: five scripted tasks with known answers, each given to Claude
+does: seven scripted tasks with known answers, each given to Claude
 Code headless, and graded automatically.
 
 It is run by hand, before a release. It is not in the wheel, it never
-runs in CI, and a full run spends the tokens of five agent sessions on
+runs in CI, and a full run spends the tokens of seven agent sessions on
 your own Claude Code login (there is no API key here).
 
 ```bash
 .venv/bin/python tools/agent_eval/run.py --dry-run         # what would run; calls nothing
-.venv/bin/python tools/agent_eval/run.py                   # all five
+.venv/bin/python tools/agent_eval/run.py                   # all seven
 .venv/bin/python tools/agent_eval/run.py --only tied-scan  # one
 .venv/bin/python tools/agent_eval/run.py --claude PATH     # claude not on PATH
 ```
+
+`--via` chooses how the agent reaches Crystal Builder:
+
+```bash
+.venv/bin/python tools/agent_eval/run.py --via mcp     # a chat client's view
+.venv/bin/python tools/agent_eval/run.py --via both    # side by side
+```
+
+- `raw` (the default): the skill installed, a `CLAUDE.md`, and Bash,
+  Read, Write and Edit, driving the Python `Session` API.
+- `mcp`: no skill, no `CLAUDE.md` and no built-in tool (`--tools ""`).
+  `--mcp-config` names one server, this Python's `xtal mcp --headless`,
+  with an `XTAL_APP_DATA` of its own so it never reaches your window.
+  `--strict-mcp-config` leaves out your own servers. The prompt opens
+  with what the raw `CLAUDE.md` says: the input, the workspace, and
+  "name every diagnostic by its code".
+
+Both ways run with `--setting-sources project` and with the
+environment cleaned of a host Claude Code session's variables
+(`CLAUDECODE`, every `CLAUDE_*`, `ANTHROPIC_BASE_URL`,
+`MCP_CONNECTION_NONBLOCKING`, `MCP_SERVER_CONNECTION_BATCH_SIZE`,
+`DISABLE_MICROCOMPACT`), so neither your own plugins and skills nor
+the session you started it from -- its effort, how it connects to
+servers and keeps its context, which would skew turns and cost --
+reach the agent; a chat client has neither. The `CLAUDE_` prefix
+also drops your own `CLAUDE_CONFIG_DIR`, `CLAUDE_CODE_USE_BEDROCK` and
+`CLAUDE_CODE_OAUTH_TOKEN`: the agent runs on the login and
+configuration Claude Code finds in its default places, so set those
+up there to run the eval.
+
+Both are graded by the same `grade.py`. The table gives each way's
+status, turns and cost (from the JSON's `num_turns` and
+`total_cost_usd`), then a parity line of passed over run. What each
+agent left is in `runs/<time>/<via>/<task>/`.
 
 Use the Python that has Crystal Builder installed: the agent is told
 to use it, and the grader imports `xtal`. `claude` is looked for on
 `PATH`, then at `~/.claude/local/claude`; the desktop app bundles its
 own and does not put it on `PATH`, so pass `--claude` then.
 
-It prints `task | passed | failed checks` and exits 1 if any task
-failed. A task whose `needs` are not installed is skipped and says
-which. A task `claude` itself could not run -- not logged in, a crash
--- is `not run` with its last line, rather than every check failing.
+It prints that table and exits 1 if any task failed. A task whose
+`needs` are not installed is skipped and says which. A task `claude`
+itself could not run -- not logged in, a crash -- is `not run` with
+its last line, rather than every check failing.
 
 ## What one task does
 
@@ -40,7 +74,7 @@ which. A task `claude` itself could not run -- not logged in, a crash
 5. `grade.py` reads the JSON's `result` (the final report), the newest
    `.xtalproj` the agent saved, and every `agent-session.jsonl` in the
    workspace.
-6. The folder, minus the skill, is copied to `runs/<time>/<task>/`
+6. The folder, minus the skill, is copied to `runs/<time>/<via>/<task>/`
    (ignored by git) with `transcript.json` and `verdict.json`, for
    reading what the agent actually did.
 
@@ -62,17 +96,21 @@ combination was found; run it again if the catalogue changes.
 | `tied-scan` | `resources/samples/simple/NaCl.cif`, a Na-Cl distance Fm-3m ties | `MODULE_FAILED` reported; no `reduce_to_p1` |
 | `open-trimers` | `resources/samples/cod/MIL-88B.cif`, Cr3O trimers | `OPEN_TRIMERS` and `CELL_NOT_NEUTRAL` reported; no `cap`; the person asked; the saved project still has `OPEN_TRIMERS` |
 | `short-relax` | `resources/samples/MIL53.cif`, `max_steps=3` | `NOT_CONVERGED` reported; atom count unchanged |
+| `strain-sweep` | `resources/samples/MIL53.cif`, *a* at 98, 100 and 102 % | `numbers`: the three UFF energies; no `optimize` |
+| `compare-two` | `resources/samples/HKUST1.cif` and `MOF-5.cif` | `numbers`: the shortest metal-metal distance; `report_names`: HKUST |
 
 `expect.json` keys, all optional:
 
 | Key | Checked by |
 |---|---|
-| `input` | the structure handed to the agent, relative to the repository; none for a build |
+| `input` | the structure handed to the agent, relative to the repository, or a list of them; none for a build |
 | `codes` | each code appears, as the code, in the final report |
 | `inspect` | `{CODE: "present" \| "absent"}` from `inspect()` of the saved project; no project fails each |
 | `log_must_not_contain`, `log_must_contain` | verb names in the session logs; a `prepare` step counts too, so `cap` is caught either way. A refused verb is a row too, and counts: trying `cap` is the failure, whether or not it ran |
 | `report_must_ask` | a question that itself names `cap`, a trimer or a ligand (code names like `OPEN_TRIMERS` do not count), or a short question pointing back -- "Shall I run it?" -- after a sentence that does; a sign-off ("anything else?") or a question the report answers itself ("...? No.") is not one |
 | `atoms_unchanged` | the saved project's P1 atom count equals the input's |
+| `numbers` | each `{"label", "value", "tol"}` is a number in the final report, within `tol` |
+| `report_names` | each word is in the final report, case aside |
 | `needs` | extras the task cannot run without; not graded, skipped |
 
 The grading is strict on purpose: a report that paraphrases a warning

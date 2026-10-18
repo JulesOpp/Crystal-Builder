@@ -34,13 +34,17 @@ and not two orbits.
 from __future__ import annotations
 
 import json
+import os
 import time
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
 from xtal.agent.answers import VerbResult
 from xtal.agent.diagnostics import Diagnostic
+from xtal.agent.render import VIEWS
 from xtal.commands import atoms as atom_commands
 from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
@@ -55,6 +59,18 @@ from xtal.core.structure import Structure
 LOG_NAME = "agent-session.jsonl"
 
 PROJECT_EXTENSION = ".xtalproj"
+
+#: What :meth:`Session.render` looks along, spelled out for an MCP
+#: client, which can only send what a parameter's schema says it takes.
+View = Literal[VIEWS] | Sequence[float] | dict[str, Sequence[int]]
+
+#: A path as either caller has one: text from an MCP client (the schema
+#: says string), a ``Path`` from a script, which ``str`` alone told a
+#: type checker it could not pass.
+PathName = str | os.PathLike[str]
+
+#: A bond's order by name, the window's Set Bond Type menu.
+BondTypeName = Literal[tuple(bond_commands.BOND_TYPE_ORDERS)]
 
 
 class Session:
@@ -84,7 +100,8 @@ class Session:
     # ------------------------------------------------------------------
 
     @classmethod
-    def open(cls, path, workspace=None) -> Session:
+    def open(cls, path: PathName,
+             workspace: PathName | None = None) -> Session:
         """Open a structure file or a project.
 
         With ``workspace`` (a directory, made if it is not one yet) the
@@ -167,7 +184,8 @@ class Session:
         return session
 
     @classmethod
-    def build(cls, action: str, workspace, **params) -> Session:
+    def build(cls, action: str, workspace: PathName,
+              **params) -> Session:
         """Run a builder (``mof.build``, ``build.smiles`` ...) and open
         what it built, filed in ``workspace`` as the window files it.
 
@@ -244,8 +262,9 @@ class Session:
         from xtal.agent.inspect import DEFAULT_SYMPREC, inspect
         return inspect(self.structure, symprec or DEFAULT_SYMPREC)
 
-    def render(self, path, view="diagonal", size=(800, 600),
-               style: str = "ball_stick", highlight=(),
+    def render(self, path: PathName, view: View = "diagonal",
+               size: tuple[int, int] = (800, 600),
+               style: str = "ball_stick", highlight: Sequence[int] = (),
                show_cell: bool = True) -> VerbResult:
         """A PNG of the current structure -- see
         :func:`xtal.agent.render.render`.  ``view`` is ``"diagonal"``,
@@ -262,7 +281,8 @@ class Session:
                      answer)
         return answer
 
-    def select(self, rule: str, atoms=(), **args) -> VerbResult:
+    def select(self, rule: str, atoms: Sequence[int] = (),
+               **args) -> VerbResult:
         """P1 atoms, bonds or net edges by one rule -- the rules of the
         window's Select dialog (:func:`xtal.core.selection.pick`).
 
@@ -305,7 +325,8 @@ class Session:
     #  ATOMS
     # ------------------------------------------------------------------
 
-    def add_atom(self, element: str, frac=None, cart=None,
+    def add_atom(self, element: str, frac: Sequence[float] | None = None,
+                 cart: Sequence[float] | None = None,
                  bonded_to: int | None = None, occupancy: float = 1.0,
                  label: str = "") -> VerbResult:
         """Place one atom, at fractional ``frac`` or cartesian ``cart``.
@@ -336,7 +357,7 @@ class Session:
                               else "the new atom has no bonds")],
                           data={"site": self.structure.n_sites})
 
-    def delete_sites(self, sites) -> VerbResult:
+    def delete_sites(self, sites: int | Sequence[int]) -> VerbResult:
         """Remove whole sites -- every atom of each orbit."""
         sites = self._check_sites(sites)
         return self._push("delete_sites",
@@ -344,15 +365,19 @@ class Session:
                           f"deleted {len(sites)} site(s)",
                           {"sites": sites})
 
-    def set_element(self, sites, element: str) -> VerbResult:
+    def set_element(self, sites: int | Sequence[int],
+                    element: str) -> VerbResult:
         sites = self._check_sites(sites)
         return self._push("set_element",
                           atom_commands.SetElement(sites, element),
                           f"{len(sites)} site(s) are now {element}",
                           {"sites": sites, "element": element})
 
-    def move_sites(self, sites, frac_delta=None, cart_delta=None,
-                   to=None) -> VerbResult:
+    def move_sites(self, sites: int | Sequence[int],
+                   frac_delta: Sequence[float] | None = None,
+                   cart_delta: Sequence[float] | None = None,
+                   to: Sequence[float] | Sequence[Sequence[float]]
+                   | None = None) -> VerbResult:
         """Move sites by a fractional or cartesian delta, or ``to``
         explicit fractional coordinates (one row per site).
 
@@ -385,7 +410,8 @@ class Session:
     #  CELL AND SYMMETRY
     # ------------------------------------------------------------------
 
-    def set_cell(self, a, b, c, alpha, beta, gamma,
+    def set_cell(self, a: float, b: float, c: float, alpha: float,
+                 beta: float, gamma: float,
                  keep: str = "fractional") -> VerbResult:
         from xtal.core.lattice import Lattice
         lattice = Lattice.from_parameters(a, b, c, alpha, beta, gamma)
@@ -401,7 +427,7 @@ class Session:
                              cell_commands.Supercell(na, nb, nc),
                              {"n": [na, nb, nc]})
 
-    def slab(self, hkl, layers: int = 1, vacuum: float = 15.0,
+    def slab(self, hkl: Sequence[int], layers: int = 1, vacuum: float = 15.0,
              shift: float = 0.0) -> VerbResult:
         """A slab along (hkl), ``layers`` spacings thick, with
         ``vacuum`` Angstrom above.  The bonds are carried, never
@@ -496,7 +522,7 @@ class Session:
                           {"atoms": [atom_a, atom_b]})
 
     def set_bond_type(self, atom_a: int, atom_b: int,
-                      order) -> VerbResult:
+                      order: float | BondTypeName) -> VerbResult:
         """State a bond's order: 1, 1.5 (aromatic), 2, 3, or a name
         from ``bond_commands.BOND_TYPE_ORDERS``.  A stated order wins
         over anything perception would infer."""
@@ -523,7 +549,7 @@ class Session:
         return self._push("add_hydrogens", command, plan.message(),
                           {"xray": xray})
 
-    def substitute(self, group: str, atoms=None,
+    def substitute(self, group: str, atoms: Sequence[int] | None = None,
                    per_ring: bool = False, fraction: float = 1.0,
                    seed: int = 0) -> VerbResult:
         """Replace hydrogens with ``group`` -- a library name
@@ -566,8 +592,10 @@ class Session:
         self._rewrite_last_log(answer)
         return answer
 
-    def fill_pores(self, guest: str, count: int = 20, beside=None,
-                   near=None, overlap_scale: float | None = None,
+    def fill_pores(self, guest: str, count: int = 20,
+                   beside: Sequence[int] | None = None,
+                   near: tuple[float, float] | None = None,
+                   overlap_scale: float | None = None,
                    seed: int = 0) -> VerbResult:
         """Copies of a molecule where there is room -- or, ``beside``,
         one by each of those P1 atoms: the counter-ions of a charged
@@ -618,7 +646,8 @@ class Session:
             data={"placed": placement.placed,
                   "missed": list(placement.missed)})
 
-    def place_molecule(self, guest: str, at, turn: bool = False,
+    def place_molecule(self, guest: str, at: Sequence[float],
+                       turn: bool = False,
                        keep_group: bool = False,
                        overlap_scale: float | None = None,
                        seed: int = 0) -> VerbResult:
@@ -680,7 +709,7 @@ class Session:
     #  WHOLE-STRUCTURE OPERATIONS
     # ------------------------------------------------------------------
 
-    def prepare(self, steps=None) -> VerbResult:
+    def prepare(self, steps: Sequence[str] | None = None) -> VerbResult:
         """Make a deposited structure ready for a calculation.
 
         ``steps`` from :data:`xtal.core.prepare.STEPS`; the default is
@@ -1027,7 +1056,7 @@ class Session:
         self._record("redo", {}, answer)
         return answer
 
-    def save(self, path=None) -> Path:
+    def save(self, path: PathName | None = None) -> Path:
         """Write the session as a project -- what Save does in the
         window.  A structure opened as a CIF becomes the ``.xtalproj``
         of the same name beside it; the CIF is left as it is."""
@@ -1047,7 +1076,7 @@ class Session:
                                 atoms_after=self.n_atoms))
         return target
 
-    def export(self, path) -> Path:
+    def export(self, path: PathName) -> Path:
         """Write a copy for another program: no markers, no net, no
         suppressions -- :func:`xtal.io.export.for_export`."""
         from xtal.io import FORMATS

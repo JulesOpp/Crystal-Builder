@@ -26,7 +26,7 @@ from mcp import ClientSession  # noqa: E402
 from PySide6.QtCore import QTimer  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
-from xtal.agent import discovery, proxy  # noqa: E402
+from xtal.agent import context, discovery, proxy  # noqa: E402
 from xtal.agent.session import Session  # noqa: E402
 from xtal.io import write_cif  # noqa: E402
 from xtalapp.agent_host import STOPPED, WindowSession  # noqa: E402
@@ -557,3 +557,27 @@ def test_a_running_relaxation_does_not_silence_the_server(
     qtbot.waitUntil(lambda: not first.is_alive(), timeout=30000)
     relaxed = json.loads(out["answer"].content[0].text)
     assert relaxed["ok"], relaxed
+
+
+def test_the_window_serves_a_guide_and_a_prompt(qtbot, window):
+    """The window's server is ``build_server`` over its tabs, so it
+    serves the playbook too; a client on its HTTP door reads it."""
+    _switch_on(qtbot, window)
+    server = window.agent_server
+
+    async def go():
+        async with proxy.connect(server.url, server.token) as streams:
+            async with ClientSession(streams[0], streams[1]) as session:
+                hello = await session.initialize()
+                page = await session.read_resource(
+                    context.GUIDE_URI.format("workspace"))
+                got = await session.get_prompt(
+                    "prepare-deposited-cif", {"path": "x.cif"})
+                return hello, page, got
+
+    out = _in_a_thread(qtbot, lambda: anyio.run(go))
+    assert "error" not in out, repr(out.get("error"))
+    hello, page, got = out["answer"]
+    assert hello.instructions == context.instructions()
+    assert page.contents[0].text == context.guide("workspace")
+    assert "x.cif" in got.messages[0].content.text
