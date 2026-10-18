@@ -217,6 +217,38 @@ def check_notices(report) -> None:
     report("notices: not written in this checkout, skipped")
 
 
+#: The backend each platform's build is expected to carry: the system's
+#: own TLS, whose trust store is the one the person's browser uses.
+NATIVE_TLS = {"darwin": "securetransport", "win32": "schannel"}
+
+
+def check_tls(report, platform=None, backends=None,
+              supports=None) -> None:
+    """Help > Check for Updates can speak HTTPS, in this build.
+
+    Qt loads its TLS backend as a plugin, so a bundle that did not
+    collect ``plugins/tls`` still imports QtNetwork and fails only
+    when it connects.  ``cert-only`` reads certificates and opens no
+    connection, so it does not count.  The backends are asked and the
+    network never is, because a build machine may be offline.
+    """
+    if backends is None or supports is None:
+        from PySide6.QtNetwork import QSslSocket
+
+        backends = QSslSocket.availableBackends()
+        supports = QSslSocket.supportsSsl()
+    platform = platform or sys.platform
+    usable = [name for name in backends if name != "cert-only"]
+    native = NATIVE_TLS.get(platform, "openssl")
+    if not supports or not usable:
+        raise AssertionError(
+            f"no TLS backend that can connect (found {backends}): "
+            "Qt's plugins/tls was not collected, so Help > Check for "
+            "Updates cannot reach GitHub.")
+    note = "" if native in usable else f"; {native} missing"
+    report(f"TLS backends {', '.join(usable)}{note}")
+
+
 def check_extras(report) -> None:
     """The optional packages a packaged build promises are there.
 
@@ -827,6 +859,7 @@ def run(shot: Path | None = None, out=None) -> int:
         ("samples", check_samples),
         ("user manual", check_manual),
         ("third-party notices", check_notices),
+        ("TLS for Check for Updates", check_tls),
         ("bundled extras", check_extras),
         ("module dialogs", check_module_dialogs),
         ("MOF builder", check_mof_builder),
