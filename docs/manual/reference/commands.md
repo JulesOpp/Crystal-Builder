@@ -2454,6 +2454,16 @@ Report a bug, suggest a feature or say what in the window could be better.  Open
 ```{index} Send Feedback...
 ```
 
+(cmd-check_updates)=
+### Check for Updates...
+
+`check_updates`
+
+Ask GitHub which release of Crystal Builder is the latest and, if it is newer than this one, offer to open its download page.  Nothing is downloaded or installed, and nothing is asked of GitHub until you choose this.
+
+```{index} Check for Updates...
+```
+
 (cmd-about)=
 ### About Crystal Builder
 

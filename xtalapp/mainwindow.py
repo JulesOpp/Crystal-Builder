@@ -1029,6 +1029,81 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         if message:
             self.show_message(message, 12000)
 
+    def check_for_updates(self) -> None:
+        """Ask GitHub for the latest release and say what it means.
+
+        The entry is greyed while a request is out, so impatient
+        clicks are one request and one answer rather than a stack of
+        boxes arriving together.
+        """
+        action = self.actions_["check_updates"]
+        if not action.isEnabled():
+            return
+        action.setEnabled(False)
+        self.show_message("Checking for updates...")
+        self._fetch_release(self._release_arrived)
+
+    def _fetch_release(self, done) -> None:
+        """GET the latest release; ``done(body, error)`` when it lands.
+
+        Qt's network rather than urllib, on this thread and with no
+        worker: its TLS is the system's (Secure Transport, Schannel),
+        where a frozen Python has no CA bundle unless one is shipped.
+        """
+        from PySide6.QtNetwork import (
+            QNetworkAccessManager,
+            QNetworkReply,
+            QNetworkRequest,
+        )
+
+        from xtal import __version__
+        from xtalapp import updates
+
+        if getattr(self, "_network", None) is None:
+            self._network = QNetworkAccessManager(self)
+        request = QNetworkRequest(QUrl(updates.RELEASES_API))
+        request.setRawHeader(b"Accept", b"application/vnd.github+json")
+        request.setRawHeader(b"User-Agent",
+                             f"CrystalBuilder/{__version__}".encode())
+        request.setTransferTimeout(10_000)
+        reply = self._network.get(request)
+
+        def finished():
+            body = bytes(reply.readAll().data())
+            failed = reply.error() != QNetworkReply.NetworkError.NoError
+            # Not deleteLater: the reply is the manager's child and is
+            # freed with it, rather than at a moment Qt chooses (see
+            # workers.py on what that cost).  One per click.
+            reply.close()
+            done(body, reply.errorString() if failed else "")
+
+        reply.finished.connect(finished)
+
+    def _release_arrived(self, body: bytes, error: str) -> None:
+        from xtal import __version__
+        from xtalapp import updates
+
+        self.actions_["check_updates"].setEnabled(True)
+        self.show_message("")
+        # A refusal (GitHub's rate limit is a 403) still has a body
+        # that says why, and that is the better reason to give.
+        if body:
+            verdict = updates.judge(__version__, body)
+        else:
+            verdict = updates.Verdict(updates.UNKNOWN, __version__,
+                                      reason=error or "no reply")
+        title = "Check for Updates"
+        if verdict.state in (updates.CURRENT, updates.AHEAD):
+            QMessageBox.information(self, title, verdict.message())
+            return
+        prompt = ("Open the download page in your browser?"
+                  if verdict.state == updates.NEWER_AVAILABLE else
+                  "Open the releases page in your browser?")
+        answer = QMessageBox.question(
+            self, title, f"{verdict.message()}\n\n{prompt}")
+        if answer == QMessageBox.Yes:
+            QDesktopServices.openUrl(QUrl(verdict.url))
+
     def preferences_dialog(self):
         """The Preferences window, wired to this one.
 
