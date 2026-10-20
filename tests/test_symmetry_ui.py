@@ -120,6 +120,54 @@ def test_find_symmetry_dialog_follows_the_tolerance(qtbot, rutile):
     assert dialog.info.number == 136
 
 
+def _lifted_document(rutile):
+    """Rutile's oxygens 0.21 A off the mirror P4_2/mnm puts them on."""
+    flat = symmetry.reduce_to_p1(rutile)
+    for site in flat.sites:
+        if site.element == "O":
+            site.frac = site.frac + np.array([0.0, 0.0, 0.07])
+    flat.touch()
+    return Document(flat)
+
+
+def test_a_site_off_its_position_asks_and_snaps_when_told(
+        qtbot, rutile, monkeypatch):
+    from xtalapp.dialogs import find_symmetry
+    asked = []
+    monkeypatch.setattr(
+        find_symmetry, "ask_to_snap",
+        lambda group, moves, parent=None: asked.append(
+            (group, moves)) or True)
+    document = _lifted_document(rutile)
+    dialog = FindSymmetryDialog(document)
+    qtbot.addWidget(dialog)
+    dialog.tolerance.setCurrentText("0.5")
+    dialog.adopt()
+
+    assert asked[0][0] == "P4_2/mnm"
+    assert [name for name, _gap in asked[0][1]] == ["O1"]
+    assert dialog.result() == QDialog.Accepted
+    assert document.structure.space_group.number == 136
+    assert n_atoms(document) == 6
+    assert document.stack.can_undo
+
+
+def test_refusing_to_snap_leaves_the_structure_and_names_the_sites(
+        qtbot, rutile, monkeypatch):
+    from xtalapp.dialogs import find_symmetry
+    monkeypatch.setattr(find_symmetry, "ask_to_snap",
+                        lambda group, moves, parent=None: False)
+    document = _lifted_document(rutile)
+    dialog = FindSymmetryDialog(document)
+    qtbot.addWidget(dialog)
+    dialog.tolerance.setCurrentText("0.5")
+    dialog.adopt()
+
+    assert document.structure.is_p1
+    assert not document.stack.can_undo
+    assert "O1 0.21 A" in dialog.note.text()
+
+
 def test_find_symmetry_dialog_survives_a_nonsense_tolerance(
         qtbot, flat_document):
     dialog = FindSymmetryDialog(flat_document)
