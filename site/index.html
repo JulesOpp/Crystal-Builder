@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crystal Builder</title>
+<meta name="description" content="A free, open-source desktop crystal structure builder for macOS, Windows and Linux: read and write CIF, edit symmetry and bonding, build MOFs on nets, and run force fields, DFTB+, porosity and powder refinement on the result.">
+<link rel="icon" href="img/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="download.js" defer></script>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-inner">
+    <a class="brand" href="#top"><img src="img/icon.svg" alt="" width="22" height="22"> Crystal Builder</a>
+    <nav>
+      <a href="#download">Download</a>
+      <a href="#assistants">Assistants</a>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/JulesOpp/Crystal-Builder">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+<section class="hero wrap" id="download">
+  <div class="hero-text">
+    <img class="hero-icon" src="img/icon.svg" alt="Crystal Builder icon" width="88" height="88">
+    <h1>Crystal Builder</h1>
+    <p class="lede">A free, open-source desktop crystal structure builder for
+      macOS, Windows and Linux. Read and write CIF, edit symmetry and
+      bonding, build a MOF on a net, and run a force field, DFTB+,
+      porosity or a powder refinement on the result.</p>
+    <p class="hint">Found a bug? Report it from inside the app:
+      <b>Help ▸ Send Feedback…</b></p>
+
+    <div class="downloads">
+      <div class="dl" data-platform="mac">
+        <a class="btn" data-asset="arm64.dmg"
+           href="https://github.com/JulesOpp/Crystal-Builder/releases/latest">Download for macOS</a>
+        <span class="dl-label">Apple silicon Macs (M1 and later)</span>
+        <span class="dl-meta">Latest release</span>
+        <a class="dl-alt" data-asset="x86_64.dmg"
+           href="https://github.com/JulesOpp/Crystal-Builder/releases/latest">Intel Mac? Download the x86_64 build</a>
+      </div>
+      <div class="dl" data-platform="windows">
+        <a class="btn" data-asset="setup.exe"
+           href="https://github.com/JulesOpp/Crystal-Builder/releases/latest">Download for Windows</a>
+        <span class="dl-label">64-bit Windows</span>
+        <span class="dl-meta">Latest release</span>
+      </div>
+      <div class="dl" data-platform="linux">
+        <a class="btn" data-asset=".AppImage"
+           href="https://github.com/JulesOpp/Crystal-Builder/releases/latest">Download for Linux</a>
+        <span class="dl-label">AppImage, x86_64</span>
+        <span class="dl-meta">Latest release</span>
+      </div>
+    </div>
+  </div>
+  <figure class="hero-shot">
+    <button class="zoom" aria-label="Enlarge screenshot"><img src="img/window.jpg" alt="The Crystal Builder window with HKUST-1 open: workspace tree on the left, the 3D view in the middle, the site table on the right." width="1400" height="774"></button>
+  </figure>
+</section>
+
+<section class="wrap news">
+  <div class="tag">New</div>
+  <div>
+    <h2 class="release-title">New in 1.0</h2>
+    <ul class="plain">
+      <li><b>The first stable release.</b> What the 0.x previews'
+        testers found is in it, and the previews have been retired in its
+        favour.</li>
+      <li><b>An AI assistant can work in the window.</b> <i>Help ▸
+        Connect an AI assistant…</i> lets any MCP client drive the open
+        tabs, each change one undo step in front of you.</li>
+      <li><b>Atom groups.</b> Name, colour and hide a set of atoms
+        (Ctrl+G), made for you from a CIF's SHELX disorder PARTs.</li>
+      <li><b>Samples to start from</b>: textbook solids, polymers, and
+        MOFs from the COD, under <i>File ▸ Open Sample</i>.</li>
+      <li><b>Coming next:</b> a Linux AppImage, and <i>Help ▸ Check for
+        Updates</i>.</li>
+    </ul>
+    <p class="links-row">
+      <a data-release-link href="https://github.com/JulesOpp/Crystal-Builder/releases/latest">See all changes</a>
+      <a href="https://github.com/JulesOpp/Crystal-Builder">Source</a>
+      <a href="https://github.com/JulesOpp/Crystal-Builder/releases">All releases</a>
+      <a href="https://github.com/JulesOpp/Crystal-Builder/issues">Report an issue</a>
+    </p>
+  </div>
+</section>
+
+<section class="wrap section" id="assistants">
+  <p class="eyebrow">Assistants</p>
+  <h2>Let an AI assistant work in the window.</h2>
+  <p class="lead">Crystal Builder serves its own verbs as MCP tools, and
+    ships a skill that teaches an assistant (Claude Code, Claude Desktop,
+    Cursor, Codex, any MCP client) to use them: open, prepare, edit,
+    relax, measure and render, through the same commands a person's
+    clicks push. Each change lands in your open tab as one undo step,
+    in front of you.</p>
+
+  <div class="example">
+    <div class="example-text">
+      <p class="eyebrow">Prompt to Claude Code</p>
+      <blockquote>Get Ni2Cl2BTDD.cif ready for a calculation and show me
+        the channel.</blockquote>
+      <p class="caption"><b>Real output.</b> With the Crystal Builder
+        skill, Claude Code opened the deposited CIF, read the
+        diagnostics, ran <code>prepare</code> and reported each step:</p>
+      <ul class="steps">
+        <li>27 sites were symmetry copies of others: 1152 atoms written,
+          378 distinct</li>
+        <li>primitive cell of the R-centred lattice: 126 atoms</li>
+        <li>pore water O4, disordered across a mirror, ordered</li>
+        <li>42 water molecules removed from the pores</li>
+        <li>12 hydrogens on arene rings, 12 as water on the metals</li>
+      </ul>
+      <p class="caption">Then it checked the result (one framework,
+        C<sub>36</sub>H<sub>24</sub>Cl<sub>6</sub>N<sub>18</sub>Ni<sub>6</sub>O<sub>12</sub>,
+        every Ni six-coordinate) and rendered it down the hexagonal
+        axis.</p>
+    </div>
+    <figure class="example-shot">
+      <button class="zoom" aria-label="Enlarge render"><img src="img/agent-ni2cl2btdd.png" alt="Rendered view down the hexagonal channel of Ni2Cl2BTDD after preparation: Ni2Cl2 chains joined by BTDD linkers around one hexagonal pore." width="744" height="662"></button>
+    </figure>
+  </div>
+
+  <div class="cols3">
+    <div>
+      <h3>What it can do</h3>
+      <ul class="plain">
+        <li><b>Inspect</b> a structure first: composition, symmetry,
+          coordination, and coded diagnostics, each with its remedy.</li>
+        <li><b>Prepare</b> a deposited CIF and say what every step
+          chose.</li>
+        <li><b>Build</b> a framework on a net, add, move and substitute
+          atoms, recalculate bonds when asked.</li>
+        <li><b>Relax</b> and measure: energies, pore volume and area, a
+          PXRD pattern.</li>
+        <li><b>Render</b> what it made, and read the picture back.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>How it connects</h3>
+      <p>Switch it on under <i>Help ▸ Connect an AI assistant…</i>: the
+        window serves the tools on your own computer
+        (<code>127.0.0.1</code>, behind a token made for each launch).
+        The download carries the <code>xtal</code> program beside the
+        app, and <code>xtal mcp</code> passes an assistant's calls
+        through to the window, or works headless when no window is
+        open. Every step an assistant takes is logged beside the
+        structure, in <code>agent-session.jsonl</code>.</p>
+    </div>
+    <div>
+      <h3>Register it</h3>
+      <p>The assistant page in Preferences gives the exact line for your
+        install. With <code>xtal</code> on your path it is:</p>
+      <pre><code>claude mcp add crystal-builder -- xtal mcp</code></pre>
+      <p><code>xtal skill install</code> puts the skill where Claude
+        Code reads it.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap section" id="features">
+  <p class="eyebrow">Features</p>
+  <h2>What Crystal Builder does.</h2>
+  <p class="lead">Every image below is the real application with a real
+    structure, taken by the scripts that illustrate the user manual.</p>
+
+  <article class="feature">
+    <figure><button class="zoom" aria-label="Enlarge screenshot"><img src="img/net-acs.jpg" alt="A framework built on the acs net, drawn as polyhedra." width="1400" height="858" loading="lazy"></button>
+      <figcaption>A framework built on the <i>acs</i> net, drawn with
+        polyhedra.</figcaption></figure>
+    <div>
+      <p class="num">01 Build</p>
+      <ul class="plain">
+        <li><b>A MOF from a net, a node and a linker.</b> PORMAKE is
+          built in, with its 867 building blocks and the RCSR nets, and
+          the build reports what came out against what was asked.</li>
+        <li><b>A molecule from the 2D sketcher</b>, metals built with
+          their coordination shape.</li>
+        <li><b>Disordered carbons</b> (zeolite-templated or schwarzite)
+          as one terminated sheet that follows a net.</li>
+        <li><b>Amorphous polymers</b> packed into a box or a membrane,
+          from the library's monomers or your own.</li>
+        <li>Guests placed in the pores; a hydrogen replaced by a whole
+          functional group.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="feature flip">
+    <figure><button class="zoom" aria-label="Enlarge screenshot"><img src="img/prepare.png" alt="The Prepare for simulation dialog on MIL-88B, listing each step and what it chose." width="1280" height="1120" loading="lazy"></button>
+      <figcaption><i>Structure ▸ Prepare for simulation…</i> on MIL-88B:
+        every step says what it chose.</figcaption></figure>
+    <div>
+      <p class="num">02 Symmetry and bonding</p>
+      <ul class="plain">
+        <li><b>Space groups and their subgroups</b>, Find symmetry,
+          Standardize, primitive and supercells, a slab along (hkl).</li>
+        <li><b>Bonds you stay in charge of.</b> They change only when
+          you press <i>Recalculate Bonds</i>: never on load, on an edit,
+          or after an optimisation. A bond type set by hand always
+          wins.</li>
+        <li><b>Prepare for simulation</b> merges duplicates, orders
+          disorder, removes solvent and adds hydrogens, in one undo
+          step.</li>
+        <li><b>The CIF carries the bonds</b>, so what you save is what
+          you reopen.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="feature">
+    <figure><button class="zoom" aria-label="Enlarge screenshot"><img src="img/forcefield.png" alt="The Force Field panel with UFF chosen and an optimisation's convergence plot." width="721" height="1400" loading="lazy"></button>
+      <figcaption>The Force Field panel after a UFF relaxation.</figcaption></figure>
+    <div>
+      <p class="num">03 Simulate</p>
+      <ul class="plain">
+        <li><b>Engines.</b> UFF with UFF4MOF, xTB, DFTB+ (band
+          structures and densities of states), and MACE, ORB-v3 and
+          MatterSim from Python.</li>
+        <li><b>Optimisation that keeps the space group</b>, with the cell
+          free, or its volume held.</li>
+        <li><b>Scans</b> that hold a distance, angle or cell volume and
+          write each point the moment it finishes.</li>
+        <li><b>Thermochemistry</b> and a bulk modulus from an equation of
+          state, saying what they left out.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="feature flip">
+    <figure><button class="zoom" aria-label="Enlarge screenshot"><img src="img/pore-surface.jpg" alt="ZIF-8 with its pore surface drawn as a translucent blue isosurface." width="1400" height="1166" loading="lazy"></button>
+      <figcaption>ZIF-8 and the surface of the pores a probe can
+        reach.</figcaption></figure>
+    <div>
+      <p class="num">04 Pores</p>
+      <ul class="plain">
+        <li><b>Porosity</b> with Zeo++ or Crystal Builder's own faster
+          grid: accessible volume, surface area, pore sizes.</li>
+        <li><b>The pores drawn where they are</b>: the largest included
+          sphere at its node, and the channel surface beside the
+          number.</li>
+        <li>A window too close to call is flagged, never rounded open or
+          shut.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="feature">
+    <figure><button class="zoom" aria-label="Enlarge screenshot"><img src="img/refinement.jpg" alt="The refinement workbench: a measured pattern, the calculated fit and difference curve, and the parameter table." width="1400" height="926" loading="lazy"></button>
+      <figcaption>The refinement workbench.</figcaption></figure>
+    <div>
+      <p class="num">05 Powder diffraction</p>
+      <ul class="plain">
+        <li><b>A pattern from the structure</b>, overlaid on a measured
+          one.</li>
+        <li><b>Peaks, indexing, Pawley, Rietveld</b>, and Rietveld with
+          energies from the Force Field panel's engine.</li>
+        <li><b>A diffractometer's own file</b>: <code>.xy</code>,
+          <code>.rasx</code>, Bruker <code>.raw</code>, <code>.uxd</code>,
+          <code>.xrdml</code>.</li>
+        <li>A TOPAS-like parameter table: tick what refines.</li>
+      </ul>
+    </div>
+  </article>
+
+  <article class="feature flip">
+    <figure><button class="zoom" aria-label="Enlarge screenshot"><img src="img/hkust1.jpg" alt="HKUST-1 rendered for a figure on a white background." width="1304" height="1151" loading="lazy"></button>
+      <figcaption>HKUST-1, exported as a figure.</figcaption></figure>
+    <div>
+      <p class="num">06 Open</p>
+      <ul class="plain">
+        <li><b>Free and open source</b> under the MIT licence, with the
+          full source and history on GitHub.</li>
+        <li><b>Local files, no account.</b> Structures, runs and
+          measurements live in a workspace folder on your computer.</li>
+        <li><b>Formats in and out.</b> CIF with its bonds, a project
+          that keeps the view and runs, LAMMPS data, periodic PDB,
+          POSCAR, XYZ, and images and printable meshes.</li>
+        <li><b>A save never destroys the last good file</b>, and an
+          autosave is offered back after a crash.</li>
+      </ul>
+    </div>
+  </article>
+</section>
+
+<section class="wrap section">
+  <dl class="facts">
+    <div><dt>Platform</dt><dd>macOS 12.3 or later (Apple silicon and
+      Intel, separate builds) and 64-bit Windows. From the next
+      release, Linux x86_64 with glibc 2.35 or newer (Ubuntu 22.04+,
+      Debian 12+, Fedora 36+).</dd></div>
+    <div><dt>Package</dt><dd>A DMG for macOS, a setup <code>.exe</code>
+      for Windows, and an AppImage for Linux once it ships, all from
+      the latest GitHub release.</dd></div>
+    <div><dt>Trust</dt><dd>The macOS and Windows builds are <b>not
+      code-signed yet</b>, so both systems warn the first time. See
+      <a href="#install">Install</a> for how to answer, if you trust
+      where you got the file.</dd></div>
+    <div><dt>Updates</dt><dd>Download a new release from this page and
+      install it over the old one; from the next release, <i>Help ▸
+      Check for Updates</i> says when one is out.</dd></div>
+    <div><dt>Bundled</dt><dd>The MOF builder, RDKit and the sketcher,
+      the refinement workbench, the carbon and polymer builders, and the
+      <code>xtal</code> program. Zeo++, DFTB+ and xtb are found where
+      you installed them; MACE, ORB-v3 and MatterSim run from a Python
+      install.</dd></div>
+    <div><dt>License</dt><dd>MIT</dd></div>
+  </dl>
+</section>
+
+<section class="wrap section" id="install">
+  <p class="eyebrow">Install</p>
+  <h2>Opening it the first time.</h2>
+  <div class="cols3">
+    <div>
+      <h3>macOS</h3>
+      <p>Open the DMG and drag Crystal Builder to Applications. Pick the
+        build that matches your Mac; <i>About This Mac</i> says which.</p>
+      <p>The first double-click says the developer cannot be verified.
+        Right-click (or Control-click) the app in Applications, choose
+        <b>Open</b>, then <b>Open</b> again. macOS remembers the
+        choice. If the warning will not clear:</p>
+      <pre><code>xattr -dr com.apple.quarantine "/Applications/Crystal Builder.app"</code></pre>
+    </div>
+    <div>
+      <h3>Windows</h3>
+      <p>Run the installer. It installs for you alone, needs no
+        administrator rights, and works on a managed machine.</p>
+      <p>SmartScreen shows <i>Windows protected your PC</i>: click
+        <b>More info</b>, then <b>Run anyway</b>.</p>
+      <p>The installer offers the <code>.cif</code> and
+        <code>.xtalproj</code> associations; <code>.cif</code> is
+        unticked, since it usually belongs to VESTA or Mercury
+        already.</p>
+    </div>
+    <div>
+      <h3>Linux</h3>
+      <p class="hint">From the next release.</p>
+      <p>Make the AppImage executable and run it, or tick
+        <i>executable</i> in its properties and double-click:</p>
+      <pre><code>chmod +x Crystal_Builder-*.AppImage
+./Crystal_Builder-*.AppImage</code></pre>
+      <p>On Wayland it runs on XWayland, because the 3D view draws on
+        X11 only.</p>
+    </div>
+  </div>
+  <p class="hint">Earlier builds and their release notes are on the
+    <a href="https://github.com/JulesOpp/Crystal-Builder/releases">releases page</a>.</p>
+</section>
+
+<section class="wrap section" id="support">
+  <p class="eyebrow">Support</p>
+  <h2>Something not working?</h2>
+  <p class="lead">Use <i>Help ▸ Send Feedback…</i> inside the app, or the
+    <i>Send feedback…</i> button on an error box, which carries the
+    details along. If you open a GitHub issue instead, include the app
+    version (<i>Help ▸ About</i>), your operating system, and the steps
+    that reproduce it.</p>
+  <p class="links-row">
+    <a href="https://github.com/JulesOpp/Crystal-Builder/issues">Report an issue on GitHub</a>
+    <a href="https://github.com/JulesOpp/Crystal-Builder/releases">Browse all releases</a>
+    <a href="https://github.com/JulesOpp/Crystal-Builder">Read the source</a>
+  </p>
+</section>
+
+</main>
+
+<footer class="wrap foot">
+  <span>Crystal Builder · MIT licence · © 2026 Jules Oppenheim</span>
+  <a href="https://github.com/JulesOpp/Crystal-Builder">GitHub</a>
+</footer>
+
+<dialog id="lightbox" aria-label="Enlarged image">
+  <form method="dialog"><button class="close" aria-label="Close">×</button></form>
+  <img alt="">
+</dialog>
+
+</body>
+</html>

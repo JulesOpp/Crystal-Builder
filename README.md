@@ -5,6 +5,9 @@ exporting crystal structures.  The visual and interaction model take some inspir
 from **VESTA**; the symmetry and force-field capability take inspiration from **Materials
 Studio**.  Python throughout, shipped to macOS, Windows and Linux.
 
+**Download:** <https://julesopp.github.io/Crystal-Builder/> -- the
+page in `site/`, published by `.github/workflows/pages.yml`.
+
 ---
 
 ## Layout
