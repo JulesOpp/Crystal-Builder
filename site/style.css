@@ -229,6 +229,12 @@ blockquote {
 @media (min-width: 880px) { .cols3 { grid-template-columns: repeat(3, 1fr); } }
 .cols3 > div { min-width: 0; }
 .cols3 p { color: var(--ink-2); font-size: .95rem; }
+.howto { padding-left: 1.3em; margin: 0 0 1em; color: var(--ink-2); font-size: .95rem; }
+.howto li { margin-bottom: .4em; }
+.howto li::marker { color: var(--accent); font-weight: 600; }
+details { font-size: .88rem; color: var(--ink-3); }
+summary { cursor: pointer; }
+details pre { margin-top: .6em; }
 
 .feature {
   display: grid; gap: 28px; align-items: center;

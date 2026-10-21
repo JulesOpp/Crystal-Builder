@@ -326,11 +326,22 @@
       <h3>macOS</h3>
       <p>Open the DMG and drag Crystal Builder to Applications. Pick the
         build that matches your Mac; <i>About This Mac</i> says which.</p>
-      <p>The first double-click says the developer cannot be verified.
-        Right-click (or Control-click) the app in Applications, choose
-        <b>Open</b>, then <b>Open</b> again. macOS remembers the
-        choice. If the warning will not clear:</p>
-      <pre><code>xattr -dr com.apple.quarantine "/Applications/Crystal Builder.app"</code></pre>
+      <p>The first time, macOS says it cannot verify the developer.
+        To open it anyway:</p>
+      <ol class="howto">
+        <li>Double-click Crystal Builder and close the warning
+          (<b>Done</b> or <b>OK</b>).</li>
+        <li>Open <i>System Settings ▸ Privacy &amp; Security</i> and
+          scroll down to <i>Security</i>.</li>
+        <li>Next to the message about Crystal Builder, click <b>Open
+          Anyway</b>, and confirm with your password.</li>
+      </ol>
+      <p>macOS remembers the choice; after that it opens like any other
+        app.</p>
+      <details>
+        <summary>Still blocked? From a terminal</summary>
+        <pre><code>xattr -dr com.apple.quarantine "/Applications/Crystal Builder.app"</code></pre>
+      </details>
     </div>
     <div>
       <h3>Windows</h3>
