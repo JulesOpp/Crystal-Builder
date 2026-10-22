@@ -13,6 +13,7 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from PySide6.QtCore import Qt  # noqa: E402
 from PySide6.QtWidgets import QWidget  # noqa: E402
 
 from xtal.agent import changes  # noqa: E402
@@ -407,3 +408,108 @@ def test_a_long_calculation_in_the_window_counts_as_the_assistant_working(
     assert session.energy(engine="uff").ok
     session.add_atom("O", frac=[0.2, 0.3, 0.4])
     assert {origin_of(c).burst for c in tab.stack.done()} == {1}
+
+
+def _history(strip, monkeypatch):
+    from xtalapp import menus
+
+    shown = []
+    monkeypatch.setattr(menus, "popup",
+                        lambda menu, position: shown.append(menu))
+    strip.history_button.click()
+    (menu,) = shown
+    return menu
+
+
+def test_history_shows_why_an_entry_is_greyed(window, tab, serving):
+    """A greyed entry's reason is its tooltip, and a menu hides
+    tooltips unless told: the person saw a dead entry and no why."""
+    window.agent_host.current().add_atom("O", frac=[0.1, 0.2, 0.3])
+    assert _strip(window, tab).history_menu().toolTipsVisible()
+
+
+def test_the_assistants_label_is_shown_as_plain_text(window, tab,
+                                                     serving,
+                                                     monkeypatch):
+    """The label is the assistant's words: read as markup, it could
+    restyle the strip or the tooltip, and an ampersand would vanish
+    into a menu mnemonic."""
+    from PySide6.QtGui import QTextDocument
+
+    session = window.agent_host.current()
+    session.checkpoint("<b>R&D</b>")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    strip = _strip(window, tab)
+    tip = strip.label.toolTip()
+    shown = QTextDocument()
+    shown.setHtml(tip)
+    assert "<b>R&D</b>" in shown.toPlainText()
+    assert strip.label.textFormat() == Qt.PlainText
+    (entry,) = [a for a in _history(strip, monkeypatch).actions()
+                if a.text()]
+    assert "<b>R&D</b>" in entry.iconText()
+
+
+def test_the_line_puts_the_request_first(window, tab, serving):
+    """Elided from the right in a narrow column, the line must keep
+    what the request was, not who made it."""
+    session = window.agent_host.current()
+    session.checkpoint("Two oxygens")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    assert _strip(window, tab).label.text().startswith("Two oxygens · ")
+
+
+def test_revert_greys_when_a_trajectory_starts_playing(window, tab,
+                                                       serving):
+    """Playback refuses undo as a hold does, and announces itself on
+    its own signal: unheard, Revert looked pressable and did
+    nothing."""
+    from xtal.io.trajectory import Trajectory, frame_of
+    from xtalapp.widgets.agent_strip import HELD
+
+    window.agent_host.current().add_atom("O", frac=[0.1, 0.2, 0.3])
+    strip = _strip(window, tab)
+    assert strip.action_button.isEnabled()
+    moved = tab.structure.copy()
+    moved.sites[0].frac = moved.sites[0].frac + [0.01, 0.0, 0.0]
+    moved.touch()
+    tab.open_trajectory(Trajectory(
+        [frame_of(tab.structure, step=0), frame_of(moved, step=1)]))
+    assert not strip.action_button.isEnabled()
+    assert strip.action_button.toolTip() == HELD
+
+
+def test_restore_survives_switching_tabs_and_back(window, tab, serving,
+                                                  tmp_path, quartz):
+    """Looking at another tab is not an edit: forgetting the Revert
+    there left the person no way back to what it took."""
+    window.agent_host.current().add_atom("O", frac=[0.1, 0.2, 0.3])
+    strip = _strip(window, tab)
+    strip.revert(changes.bursts(tab.stack)[0].number)
+    other = tmp_path / "quartz.cif"
+    write_cif(quartz, other)
+    assert window.open_path(other) is not None
+    assert strip._document is not tab
+    window.tabs.setCurrentIndex(window.documents.index(tab))
+    assert strip._document is tab
+    assert strip.action_button.text() == "Restore"
+    strip.restore()
+    assert tab.stack.depth == 1
+
+
+def test_historys_revert_says_it_takes_the_persons_later_edits(
+        window, tab, serving, monkeypatch):
+    """The strip's button says so before it is pressed; History's
+    Revert of an older burst takes the same edits and must say it
+    too."""
+    session = window.agent_host.current()
+    session.checkpoint("First")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.checkpoint("Second")
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    tab.apply(lambda s: None, label="Person's edit")
+    texts = [a.text() for a in _history(_strip(window, tab),
+                                        monkeypatch).actions()]
+    assert "Revert: First (and 1 later assistant change; also undoes " \
+        "1 of yours)" in texts
+    assert "Revert: Second (also undoes 1 of yours)" in texts

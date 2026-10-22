@@ -20,6 +20,7 @@ import weakref
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QPainter
+from PySide6.QtGui import Qt as GuiQt
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -37,6 +38,25 @@ from xtalapp.widgets import tone
 HELD = "a calculation or a trajectory holds this tab"
 
 
+def _menu_text(text: str) -> str:
+    """``text`` as a menu shows it literally: an ``&`` in the
+    assistant's label would otherwise be eaten as a mnemonic."""
+    return text.replace("&", "&&")
+
+
+def _also(burst) -> str:
+    """What else reverting ``burst`` takes, as its button says it:
+    later bursts of the assistant's, then the person's own edits."""
+    said = []
+    if burst.bursts_after:
+        later = burst.bursts_after
+        said.append(f"and {later} later assistant "
+                    f"change{'s' if later > 1 else ''}")
+    if burst.person_after:
+        said.append(f"also undoes {burst.person_after} of yours")
+    return f" ({'; '.join(said)})" if said else ""
+
+
 class _OneLine(QLabel):
     """A label that stays one line and is elided to its width when it
     paints, whatever the width is then.
@@ -45,16 +65,20 @@ class _OneLine(QLabel):
     the whole sentence (the tooltip and a screen reader get it, and an
     elision worked out before the strip is laid out is never kept), and
     ignored for its width by the layout, so a long label never holds
-    the central column open."""
+    the central column open.
+
+    Plain text throughout, label and tooltip: the line holds the
+    assistant's own words, which are not markup."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWordWrap(False)
+        self.setTextFormat(Qt.PlainText)
         self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
 
     def setText(self, text: str) -> None:
         super().setText(text)
-        self.setToolTip(text)
+        self.setToolTip(GuiQt.convertFromPlainText(text))
 
     def paintEvent(self, _event) -> None:
         rect = self.contentsRect()
@@ -91,18 +115,36 @@ class AgentStrip(QFrame):
         row.addWidget(self.history_button)
         tone.set_tone(self.label, tone.HINT)
         self._document = None
-        # What a Revert here took back, while Restore can still bring
-        # exactly that back: (label, the commands it undid, as Redo
-        # holds them, weakly -- an edit since drops them from Redo,
-        # and the strip must not be what keeps a crystal's copy).  The
-        # strip's own and not ``restore_plan``'s, which brings back the
-        # burst alone -- a Revert that also took later steps must give
-        # them back too.
-        self._reverted: tuple[str, tuple] | None = None
+        # What a Revert here took back in each tab, while Restore can
+        # still bring exactly that back: (label, the commands it
+        # undid, as Redo holds them, weakly -- an edit since drops
+        # them from Redo, and the strip must not be what keeps a
+        # crystal's copy).  The strip's own and not
+        # ``restore_plan``'s, which brings back the burst alone -- a
+        # Revert that also took later steps must give them back too.
+        # Kept per document, so looking at another tab and back is
+        # not what loses the way back; weakly, so a closed tab goes.
+        self._reverts: weakref.WeakKeyDictionary = \
+            weakref.WeakKeyDictionary()
         # The History menu last raised: unparented and replaced, so
         # raising it again does not pile menus up under the strip.
         self._history: QMenu | None = None
         self.hide()
+
+    @property
+    def _reverted(self) -> tuple[str, tuple] | None:
+        if self._document is None:
+            return None
+        return self._reverts.get(self._document)
+
+    @_reverted.setter
+    def _reverted(self, value) -> None:
+        if self._document is None:
+            return
+        if value is None:
+            self._reverts.pop(self._document, None)
+        else:
+            self._reverts[self._document] = value
 
     # -- following the window --------------------------------------------
 
@@ -114,18 +156,23 @@ class AgentStrip(QFrame):
             self.refresh()
             return
         if self._document is not None:
-            for signal in (self._document.historyChanged,
-                           self._document.heldChanged):
+            for signal in self._signals(self._document):
                 try:
                     signal.disconnect(self.refresh)
                 except (RuntimeError, TypeError):
                     pass
         self._document = document
-        self._reverted = None
         if document is not None:
-            document.historyChanged.connect(self.refresh)
-            document.heldChanged.connect(self.refresh)
+            for signal in self._signals(document):
+                signal.connect(self.refresh)
         self.refresh()
+
+    @staticmethod
+    def _signals(document) -> tuple:
+        """What changes the line or greys its button: the history,
+        and a hold or a playback, either of which refuses undo."""
+        return (document.historyChanged, document.heldChanged,
+                document.playbackChanged)
 
     def _serving(self) -> bool:
         # Asked of the window's one server, made if need be: it is
@@ -165,7 +212,8 @@ class AgentStrip(QFrame):
         latest = found[0]
         when = time.strftime("%H:%M", time.localtime(latest.started))
         steps = "1 step" if latest.steps == 1 else f"{latest.steps} steps"
-        text = f"Assistant: {latest.label} · {steps} · {when}"
+        # The request first: a narrow column elides from the right.
+        text = f"{latest.label} · {steps} by the assistant · {when}"
         button = "Revert"
         if latest.person_after:
             button += f" (also undoes {latest.person_after} of yours)"
@@ -227,16 +275,14 @@ class AgentStrip(QFrame):
         """Every burst, to revert or restore; unparented, so the
         caller owns it."""
         menu = QMenu()
+        # A greyed entry's reason is its tooltip, which a menu hides.
+        menu.setToolTipsVisible(True)
         if self._document is None:
             return menu
         stack = self._document.stack
         busy = self._document.is_busy
         for burst in changes.bursts(stack):
-            text = burst.label
-            if burst.bursts_after:
-                later = burst.bursts_after
-                text += (f" (and {later} later assistant "
-                         f"change{'s' if later > 1 else ''})")
+            text = _menu_text(burst.label) + _also(burst)
             if burst.applied == "none":
                 action = menu.addAction(f"Restore: {text}")
                 action.triggered.connect(
