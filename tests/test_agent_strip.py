@@ -307,8 +307,7 @@ def test_an_edit_after_a_revert_takes_restore_away(window, tab, serving):
     (burst,) = changes.bursts(tab.stack)
     strip.revert(burst.number)
     tab.apply(lambda s: None, label="Person's edit")
-    assert strip.isHidden() or not strip.action_button.text().startswith(
-        "Restore")
+    assert strip.isHidden()
 
 
 def test_history_restores_a_burst_and_nothing_made_after_it(
@@ -337,3 +336,23 @@ def test_history_restores_a_burst_and_nothing_made_after_it(
     assert tab.stack.depth == 1
     assert [b.applied for b in changes.bursts(tab.stack)] == ["none",
                                                              "all"]
+
+
+def test_restore_is_withdrawn_once_redo_holds_other_steps_on_top(
+        window, tab, serving):
+    """Counting is not enough: after Revert took the person's P1 and
+    the assistant's A1, one more Ctrl+Z puts X0 on top of Redo, and a
+    Restore of two steps would redo X0 and A1 and leave P1 behind."""
+    tab.apply(lambda s: None, label="X0")
+    session = window.agent_host.current()
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    tab.apply(lambda s: None, label="P1")
+    strip = _strip(window, tab)
+    (burst,) = changes.bursts(tab.stack)
+    strip.revert(burst.number)
+    assert strip.action_button.text() == "Restore"
+    tab.undo()
+    assert not strip.action_button.text().startswith("Restore")
+    assert not strip.action_button.isEnabled()
+    strip.restore()
+    assert tab.stack.depth == 0

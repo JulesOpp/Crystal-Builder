@@ -160,8 +160,10 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         # tools act through, made when first asked for.
         self.agent_calculations: set = set()
         self._agent_host = None
-        # The server those tools are served by, made when Preferences
-        # or the setting first asks for it (``ensure_agent_server``).
+        # The server those tools are served by, made when first asked
+        # for (``ensure_agent_server``): by the Agent changes strip on
+        # its first refresh with a tab open, unstarted.  Nothing listens
+        # until Preferences or the setting starts it.
         self.agent_server = None
 
         self.document_set = DocumentSet(self)

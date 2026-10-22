@@ -16,14 +16,17 @@ be connected and this tab has something of the assistant's.
 from __future__ import annotations
 
 import time
+import weakref
 
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
     QMenu,
     QPushButton,
+    QSizePolicy,
     QToolButton,
 )
 
@@ -32,6 +35,35 @@ from xtalapp import menus
 from xtalapp.widgets import tone
 
 HELD = "a calculation or a trajectory holds this tab"
+
+
+class _OneLine(QLabel):
+    """A label that stays one line and is elided to its width when it
+    paints, whatever the width is then.
+
+    Elided at paint time rather than by ``setText``, so ``text()`` is
+    the whole sentence (the tooltip and a screen reader get it, and an
+    elision worked out before the strip is laid out is never kept), and
+    ignored for its width by the layout, so a long label never holds
+    the central column open."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWordWrap(False)
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
+    def setText(self, text: str) -> None:
+        super().setText(text)
+        self.setToolTip(text)
+
+    def paintEvent(self, _event) -> None:
+        rect = self.contentsRect()
+        shown = self.fontMetrics().elidedText(self.text(), Qt.ElideRight,
+                                              rect.width())
+        painter = QPainter(self)
+        self.style().drawItemText(painter, rect, self.alignment(),
+                                  self.palette(), self.isEnabled(), shown,
+                                  self.foregroundRole())
 
 
 class AgentStrip(QFrame):
@@ -43,8 +75,8 @@ class AgentStrip(QFrame):
         self.setObjectName("AgentStrip")
         self.setFrameShape(QFrame.StyledPanel)
         self.window = window
-        self.label = QLabel()
-        self.label.setWordWrap(True)
+        self.label = _OneLine()
+        self.label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.action_button = QPushButton("Revert")
         self.action_button.setAutoDefault(False)
         self.action_button.clicked.connect(self._act)
@@ -60,11 +92,16 @@ class AgentStrip(QFrame):
         tone.set_tone(self.label, tone.HINT)
         self._document = None
         # What a Revert here took back, while Restore can still bring
-        # exactly that back: (burst number, label, undos).  The count
-        # is the strip's own and not ``restore_plan``'s, which brings
-        # back the burst alone -- a Revert that also took later steps
-        # must give them back too.
-        self._reverted: tuple[int, str, int] | None = None
+        # exactly that back: (label, the commands it undid, as Redo
+        # holds them, weakly -- an edit since drops them from Redo,
+        # and the strip must not be what keeps a crystal's copy).  The
+        # strip's own and not ``restore_plan``'s, which brings back the
+        # burst alone -- a Revert that also took later steps must give
+        # them back too.
+        self._reverted: tuple[str, tuple] | None = None
+        # The History menu last raised: unparented and replaced, so
+        # raising it again does not pile menus up under the strip.
+        self._history: QMenu | None = None
         self.hide()
 
     # -- following the window --------------------------------------------
@@ -96,16 +133,19 @@ class AgentStrip(QFrame):
         return self.window.ensure_agent_server().running
 
     def _restorable(self) -> bool:
-        """Whether Redo still holds what the strip's Revert took: as
-        many steps, one of them the burst's.  An edit since clears
-        Redo, and a redo from Edit spends it."""
+        """Whether the top of Redo is still exactly what the strip's
+        Revert took, the same commands in the same order.
+
+        Counted, it was not: one more Ctrl+Z puts an older step on
+        top, and redoing as many would bring that back and leave the
+        newest behind.  An edit since clears Redo, and a redo from
+        Edit spends it, and both end it the same way."""
         if self._reverted is None:
             return False
-        number, _label, count = self._reverted
-        undone = self._document.stack.undone()
-        return len(undone) >= count and any(
-            (o := changes.origin_of(c)) is not None and o.burst == number
-            for c in undone)
+        taken = self._reverted[1]
+        top = self._document.stack.undone()[-len(taken):]
+        return len(top) == len(taken) and all(
+            a is b() for a, b in zip(top, taken, strict=True))
 
     def refresh(self, *_args) -> None:
         document = self._document
@@ -114,7 +154,7 @@ class AgentStrip(QFrame):
             return
         busy = document.is_busy
         if self._restorable():
-            self._show(f"Reverted '{self._reverted[1]}'", "Restore",
+            self._show(f"Reverted '{self._reverted[0]}'", "Restore",
                        HELD if busy else "")
             return
         self._reverted = None
@@ -160,7 +200,8 @@ class AgentStrip(QFrame):
                      if b.number == number)
         for _ in range(plan):
             document.undo()
-        self._reverted = (number, label, plan)
+        self._reverted = (label, tuple(
+            weakref.ref(c) for c in document.stack.undone()[-plan:]))
         self.refresh()
 
     def restore(self) -> None:
@@ -170,7 +211,7 @@ class AgentStrip(QFrame):
                 or self._reverted is None:
             return
         restorable = self._restorable()
-        count = self._reverted[2]
+        count = len(self._reverted[1])
         self._reverted = None
         if restorable:
             for _ in range(count):
@@ -183,7 +224,9 @@ class AgentStrip(QFrame):
     # -- history ----------------------------------------------------------
 
     def history_menu(self) -> QMenu:
-        menu = QMenu(self)
+        """Every burst, to revert or restore; unparented, so the
+        caller owns it."""
+        menu = QMenu()
         if self._document is None:
             return menu
         stack = self._document.stack
@@ -223,5 +266,6 @@ class AgentStrip(QFrame):
         self.refresh()
 
     def _show_history(self) -> None:
-        menus.popup(self.history_menu(), self.history_button.mapToGlobal(
+        self._history = self.history_menu()
+        menus.popup(self._history, self.history_button.mapToGlobal(
             QPoint(0, self.history_button.height())))
