@@ -383,3 +383,67 @@ def test_a_burst_whose_start_the_history_let_go_cannot_be_reverted(
     assert only.reason == changes.TRIMMED and not only.revertible
     assert changes.revert_plan(session.stack, only.number) == \
         changes.TRIMMED
+
+
+def _codes(answer):
+    return [d.code for d in answer.diagnostics]
+
+
+def test_the_assistant_is_told_once_when_its_steps_were_undone(session,
+                                                               clock):
+    """An assistant that does not know its edit was taken back builds
+    on a structure that is not there, and says it did what it no
+    longer has."""
+    session.checkpoint("Two oxygens")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    session.stack.undo(session)
+    session.stack.undo(session)
+    told = session.add_atom("O", frac=[0.3, 0.4, 0.5])
+    assert "AGENT_CHANGES_REVERTED" in _codes(told)
+    note = next(d for d in told.diagnostics
+                if d.code == "AGENT_CHANGES_REVERTED")
+    assert "2" in note.message and "Two oxygens" in note.message
+    again = session.add_atom("O", frac=[0.4, 0.4, 0.4])
+    assert "AGENT_CHANGES_REVERTED" not in _codes(again)
+
+
+def test_the_assistant_is_told_what_the_person_added_since(session,
+                                                           clock):
+    """An assistant that does not know the person edited in between
+    decides over a structure it has not seen."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    _person_adds(session)
+    _person_adds(session, frac=(0.5, 0.5, 0.5))
+    told = session.set_element([0], "Ti")
+    note = next(d for d in told.diagnostics if d.code == "PERSON_EDITED")
+    assert note.level == "info" and "2" in note.message
+    assert "PERSON_EDITED" not in _codes(session.set_element([0], "Ti"))
+
+
+def test_inspect_carries_the_notice_too(session, clock):
+    """The first thing an assistant should do after being told is
+    inspect -- and it is often the first thing it does anyway."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.stack.undo(session)
+    found = session.inspect()
+    assert "AGENT_CHANGES_REVERTED" in [d.code for d in found.diagnostics]
+
+
+def test_nothing_is_said_when_nothing_happened_between_calls(session,
+                                                             clock):
+    """A notice on every answer is one an assistant learns to skip."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    answer = session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert not {"AGENT_CHANGES_REVERTED", "PERSON_EDITED"} & \
+        set(_codes(answer))
+
+
+def test_the_person_editing_after_a_first_look_is_told(session, clock):
+    """An assistant's first call is usually inspect, over a history
+    still empty; if that look counted as never having answered, the
+    person's edits after it would go unsaid."""
+    session.inspect()
+    _person_adds(session)
+    told = session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    assert "PERSON_EDITED" in _codes(told)

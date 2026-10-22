@@ -29,7 +29,7 @@ VERBS = (
     "add_hydrogens", "substitute", "fill_pores", "place_molecule",
     "prepare", "interpenetrate",
     "energy", "optimize", "thermochemistry", "run",
-    "undo", "redo", "save", "export",
+    "undo", "redo", "checkpoint", "save", "export",
 )
 
 

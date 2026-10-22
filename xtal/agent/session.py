@@ -86,6 +86,9 @@ class Session:
     # window's session skips __init__, and logging must not depend on
     # it having opened a burst.
     _tagged = None
+    # Nothing answered yet, so nothing to tell: not the same as having
+    # answered over an empty history, after which every step is news.
+    _mark = None
 
     def __init__(self, structure: Structure, path: Path | None = None,
                  entry=None, view: dict | None = None,
@@ -268,7 +271,9 @@ class Session:
     def inspect(self, symprec: float | None = None):
         """:func:`xtal.agent.inspect.inspect` of the current structure."""
         from xtal.agent.inspect import DEFAULT_SYMPREC, inspect
-        return inspect(self.structure, symprec or DEFAULT_SYMPREC)
+        found = inspect(self.structure, symprec or DEFAULT_SYMPREC)
+        found.diagnostics.extend(self._noticed())
+        return found
 
     def render(self, path: PathName, view: View = "diagonal",
                size: tuple[int, int] = (800, 600),
@@ -1123,6 +1128,7 @@ class Session:
         self._last_pushed = None          # weakref to our last step
         self._ours_empty = False          # an empty history is ours
         self._tagged = None               # the Origin this verb pushed
+        self._mark: list | None = None    # (weakref, origin) we saw
 
     def close_burst(self) -> None:
         """End the burst: the next edit is a new request.  What a host
@@ -1205,6 +1211,57 @@ class Session:
             atoms_before=self.n_atoms, atoms_after=self.n_atoms)
         self._record("checkpoint", {"label": label}, answer)
         return answer
+
+    def _noticed(self) -> list[Diagnostic]:
+        """What changed in the history behind this session's back since
+        its last answer, said once, and the mark moved to now.
+
+        Undone: the steps applied at the last answer that are no longer
+        applied, counted from the top, since Undo and Revert take from
+        the top and a trimmed history only loses the bottom.  Edited:
+        the person's steps applied above the last one we saw.
+
+        The mark keeps each step's origin beside it: a push clears the
+        redo list, so a step undone before this verb pushed is gone by
+        the time its answer is recorded, and its label with it.
+        """
+        done = self.stack.done()
+        here = {id(c) for c in done}
+        mark, self._mark = self._mark, [
+            (weakref.ref(c), changes.origin_of(c)) for c in done]
+        if mark is None:
+            return []
+        seen = [(ref(), origin) for ref, origin in mark]
+        undone = 0
+        for command, _origin in reversed(seen):
+            if command is not None and id(command) in here:
+                break
+            undone += 1
+        name = self._document_name()
+        if undone:
+            mine = [o for _c, o in list(reversed(seen))[:undone] if o]
+            latest = mine[0] if mine else None
+            which = (f" -- the latest, '{latest.label or latest.verb}'"
+                     if latest else "")
+            return [Diagnostic(
+                "AGENT_CHANGES_REVERTED",
+                f"{undone} step(s) applied to {name} at your last call "
+                f"were undone or reverted{which}; inspect before going "
+                f"on")]
+        top = next((c for c, _o in reversed(seen) if c is not None),
+                   None)
+        start = next((i + 1 for i, c in enumerate(done) if c is top), 0)
+        added = sum(1 for c in done[start:]
+                    if changes.origin_of(c) is None)
+        if added:
+            return [Diagnostic(
+                "PERSON_EDITED",
+                f"the person made {added} edit(s) to {name} since your "
+                f"last call; inspect before deciding anything")]
+        return []
+
+    def _document_name(self) -> str:
+        return self.path.name if self.path else "the structure"
 
     # ------------------------------------------------------------------
     #  PLUMBING
@@ -1331,6 +1388,7 @@ class Session:
         return (0, 0, 0), tuple(int(x) for x in -np.round(delta))
 
     def _record(self, verb, args, answer: VerbResult) -> None:
+        answer.diagnostics.extend(self._noticed())
         row = {"time": time.strftime("%Y-%m-%dT%H:%M:%S"),
                "verb": verb, "args": _jsonable(args),
                "ok": answer.ok, "message": answer.message,
