@@ -481,6 +481,25 @@ def test_a_persons_edit_before_the_assistants_undo_is_still_said(
     assert "PERSON_EDITED" in _codes(session.undo())
 
 
+def test_an_undo_that_raises_keeps_the_persons_edit_to_be_said(
+        session, clock, monkeypatch):
+    """The window's undo raises while a calculation holds the tab; if
+    the notice it was about to give went with it, the person's edit
+    would never be said."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    _person_adds(session)
+
+    def held(_target):
+        raise RuntimeError("held")
+
+    with monkeypatch.context() as patched:
+        patched.setattr(session.stack, "undo", held)
+        with pytest.raises(RuntimeError):
+            session.undo()
+    assert "PERSON_EDITED" in _codes(session.add_atom(
+        "O", frac=[0.2, 0.3, 0.4]))
+
+
 def test_closing_the_burst_drops_a_checkpoints_name(session, clock):
     """A host closes the burst on open and switch: a name meant for
     one document must not label the next burst on another."""

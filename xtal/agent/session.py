@@ -1280,9 +1280,16 @@ class Session:
         its own undo reverted its steps, an assistant inspects for
         nothing or puts them back.  Returns what ``move`` returned and
         the notices, for the answer; ``_record`` then finds the mark
-        current and adds none."""
+        current and adds none.  A move that raises (the window's, on a
+        held tab) puts the mark back: the notices it took went nowhere,
+        and the next answer must still give them."""
+        previous = self._mark
         told = self._noticed()
-        moved = move()
+        try:
+            moved = move()
+        except BaseException:
+            self._mark = previous
+            raise
         self._remark()
         return moved, told
 
