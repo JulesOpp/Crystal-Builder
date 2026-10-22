@@ -288,3 +288,5 @@ dialog#lightbox .close {
   font-size: 2rem; line-height: 1; color: #fff;
   background: none; border: 0; cursor: pointer;
 }
+.feature.nofig { grid-template-columns: 1fr; }
+.feature.nofig > div { max-width: 46em; }

@@ -181,25 +181,23 @@
     <div>
       <p class="num">01 Build</p>
       <ul class="plain">
-        <li><b>A MOF from a net, a node and a linker.</b> PORMAKE is
-          built in, with its 867 building blocks and the RCSR nets, and
-          the build reports what came out against what was asked.</li>
-        <li><b>A molecule from the 2D sketcher</b>, metals built with
-          their coordination shape.</li>
+        <li><b>Build a MOF from a net, a node and a linker.</b> PORMAKE
+          is built in, with its 867 building blocks and the RCSR nets,
+          and the build reports what came out against what was
+          asked.</li>
+        <li><b>Build by drawing</b> in the main window: place atoms and
+          bonds by hand, straight into the crystal.</li>
+        <li><b>Build a molecule</b> by drawing in a 2D sketcher.</li>
         <li><b>Disordered carbons</b> (zeolite-templated or schwarzite)
           as one terminated sheet that follows a net.</li>
         <li><b>Amorphous polymers</b> packed into a box or a membrane,
           from the library's monomers or your own.</li>
-        <li>Guests placed in the pores; a hydrogen replaced by a whole
-          functional group.</li>
+        <li><b>Place guest molecules</b> into your structure.</li>
       </ul>
     </div>
   </article>
 
-  <article class="feature flip">
-    <figure><button class="zoom" aria-label="Enlarge screenshot"><img src="img/prepare.png" alt="The Prepare for simulation dialog on MIL-88B, listing each step and what it chose." width="1280" height="1120" loading="lazy"></button>
-      <figcaption><i>Structure ▸ Prepare for simulation…</i> on MIL-88B:
-        every step says what it chose.</figcaption></figure>
+  <article class="feature nofig">
     <div>
       <p class="num">02 Symmetry and bonding</p>
       <ul class="plain">
@@ -224,13 +222,11 @@
     <div>
       <p class="num">03 Simulate</p>
       <ul class="plain">
-        <li><b>Engines.</b> UFF with UFF4MOF, xTB, DFTB+ (band
-          structures and densities of states), and MACE, ORB-v3 and
-          MatterSim from Python.</li>
-        <li><b>Optimisation that keeps the space group</b>, with the cell
-          free, or its volume held.</li>
-        <li><b>Scans</b> that hold a distance, angle or cell volume and
-          write each point the moment it finishes.</li>
+        <li><b>Engines.</b> UFF with UFF4MOF, xTB, DFTB+ (with band
+          structures and densities of states), MACE, ORB-v3, and
+          MatterSim.</li>
+        <li><b>Geometry optimizations</b> and relaxed coordinate scans
+          that hold a distance, angle, or cell volume.</li>
         <li><b>Thermochemistry</b> and a bulk modulus from an equation of
           state, saying what they left out.</li>
       </ul>
@@ -263,8 +259,9 @@
       <ul class="plain">
         <li><b>A pattern from the structure</b>, overlaid on a measured
           one.</li>
-        <li><b>Peaks, indexing, Pawley, Rietveld</b>, and Rietveld with
-          energies from the Force Field panel's engine.</li>
+        <li><b>Peak hunting, indexing, Pawley refinement, Rietveld
+          refinement</b>, and Rietveld with energies from the Force Field
+          panel's engine.</li>
         <li><b>A diffractometer's own file</b>: <code>.xy</code>,
           <code>.rasx</code>, Bruker <code>.raw</code>, <code>.uxd</code>,
           <code>.xrdml</code>.</li>
