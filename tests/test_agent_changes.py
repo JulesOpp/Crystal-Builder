@@ -222,3 +222,129 @@ def test_a_push_that_raises_leaves_no_burst_on_the_next_row(session,
     session.checkpoint("After")
     assert "burst" not in session.log[-1]
     assert session.stack.depth == 0
+    # Neither a failure straight after the checkpoint nor one mid-burst
+    # may spend the name, move the step count or end the burst.
+    with pytest.raises(RuntimeError, match="boom"):
+        session._push("add_atom", _Boom([new_site("O", [0.1] * 3)]),
+                      "never", {})
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    with pytest.raises(RuntimeError, match="boom"):
+        session._push("add_atom", _Boom([new_site("O", [0.2] * 3)]),
+                      "never", {})
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert [(o.burst, o.step, o.label)
+            for o in map(origin_of, session.stack.done())] == [
+        (1, 1, "After"), (1, 2, "After")]
+
+
+def test_a_step_the_assistant_undid_gives_its_number_back(session,
+                                                          clock):
+    """Revert reads a burst whose first step is not 1 as one the
+    history let go; a step number the assistant's own undo threw away
+    and never reused would make a whole burst unrevertible."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.undo()
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert [origin_of(c).step for c in session.stack.done()] == [1]
+    assert changes.bursts(session.stack)[0].revertible
+
+
+def test_the_assistants_redo_keeps_the_step_numbers_running(session,
+                                                            clock):
+    """Redo gives back the step it took; numbering the next one as if
+    the redo had not happened would leave a gap or repeat a number."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    session.undo()
+    session.redo()
+    session.add_atom("O", frac=[0.3, 0.4, 0.5])
+    assert [origin_of(c).step for c in session.stack.done()] == [1, 2, 3]
+
+
+def _two_bursts_and_a_persons_edit(session, clock):
+    session.checkpoint("First")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    session.checkpoint("Second")
+    session.add_atom("O", frac=[0.3, 0.4, 0.5])
+    _person_adds(session)
+
+
+def test_bursts_are_listed_newest_first_with_what_came_after(session,
+                                                              clock):
+    """The strip's line and its 'also undoes N of yours' come from
+    here; a wrong count reverts more than the person was told."""
+    _two_bursts_and_a_persons_edit(session, clock)
+    second, first = changes.bursts(session.stack)
+    assert (second.number, second.label, second.steps) == (2, "Second", 1)
+    assert (second.person_after, second.bursts_after) == (1, 0)
+    assert (first.number, first.label, first.steps) == (1, "First", 2)
+    assert (first.person_after, first.bursts_after) == (1, 1)
+    assert first.verbs == ("add_atom", "add_atom")
+    assert first.applied == "all" and first.revertible
+
+
+def test_revert_undoes_back_to_just_before_the_burst(session, clock):
+    """Linear history: reverting the first burst takes the second and
+    the person's edit with it, and the plan says how many steps."""
+    _two_bursts_and_a_persons_edit(session, clock)
+    assert changes.revert_plan(session.stack, 2) == 2
+    assert changes.revert_plan(session.stack, 1) == 4
+    assert changes.revert_plan(session.stack, 9) == changes.UNKNOWN
+
+
+def test_a_reverted_burst_is_restored_with_everything_undone_with_it(
+        session, clock):
+    _two_bursts_and_a_persons_edit(session, clock)
+    for _ in range(changes.revert_plan(session.stack, 1)):
+        session.stack.undo(session)
+    first = next(b for b in changes.bursts(session.stack)
+                 if b.number == 1)
+    assert first.applied == "none" and first.reason == changes.REVERTED
+    assert changes.revert_plan(session.stack, 1) == changes.REVERTED
+    assert changes.restore_plan(session.stack, 1) == 4
+    assert changes.restore_plan(session.stack, 2) == 4
+
+
+def test_restore_is_refused_for_a_burst_that_was_never_reverted(
+        session, clock):
+    _two_bursts_and_a_persons_edit(session, clock)
+    assert changes.restore_plan(session.stack, 2) == changes.NOT_REVERTED
+
+
+def test_an_edit_after_a_revert_replaces_what_restore_would_bring_back(
+        session, clock):
+    """Redo is gone once something new is pushed; offering Restore then
+    would redo nothing and say it had."""
+    _two_bursts_and_a_persons_edit(session, clock)
+    for _ in range(changes.revert_plan(session.stack, 2)):
+        session.stack.undo(session)
+    _person_adds(session, frac=(0.6, 0.6, 0.6))
+    assert changes.restore_plan(session.stack, 2) == changes.REPLACED
+    assert [b.number for b in changes.bursts(session.stack)] == [1]
+
+
+def test_a_burst_partly_undone_by_hand_is_still_revertible(session,
+                                                           clock):
+    _two_bursts_and_a_persons_edit(session, clock)
+    session.stack.undo(session)          # the person's edit
+    session.stack.undo(session)          # the second burst's step
+    session.stack.undo(session)          # half the first burst
+    first = next(b for b in changes.bursts(session.stack)
+                 if b.number == 1)
+    assert first.applied == "part"
+    assert changes.revert_plan(session.stack, 1) == 1
+
+
+def test_a_burst_whose_start_the_history_let_go_cannot_be_reverted(
+        session, clock):
+    """Undo can no longer reach its first step, so a revert would stop
+    half way through it and call that reverted."""
+    session.stack.limit = 3
+    session.checkpoint("Long")
+    for k in range(5):
+        session.add_atom("O", frac=[0.1 + 0.1 * k, 0.2, 0.3])
+    (only,) = changes.bursts(session.stack)
+    assert only.reason == changes.TRIMMED and not only.revertible
+    assert changes.revert_plan(session.stack, only.number) == \
+        changes.TRIMMED

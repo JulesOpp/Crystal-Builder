@@ -1165,10 +1165,27 @@ class Session:
         """The assistant's own undo or redo moved the stack: whatever
         is now the newest applied step -- or the empty history -- is
         where its burst goes on from.  Taking back its own misstep is
-        still the same request."""
+        still the same request.
+
+        Its next step is numbered after the burst's last *applied*
+        one: the step it undid goes when that is pushed, and a burst
+        whose numbers skip one reads as one whose start the history
+        let go (:func:`xtal.agent.changes.bursts`)."""
         done = self.stack.done()
         self._last_pushed = weakref.ref(done[-1]) if done else None
         self._ours_empty = not done
+        self._step = max((o.step for c in done
+                          if (o := changes.origin_of(c)) is not None
+                          and o.burst == self._burst), default=0)
+
+    #: What :meth:`_tag` moves, put back when the push it tagged for
+    #: fails -- or a failed step spends the checkpoint's name, or ends
+    #: the burst the next step belongs to.
+    _BURST_STATE = ("_burst", "_step", "_burst_label", "_next_label",
+                    "_closed", "_last_pushed", "_ours_empty", "_tagged")
+
+    def _burst_state(self) -> dict:
+        return {name: getattr(self, name) for name in self._BURST_STATE}
 
     def checkpoint(self, label: str) -> VerbResult:
         """End the current burst of changes and name the next one.
@@ -1196,12 +1213,15 @@ class Session:
     def _push(self, verb, command, message, args, notes=(),
               data=None) -> VerbResult:
         before = self.n_atoms
+        bursting = self._burst_state()
         self._tag(verb, command)
         try:
             self.stack.push(command, self)
         except BaseException:
-            # Never reached the history: no row may name its burst.
-            self._tagged = None
+            # Never reached the history: no row may name its burst,
+            # and the burst goes on as if it had not been tried.
+            for name, value in bursting.items():
+                setattr(self, name, value)
             raise
         self.stack.break_merge()
         answer = VerbResult(verb, True, message, undo_label=command.label,
