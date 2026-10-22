@@ -1051,25 +1051,27 @@ class Session:
 
     def undo(self) -> VerbResult:
         before = self.n_atoms
-        command = self.stack.undo(self)
+        command, told = self._own_move(lambda: self.stack.undo(self))
         if command is not None:
             self._kept_after_own_move()
         answer = VerbResult(
             "undo", command is not None,
             f"undid {command.label}" if command else "nothing to undo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("undo", {}, answer)
         return answer
 
     def redo(self) -> VerbResult:
         before = self.n_atoms
-        command = self.stack.redo(self)
+        command, told = self._own_move(lambda: self.stack.redo(self))
         if command is not None:
             self._kept_after_own_move()
         answer = VerbResult(
             "redo", command is not None,
             f"redid {command.label}" if command else "nothing to redo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("redo", {}, answer)
         return answer
 
@@ -1132,8 +1134,11 @@ class Session:
 
     def close_burst(self) -> None:
         """End the burst: the next edit is a new request.  What a host
-        calls when the assistant opens or switches documents."""
+        calls when the assistant opens or switches documents.  A
+        checkpoint's name goes too: it was for the request on the
+        document being left."""
         self._closed = True
+        self._next_label = ""
 
     def _tag(self, verb: str, command) -> None:
         """Say ``command`` is this verb's, in the right burst.
@@ -1218,8 +1223,12 @@ class Session:
 
         Undone: the steps applied at the last answer that are no longer
         applied, counted from the top, since Undo and Revert take from
-        the top and a trimmed history only loses the bottom.  Edited:
-        the person's steps applied above the last one we saw.
+        the top.  A trimmed history usually loses only the bottom, but
+        a trim past the step that was on top at the last answer reads
+        as undone too.  Edited: the person's steps applied above the
+        last one we saw.  Where both happened -- the person undid ours
+        and then edited -- the revert is what is said: it is the one
+        that makes the assistant's own account wrong.
 
         The mark keeps each step's origin beside it: a push clears the
         redo list, so a step undone before this verb pushed is gone by
@@ -1227,8 +1236,8 @@ class Session:
         """
         done = self.stack.done()
         here = {id(c) for c in done}
-        mark, self._mark = self._mark, [
-            (weakref.ref(c), changes.origin_of(c)) for c in done]
+        mark = self._mark
+        self._remark()
         if mark is None:
             return []
         seen = [(ref(), origin) for ref, origin in mark]
@@ -1259,6 +1268,23 @@ class Session:
                 f"the person made {added} edit(s) to {name} since your "
                 f"last call; inspect before deciding anything")]
         return []
+
+    def _remark(self) -> None:
+        """Take the history as it is now as seen, saying nothing."""
+        self._mark = [(weakref.ref(c), changes.origin_of(c))
+                      for c in self.stack.done()]
+
+    def _own_move(self, move):
+        """``move()`` -- the assistant's own undo or redo -- with what
+        the person did before it said, and the move itself not: told
+        its own undo reverted its steps, an assistant inspects for
+        nothing or puts them back.  Returns what ``move`` returned and
+        the notices, for the answer; ``_record`` then finds the mark
+        current and adds none."""
+        told = self._noticed()
+        moved = move()
+        self._remark()
+        return moved, told
 
     def _document_name(self) -> str:
         return self.path.name if self.path else "the structure"

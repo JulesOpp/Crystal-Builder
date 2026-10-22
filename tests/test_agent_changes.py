@@ -447,3 +447,44 @@ def test_the_person_editing_after_a_first_look_is_told(session, clock):
     _person_adds(session)
     told = session.add_atom("O", frac=[0.1, 0.2, 0.3])
     assert "PERSON_EDITED" in _codes(told)
+
+
+_TOLD = {"AGENT_CHANGES_REVERTED", "PERSON_EDITED"}
+
+
+def test_the_assistants_own_undo_is_not_news_to_it(session, clock):
+    """Told that its steps were reverted when it undid them itself, an
+    assistant inspects for nothing -- or redoes what it meant to take
+    back."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    assert not _TOLD & set(_codes(session.undo()))
+    assert not _TOLD & set(_codes(session.add_atom("O",
+                                                   frac=[0.2, 0.3, 0.4])))
+
+
+def test_the_assistants_own_redo_is_not_news_to_it(session, clock):
+    """Its redo puts back its own step; that is not the person
+    editing."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.undo()
+    assert not _TOLD & set(_codes(session.redo()))
+    assert not _TOLD & set(_codes(session.add_atom("O",
+                                                   frac=[0.2, 0.3, 0.4])))
+
+
+def test_a_persons_edit_before_the_assistants_undo_is_still_said(
+        session, clock):
+    """The undo then takes back the person's step, not its own; an
+    assistant not told would think it undid what it did."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    _person_adds(session)
+    assert "PERSON_EDITED" in _codes(session.undo())
+
+
+def test_closing_the_burst_drops_a_checkpoints_name(session, clock):
+    """A host closes the burst on open and switch: a name meant for
+    one document must not label the next burst on another."""
+    session.checkpoint("A")
+    session.close_burst()
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    assert origin_of(session.stack.done()[-1]).label == ""

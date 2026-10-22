@@ -29,10 +29,11 @@ Every rule below is here because one of those happened.
    structure to look at, one ready for a calculation, a built
    framework, a relaxed structure or a property. It decides which
    checks stop you.
-2. Call `checkpoint` with a short label saying what the person asked
-   for, so the window groups your changes under it.
-3. `documents`: in the window, the person may already have it open.
-4. `open` the file with a workspace, or `build` a framework.
+2. `documents`: in the window, the person may already have it open.
+3. `open` the file with a workspace, or `build` a framework.
+4. Once the document is open, call `checkpoint` with a short label
+   saying what the person asked for, so the window groups your changes
+   under it.
 5. `inspect` before anything else. An error such as `COINCIDENT_ATOMS`
    means every later number is for the wrong crystal: fix it first.
 6. `prepare` a structure from a database or a paper before any
