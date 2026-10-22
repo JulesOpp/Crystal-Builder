@@ -507,3 +507,96 @@ def test_closing_the_burst_drops_a_checkpoints_name(session, clock):
     session.close_burst()
     session.add_atom("O", frac=[0.1, 0.2, 0.3])
     assert origin_of(session.stack.done()[-1]).label == ""
+
+
+def test_a_relaxation_longer_than_the_gap_stays_in_its_request(
+        session, clock, monkeypatch):
+    """The gap is the assistant being quiet, not working: measured from
+    its last answer to when the relaxation lands, a two-minute
+    ``optimize`` read as the person pausing, and Revert took back half
+    of "Prepare and relax"."""
+    from xtal.ff import optimize as ff_optimize
+
+    real = ff_optimize.run
+
+    def slow(*args, **kwargs):
+        clock.now += 2 * changes.BURST_GAP
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ff_optimize, "run", slow)
+    session.checkpoint("Prepare and relax")
+    session.set_element([0], "Zr")
+    relaxed = session.optimize(engine="uff", max_steps=20)
+    assert relaxed.ok and relaxed.undo_label
+    assert [(o.burst, o.verb) for o in map(origin_of,
+                                            session.stack.done())] == [
+        (1, "set_element"), (1, "optimize")]
+    assert [(b.label, b.steps) for b in changes.bursts(session.stack)] \
+        == [("Prepare and relax", 2)]
+
+
+def test_a_quiet_spell_before_a_relaxation_still_starts_a_new_burst(
+        session, clock):
+    """Measured from where the call began, the gap must still split a
+    request that came after the person had been away."""
+    session.set_element([0], "Zr")
+    clock.now += changes.BURST_GAP + 1
+    session.optimize(engine="uff", max_steps=20)
+    assert _burst_numbers(session) == [1, 2]
+
+
+def test_the_person_undoing_only_their_own_step_is_not_a_revert(
+        session, clock):
+    """Told its changes were reverted when the person only took back
+    their own edit, an assistant redoes work that is still there."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    _person_adds(session)
+    session.inspect()
+    session.stack.undo(session)
+    told = session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert "AGENT_CHANGES_REVERTED" not in _codes(told)
+    note = next(d for d in told.diagnostics if d.code == "PERSON_EDITED")
+    assert "undid 1 step" in note.message
+
+
+def test_a_revert_counts_only_the_assistants_own_steps(session, clock):
+    """The count is what the assistant has to redo or reconsider; the
+    person's step undone with them is not its work."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    _person_adds(session)
+    session.inspect()
+    session.stack.undo(session)
+    session.stack.undo(session)
+    told = session.inspect()
+    note = next(d for d in told.diagnostics
+                if d.code == "AGENT_CHANGES_REVERTED")
+    assert note.message.startswith("1 step(s)")
+
+
+def test_the_assistants_redo_of_a_persons_step_ends_its_burst(session,
+                                                              clock):
+    """Redo there re-applies the person's edit on top of the burst; the
+    next step continuing it would put a person's step inside the
+    assistant's burst, and its Revert would take it unsaid."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    _person_adds(session)
+    session.stack.undo(session)
+    session.redo()
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert _burst_numbers(session) == [1, None, 2]
+    assert [b.person_after for b in changes.bursts(session.stack)] == [
+        0, 1]
+
+
+def test_retrying_over_a_persons_earlier_edit_keeps_the_burst(session,
+                                                              clock):
+    """The person's step is under the burst, not in it: the
+    assistant's undo of its own misstep and a retry are still the one
+    request, under its checkpoint's name."""
+    _person_adds(session)
+    session.checkpoint("Tidy rutile")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.undo()
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert _burst_numbers(session) == [None, 1]
+    assert origin_of(session.stack.done()[-1]).label == "Tidy rutile"

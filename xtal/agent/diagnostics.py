@@ -196,8 +196,9 @@ CODES: dict[str, Code] = {
                  "Inspect it before going on, and do not report those "
                  "changes as made."),
     "PERSON_EDITED": Code(
-        INFO, "The person edited the structure since your last call. "
-              "Inspect it before deciding anything."),
+        INFO, "The person edited the structure, or undid their own "
+              "edits, since your last call. Inspect it before deciding "
+              "anything."),
 }
 
 

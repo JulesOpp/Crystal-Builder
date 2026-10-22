@@ -494,8 +494,11 @@ class WindowSession(Session):
         calculation, _revision, generation, over = started
         with calculation:
             answer = compute(over)
-        # Recorded by the copy's session, which is not this one; and
-        # not said under a server that is not the one asked.
+        # Recorded by the copy's session, which is not this one: the
+        # tab's must still hear that the assistant was working, or its
+        # next step is measured from before the calculation.
+        self._heard()
+        # Not said under a server that is not the one asked.
         if generation == self._bridge.generation:
             self._announce(verb, answer)
         if verb != "energy":
@@ -516,6 +519,9 @@ class WindowSession(Session):
         busy = self._busy(verb, args)
         if busy is not None:
             return busy
+        # The tab's session hears the call begin, though the copy's
+        # runs it: an optimize lands here, and the gap is to its start.
+        self._hear()
         calculation = AgentCalculation(self.window, verb)
         calculation.start()
         over = Session(self.document.structure.copy(), self.path,
@@ -531,6 +537,7 @@ class WindowSession(Session):
         with calculation:
             relaxed = over._relax(args, options)
         if isinstance(relaxed, VerbResult):
+            self._heard()
             return self._named(relaxed)
         return _Pending(relaxed, revision, generation, over)
 

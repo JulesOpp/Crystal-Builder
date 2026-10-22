@@ -356,3 +356,54 @@ def test_restore_is_withdrawn_once_redo_holds_other_steps_on_top(
     assert not strip.action_button.isEnabled()
     strip.restore()
     assert tab.stack.depth == 0
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """``changes.clock`` moved by hand, so nobody sleeps."""
+    now = [1000.0]
+    monkeypatch.setattr(changes, "clock", lambda: now[0])
+    return now
+
+
+def test_a_relaxation_in_the_window_longer_than_the_gap_is_one_burst(
+        window, tab, clock, monkeypatch):
+    """The window relaxes a copy and lands the result on the tab; the
+    gap measured to the landing read a two-minute optimize as the
+    person pausing, and split the request in two."""
+    from xtal.ff import optimize as ff_optimize
+
+    real = ff_optimize.run
+
+    def slow(*args, **kwargs):
+        clock[0] += 2 * changes.BURST_GAP
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(ff_optimize, "run", slow)
+    session = window.agent_host.current()
+    session.checkpoint("Prepare and relax")
+    session.set_element([0], "Zr")
+    assert session.optimize(engine="uff", max_steps=20).undo_label
+    assert [(b.label, b.steps) for b in changes.bursts(tab.stack)] == [
+        ("Prepare and relax", 2)]
+
+
+def test_a_long_calculation_in_the_window_counts_as_the_assistant_working(
+        window, tab, clock, monkeypatch):
+    """``energy`` is answered by a copy's session; unless the tab's
+    hears it, the step after a long one is measured from before it and
+    opens a burst of its own."""
+    from xtal.agent.session import Session
+
+    real = Session.energy
+
+    def slow(self, *args, **kwargs):
+        clock[0] += 2 * changes.BURST_GAP
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "energy", slow)
+    session = window.agent_host.current()
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    assert session.energy(engine="uff").ok
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert {origin_of(c).burst for c in tab.stack.done()} == {1}

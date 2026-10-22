@@ -775,6 +775,7 @@ class Session:
 
     def energy(self, engine: str = "uff", **options) -> VerbResult:
         """A single point.  Changes nothing, so it is not on the stack."""
+        self._hear()
         args = {"engine": engine, **options}
         calculator, refused = self._calculator(engine, options)
         if refused is not None:
@@ -830,6 +831,7 @@ class Session:
         from xtal.ff import optimize as ff_optimize
         from xtal.ff import record as ff_record
 
+        self._hear()
         engine = args["engine"]
         calculator, refused = self._calculator(engine, options)
         if refused is not None:
@@ -996,6 +998,7 @@ class Session:
         from xtal.modules import MODULES, Job
         from xtal.modules import record as module_record
 
+        self._hear()
         args = params if args is None else args
         plugins.load()
         module, entry_action = MODULES.find(action)
@@ -1127,6 +1130,7 @@ class Session:
         self._next_label = ""
         self._closed = True
         self._last_call: float | None = None
+        self._began: float | None = None  # a long call, when it began
         self._last_pushed = None          # weakref to our last step
         self._ours_empty = False          # an empty history is ours
         self._tagged = None               # the Origin this verb pushed
@@ -1144,8 +1148,9 @@ class Session:
         """Say ``command`` is this verb's, in the right burst.
 
         A new burst opens when the last one was closed (``checkpoint``,
-        ``close_burst``), when the assistant has been quiet for
-        :data:`~xtal.agent.changes.BURST_GAP`, or when its last step is
+        ``close_burst``), when the assistant had been quiet for
+        :data:`~xtal.agent.changes.BURST_GAP` when this call began
+        (:meth:`_hear`), or when its last step is
         no longer the newest applied one -- the person edited, undid or
         reverted since.  A person's undo then redo of that step puts it
         back on top, so the burst goes on, and so does the assistant's
@@ -1154,11 +1159,12 @@ class Session:
         person's, it would be one undo step with two authors.
         """
         now = changes.clock()
+        began = self._began if self._began is not None else now
         last = self._last_pushed() if self._last_pushed else None
         done = self.stack.done()
         ours = done[-1] is last if done else self._ours_empty
         if (self._closed or self._last_call is None
-                or now - self._last_call > changes.BURST_GAP
+                or began - self._last_call > changes.BURST_GAP
                 or not ours):
             self._burst = changes.next_burst(self.stack)
             self._step = 0
@@ -1178,16 +1184,28 @@ class Session:
         where its burst goes on from.  Taking back its own misstep is
         still the same request.
 
+        Unless a step of the burst is still applied under one that is
+        not the burst's: a redo that re-applied the person's edit puts
+        it on top of the burst, and going on would put their step
+        inside the assistant's, for a Revert to take unsaid.  The
+        burst ends there.
+
         Its next step is numbered after the burst's last *applied*
         one: the step it undid goes when that is pushed, and a burst
         whose numbers skip one reads as one whose start the history
         let go (:func:`xtal.agent.changes.bursts`)."""
         done = self.stack.done()
+        steps = [o.step for c in done
+                 if (o := changes.origin_of(c)) is not None
+                 and o.burst == self._burst]
+        top = changes.origin_of(done[-1]) if done else None
+        if steps and (top is None or top.burst != self._burst):
+            self._last_pushed = None
+            self._ours_empty = False
+            return
         self._last_pushed = weakref.ref(done[-1]) if done else None
         self._ours_empty = not done
-        self._step = max((o.step for c in done
-                          if (o := changes.origin_of(c)) is not None
-                          and o.burst == self._burst), default=0)
+        self._step = max(steps, default=0)
 
     #: What :meth:`_tag` moves, put back when the push it tagged for
     #: fails -- or a failed step spends the checkpoint's name, or ends
@@ -1217,13 +1235,28 @@ class Session:
         self._record("checkpoint", {"label": label}, answer)
         return answer
 
+    def _hear(self) -> None:
+        """A call that may run longer than the gap has begun.  The gap
+        is the assistant's silence before a call, so it is measured to
+        here and not to when the call's step lands: a two-minute
+        relaxation is the assistant working, not the person pausing."""
+        self._began = changes.clock()
+
+    def _heard(self) -> None:
+        """A call has been answered: the assistant's silence starts
+        now."""
+        self._last_call = changes.clock()
+        self._began = None
+
     def _noticed(self) -> list[Diagnostic]:
         """What changed in the history behind this session's back since
         its last answer, said once, and the mark moved to now.
 
         Undone: the steps applied at the last answer that are no longer
         applied, counted from the top, since Undo and Revert take from
-        the top.  A trimmed history usually loses only the bottom, but
+        the top.  Said as a revert only when some were the assistant's,
+        and counted by those: the person undoing their own edit is the
+        person editing.  A trimmed history usually loses only the bottom, but
         a trim past the step that was on top at the last answer reads
         as undone too.  Edited: the person's steps applied above the
         last one we saw.  Where both happened -- the person undid ours
@@ -1249,13 +1282,17 @@ class Session:
         name = self._document_name()
         if undone:
             mine = [o for _c, o in list(reversed(seen))[:undone] if o]
-            latest = mine[0] if mine else None
-            which = (f" -- the latest, '{latest.label or latest.verb}'"
-                     if latest else "")
+            if not mine:
+                return [Diagnostic(
+                    "PERSON_EDITED",
+                    f"the person undid {undone} step(s) on {name} since "
+                    f"your last call; inspect before deciding anything")]
+            latest = mine[0]
             return [Diagnostic(
                 "AGENT_CHANGES_REVERTED",
-                f"{undone} step(s) applied to {name} at your last call "
-                f"were undone or reverted{which}; inspect before going "
+                f"{len(mine)} step(s) applied to {name} at your last "
+                f"call were undone or reverted -- the latest, "
+                f"'{latest.label or latest.verb}'; inspect before going "
                 f"on")]
         top = next((c for c, _o in reversed(seen) if c is not None),
                    None)
@@ -1431,7 +1468,7 @@ class Session:
         tagged, self._tagged = self._tagged, None
         if tagged is not None:
             row["burst"] = tagged.burst
-        self._last_call = changes.clock()
+        self._heard()
         self.log.append(row)
         if self.log_path is not None:
             with self.log_path.open("a", encoding="utf-8") as out:
