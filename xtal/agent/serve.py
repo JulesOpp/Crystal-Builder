@@ -45,6 +45,7 @@ class HeadlessHost(Host):
             held = Path(path).resolve()
             self._sessions[held] = session
         self._current = held
+        self._sessions[held].close_burst()
         return self._sessions[held]
 
     def sessions(self) -> list[Session]:
@@ -55,6 +56,7 @@ class HeadlessHost(Host):
         if held is None:
             raise LookupError(f"{path} is not open")
         self._current = held
+        self._sessions[held].close_burst()
         return self._sessions[held]
 
     def _held(self, path) -> Path | None:

@@ -36,12 +36,14 @@ from __future__ import annotations
 import json
 import os
 import time
+import weakref
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 
+from xtal.agent import changes
 from xtal.agent.answers import VerbResult
 from xtal.agent.diagnostics import Diagnostic
 from xtal.agent.render import VIEWS
@@ -80,6 +82,11 @@ class Session:
     than the constructor.
     """
 
+    # What _record reads before a session has run _init_bursts: the
+    # window's session skips __init__, and logging must not depend on
+    # it having opened a burst.
+    _tagged = None
+
     def __init__(self, structure: Structure, path: Path | None = None,
                  entry=None, view: dict | None = None,
                  project_session: dict | None = None):
@@ -94,6 +101,7 @@ class Session:
         self._project_session = project_session or {}
         #: What opening said, for a session made by :meth:`open`.
         self.opened: VerbResult | None = None
+        self._init_bursts()
 
     # ------------------------------------------------------------------
     #  GETTING ONE
@@ -1096,13 +1104,83 @@ class Session:
         return self.entry.path / LOG_NAME if self.entry else None
 
     # ------------------------------------------------------------------
+    #  BURSTS: which of the history's steps were this session's
+    # ------------------------------------------------------------------
+
+    def _init_bursts(self) -> None:
+        """No burst open yet.  A separate method because the window's
+        session does not run ``__init__``."""
+        self._burst = 0
+        self._step = 0
+        self._burst_label = ""
+        self._next_label = ""
+        self._closed = True
+        self._last_call: float | None = None
+        self._last_pushed = None          # weakref to our last step
+        self._tagged = None               # the Origin this verb pushed
+
+    def close_burst(self) -> None:
+        """End the burst: the next edit is a new request.  What a host
+        calls when the assistant opens or switches documents."""
+        self._closed = True
+
+    def _tag(self, verb: str, command) -> None:
+        """Say ``command`` is this verb's, in the right burst.
+
+        A new burst opens when the last one was closed (``checkpoint``,
+        ``close_burst``), when the assistant has been quiet for
+        :data:`~xtal.agent.changes.BURST_GAP`, or when its last step is
+        no longer the newest applied one -- the person edited, undid,
+        redid or reverted since.  Sealing the stack either side keeps
+        the step its own: merged into the person's, it would be one
+        undo step with two authors.
+        """
+        now = changes.clock()
+        last = self._last_pushed() if self._last_pushed else None
+        done = self.stack.done()
+        if (self._closed or self._last_call is None
+                or now - self._last_call > changes.BURST_GAP
+                or last is None or not done or done[-1] is not last):
+            self._burst = changes.next_burst(self.stack)
+            self._step = 0
+            self._closed = False
+            self._burst_label, self._next_label = self._next_label, ""
+        self._step += 1
+        command.origin = changes.Origin(self._burst, self._step, verb,
+                                        self._burst_label, now)
+        self._last_pushed = weakref.ref(command)
+        self._tagged = command.origin
+        self.stack.break_merge()
+
+    def checkpoint(self, label: str) -> VerbResult:
+        """End the current burst of changes and name the next one.
+
+        Call it when starting on a person's request, with what they
+        asked for ("Prepared MIL-88B"): the window lists the assistant's
+        changes under that name, and Revert takes them back as one.
+        Not an undo step, and answered while the window is busy.
+        """
+        name = " ".join(str(label).split())[:changes.LABEL_LENGTH]
+        self._closed = True
+        self._next_label = name
+        answer = VerbResult(
+            "checkpoint", True,
+            f"the next changes are '{name}'" if name
+            else "the next changes start a new burst",
+            atoms_before=self.n_atoms, atoms_after=self.n_atoms)
+        self._record("checkpoint", {"label": label}, answer)
+        return answer
+
+    # ------------------------------------------------------------------
     #  PLUMBING
     # ------------------------------------------------------------------
 
     def _push(self, verb, command, message, args, notes=(),
               data=None) -> VerbResult:
         before = self.n_atoms
+        self._tag(verb, command)
         self.stack.push(command, self)
+        self.stack.break_merge()
         answer = VerbResult(verb, True, message, undo_label=command.label,
                             atoms_before=before, atoms_after=self.n_atoms,
                             data=dict(data or {}),
@@ -1216,6 +1294,10 @@ class Session:
                "atoms": answer.atoms_after,
                "diagnostics": [f"{d.level}:{d.code}"
                                for d in answer.diagnostics]}
+        tagged, self._tagged = self._tagged, None
+        if tagged is not None:
+            row["burst"] = tagged.burst
+        self._last_call = changes.clock()
         self.log.append(row)
         if self.log_path is not None:
             with self.log_path.open("a", encoding="utf-8") as out:

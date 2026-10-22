@@ -53,6 +53,11 @@ class Command(ABC):
 
     label: str = "Edit"
     change: Change = Change.ALL
+    #: Who pushed it: ``None`` for a person, an
+    #: :class:`xtal.agent.changes.Origin` for an assistant's verb --
+    #: read by the window's *Agent changes* strip, never by the
+    #: command itself.
+    origin = None
 
     @abstractmethod
     def do(self, host) -> None:
@@ -428,6 +433,15 @@ class CommandStack:
     @property
     def depth(self) -> int:
         return len(self._done)
+
+    def done(self) -> tuple:
+        """The applied steps, oldest first: what Undo walks back."""
+        return tuple(self._done)
+
+    def undone(self) -> tuple:
+        """The undone steps as Redo holds them: the last is the
+        earliest, the next Redo re-applies it."""
+        return tuple(self._undone)
 
     def clear(self) -> None:
         self._done.clear()
