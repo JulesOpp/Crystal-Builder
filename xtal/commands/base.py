@@ -434,11 +434,11 @@ class CommandStack:
     def depth(self) -> int:
         return len(self._done)
 
-    def done(self) -> tuple:
+    def done(self) -> tuple[Command, ...]:
         """The applied steps, oldest first: what Undo walks back."""
         return tuple(self._done)
 
-    def undone(self) -> tuple:
+    def undone(self) -> tuple[Command, ...]:
         """The undone steps as Redo holds them: the last is the
         earliest, the next Redo re-applies it."""
         return tuple(self._undone)

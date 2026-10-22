@@ -1047,6 +1047,8 @@ class Session:
     def undo(self) -> VerbResult:
         before = self.n_atoms
         command = self.stack.undo(self)
+        if command is not None:
+            self._kept_after_own_move()
         answer = VerbResult(
             "undo", command is not None,
             f"undid {command.label}" if command else "nothing to undo",
@@ -1057,6 +1059,8 @@ class Session:
     def redo(self) -> VerbResult:
         before = self.n_atoms
         command = self.stack.redo(self)
+        if command is not None:
+            self._kept_after_own_move()
         answer = VerbResult(
             "redo", command is not None,
             f"redid {command.label}" if command else "nothing to redo",
@@ -1117,6 +1121,7 @@ class Session:
         self._closed = True
         self._last_call: float | None = None
         self._last_pushed = None          # weakref to our last step
+        self._ours_empty = False          # an empty history is ours
         self._tagged = None               # the Origin this verb pushed
 
     def close_burst(self) -> None:
@@ -1130,17 +1135,20 @@ class Session:
         A new burst opens when the last one was closed (``checkpoint``,
         ``close_burst``), when the assistant has been quiet for
         :data:`~xtal.agent.changes.BURST_GAP`, or when its last step is
-        no longer the newest applied one -- the person edited, undid,
-        redid or reverted since.  Sealing the stack either side keeps
-        the step its own: merged into the person's, it would be one
-        undo step with two authors.
+        no longer the newest applied one -- the person edited, undid or
+        reverted since.  A person's undo then redo of that step puts it
+        back on top, so the burst goes on, and so does the assistant's
+        own undo or redo (:meth:`_kept_after_own_move`).  Sealing the
+        stack either side keeps the step its own: merged into the
+        person's, it would be one undo step with two authors.
         """
         now = changes.clock()
         last = self._last_pushed() if self._last_pushed else None
         done = self.stack.done()
+        ours = done[-1] is last if done else self._ours_empty
         if (self._closed or self._last_call is None
                 or now - self._last_call > changes.BURST_GAP
-                or last is None or not done or done[-1] is not last):
+                or not ours):
             self._burst = changes.next_burst(self.stack)
             self._step = 0
             self._closed = False
@@ -1149,8 +1157,18 @@ class Session:
         command.origin = changes.Origin(self._burst, self._step, verb,
                                         self._burst_label, now)
         self._last_pushed = weakref.ref(command)
+        self._ours_empty = False
         self._tagged = command.origin
         self.stack.break_merge()
+
+    def _kept_after_own_move(self) -> None:
+        """The assistant's own undo or redo moved the stack: whatever
+        is now the newest applied step -- or the empty history -- is
+        where its burst goes on from.  Taking back its own misstep is
+        still the same request."""
+        done = self.stack.done()
+        self._last_pushed = weakref.ref(done[-1]) if done else None
+        self._ours_empty = not done
 
     def checkpoint(self, label: str) -> VerbResult:
         """End the current burst of changes and name the next one.
@@ -1179,7 +1197,12 @@ class Session:
               data=None) -> VerbResult:
         before = self.n_atoms
         self._tag(verb, command)
-        self.stack.push(command, self)
+        try:
+            self.stack.push(command, self)
+        except BaseException:
+            # Never reached the history: no row may name its burst.
+            self._tagged = None
+            raise
         self.stack.break_merge()
         answer = VerbResult(verb, True, message, undo_label=command.label,
                             atoms_before=before, atoms_after=self.n_atoms,

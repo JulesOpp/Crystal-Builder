@@ -167,3 +167,58 @@ def test_the_log_names_the_burst_a_step_was_in(session, clock):
     assert [r["burst"] for r in pushed] == [1, 2]
     assert "burst" not in next(r for r in rows
                                if r["verb"] == "checkpoint")
+
+
+def test_the_assistants_own_undo_does_not_end_its_burst(session, clock):
+    """An assistant taking back its own misstep is still working on the
+    same request; a new burst there would split one request in two on
+    the strip and drop the name the checkpoint gave it."""
+    session.checkpoint("Tidy rutile")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    session.undo()
+    session.add_atom("O", frac=[0.3, 0.4, 0.5])
+    assert _burst_numbers(session) == [1, 1]
+    assert [origin_of(c).label for c in session.stack.done()] == [
+        "Tidy rutile", "Tidy rutile"]
+
+
+def test_the_assistants_undo_to_an_empty_history_keeps_its_burst(
+        session, clock):
+    """With nothing left applied there is no step to be "ours"; the
+    empty history the assistant's own undo left must still count as
+    its, or every retry after a first misstep is a new request."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.undo()
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    assert _burst_numbers(session) == [1]
+
+
+def test_the_assistants_redo_does_not_end_its_burst(session, clock):
+    """Redo puts back the assistant's own step; what it pushes next
+    belongs with it."""
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    session.undo()
+    session.redo()
+    session.add_atom("O", frac=[0.3, 0.4, 0.5])
+    assert _burst_numbers(session) == [1, 1, 1]
+
+
+class _Boom(AddSites):
+    """A command whose ``do`` fails, as a broken one would."""
+
+    def do(self, host):
+        raise RuntimeError("boom")
+
+
+def test_a_push_that_raises_leaves_no_burst_on_the_next_row(session,
+                                                            clock):
+    """The failed command never reached the history; a burst on the
+    next logged row would name a change that does not exist."""
+    with pytest.raises(RuntimeError, match="boom"):
+        session._push("add_atom", _Boom([new_site("O", [0.1] * 3)]),
+                      "never", {})
+    session.checkpoint("After")
+    assert "burst" not in session.log[-1]
+    assert session.stack.depth == 0
