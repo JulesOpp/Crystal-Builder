@@ -191,24 +191,47 @@ fits ({ref}`the setting <preferences-large-structures>`).
 ## Taking back what it did
 
 While an assistant can connect to the window, a line under the notice
-bar names the last thing it changed in the tab in front: *Assistant:
-Prepared MIL-88B · 6 steps · 14:32*. A line too long for the window is
-cut short, and its tooltip has the whole of it. **Revert** undoes it in
-one go. The history is a single line, so anything done after it goes
-too, your own edits included, and the button says so first: *Revert
-(also undoes 2 of yours)*. **Restore** then brings back exactly what
-Revert took, until you make a new edit or undo or redo further.
-**History** lists everything the assistant did in this tab, newest
-first, each with its own Revert, or Restore once it has been undone;
-a Restore there brings back that change and anything older that Redo
-passes on the way, never what came after it. While a calculation or a
-trajectory holds the tab, Revert waits, greyed, with the reason on its
-tooltip.
+bar names the last thing it changed in the tab in front: *Prepared
+MIL-88B · 6 steps by the assistant · 14:32*. What you asked for comes
+first, so a line too long for the window is cut short at its end, and
+its tooltip has the whole of it. **Revert** undoes it in one go. The
+history is a single line, so anything done after it goes too, your own
+edits included, and the button says so first: *Revert (also undoes 2
+of yours)*. **Restore** then brings back exactly what Revert took,
+until you make a new edit or undo or redo further; looking at another
+tab and coming back keeps it.
 
-The assistant is told on its next step: that what it did was taken
-back, or that you edited in between, so it looks again before going
-on. Its own undo and redo are not reported to it as yours. Undo and
-Redo work as always, a step at a time.
+:::{figure} /figures/workflows/agent-strip.png
+:name: fig-agent-strip
+:width: 90%
+
+The *Agent changes* line under the notice bar, naming what the
+assistant last did in this tab, with Revert and History beside it.
+:::
+
+**History** lists everything the assistant did in this tab, newest
+first, each with its own Revert, which says what else it takes: *Revert:
+One zinc to cobalt (and 1 later assistant change; also undoes 1 of
+yours)*. Once
+all of a change has been undone, its entry offers Restore instead,
+which brings back that change and anything older that Redo passes on
+the way, never what came after it. A greyed entry says why on its
+tooltip. While a calculation or a trajectory holds the tab, Revert
+waits, greyed, with the reason on its tooltip.
+
+:::{figure} /figures/workflows/agent-strip-history.png
+:name: fig-agent-strip-history
+:width: 60%
+
+History lists each of the assistant's changes in this tab, newest
+first, each with its own Revert.
+:::
+
+The assistant is told on its next step: that something it did was
+undone since it last looked, or, separately, that you edited in
+between (undoing only your own edits counts as editing), so it looks
+again before going on. Its own undo and redo are not reported to it as
+yours. Undo and Redo work as always, a step at a time.
 
 ## What it records
 
