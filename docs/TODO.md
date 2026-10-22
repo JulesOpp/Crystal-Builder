@@ -229,12 +229,20 @@ their `--json`, and on 2026-10-01 the live link to the window
 - **A manual chapter**, *Working with an AI assistant*, once
   `docs/manual/` exists (interface stretch, phase 4).
 - **MCP parity, the rest** (served context and the parity eval
-  shipped: `docs/AI_ASSISTANT.md`'s "Served context and the parity
-  eval"). In this order:
+  shipped, and so has E, the guardrails: `docs/AI_ASSISTANT.md`'s
+  "Served context and the parity eval" and "Guardrails: the
+  assistant's changes, attributed and revertible"). In this order:
   - **C: jobs.** A long run returns a handle (status, progress, cancel,
     result), so no answer is lost to one failed health probe, and a
     cost estimate up front (moved from E): nothing estimates a
     calculation's time today.
+    - `WindowSession._gate` should refuse with `WINDOW_BUSY` when
+      `document.held` is set without a counted calculation: today
+      the verb gets past the gate and `Document.run` raises
+      `DocumentHeld`.
+    - The *Agent changes* strip could read `window.agent_server` and
+      treat `None` as not serving, instead of building the server
+      object (`ensure_agent_server`) just to ask whether it runs.
   - **B: seeing.** Queries over atoms, bonds and geometry with filters;
     run folders, logs and result tables; comparing two structures.
     `compare-two` in the eval measures it.
