@@ -352,6 +352,7 @@ class ShellRefresh:
         self.ff_dock.set_document(document)
         self.dftb_dock.set_document(document)
         self.trajectory_dock.set_document(document)
+        self.agent_strip.follow(document)
         self._rebuild_element_menu(document)
         self._refresh_shell()
 

@@ -66,6 +66,7 @@ from xtalapp.viewport.view_settings import (
     FOLLOW_THE_SYSTEM,
     theme_background,
 )
+from xtalapp.widgets.agent_strip import AgentStrip
 from xtalapp.widgets.notice import NoticeBar
 from xtalapp.widgets.start_pane import StartPane
 from xtalapp.widgets.tone import retone
@@ -198,11 +199,15 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         # And a bar above both, for what a status line is too brief
         # for and a modal too much.
         self.notice = NoticeBar()
+        # The assistant's last change, under the notice bar and never in
+        # it: a recovery offer and a Revert must not hide each other.
+        self.agent_strip = AgentStrip(self)
         middle = QWidget()
         column = QVBoxLayout(middle)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
         column.addWidget(self.notice)
+        column.addWidget(self.agent_strip)
         column.addWidget(self.central, 1)
         self.setCentralWidget(middle)
         # After the notice bar, which is where it offers work back.
@@ -1168,6 +1173,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
             server.failed.connect(self._agent_said)
             server.clientConnected.connect(self._agent_connected)
             server.verbLanded.connect(self._agent_said)
+            # The strip shows only while an assistant can connect.
+            server.started.connect(self.agent_strip.refresh)
+            server.stopped.connect(self.agent_strip.refresh)
             self.agent_server = server
         return self.agent_server
 
