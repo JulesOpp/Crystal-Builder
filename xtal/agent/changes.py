@@ -13,6 +13,10 @@ cannot disagree with what Undo will actually do.
 A burst is opened lazily by the session that pushes, never by a timer:
 see :meth:`xtal.agent.Session._tag` for the four things that end one.
 
+Origins on commands pushed inside a ``CommandStack.transaction`` are
+not supported: a push into an open macro does not clear Redo, so an
+undone step could sit beside one that reused its number.
+
 No Qt, no ``mcp``.
 """
 
@@ -171,14 +175,23 @@ def revert_plan(stack, number: int) -> int | str:
 
 
 def restore_plan(stack, number: int) -> int | str:
-    """How many redos bring a reverted burst back with everything
-    undone with it -- every step Redo holds, since Redo re-applies in
-    order -- or why it cannot be."""
-    undone = stack.undone()
-    if any((o := origin_of(c)) is not None and o.burst == number
-           for c in undone):
-        return len(undone)
-    burst = _find(stack, number)
-    if burst is None:
-        return REPLACED
+    """How many redos apply every step of burst ``number`` again, or
+    why it cannot be.
+
+    The fewest: Redo re-applies in order, so whatever was undone
+    earlier in time than the burst's last step comes back on the way,
+    and nothing made after it does.  This restores *the burst*; the
+    strip's own Restore redoes exactly what its Revert took, a count
+    it keeps itself.  A burst Redo no longer holds any of, because an
+    edit since cleared it, is no different here from one that never
+    was: both are :data:`UNKNOWN`.
+    """
+    order = tuple(reversed(stack.undone()))      # next redo first
+    last = max((i for i, c in enumerate(order)
+                if (o := origin_of(c)) is not None and o.burst == number),
+               default=None)
+    if last is not None:
+        return last + 1
+    if _find(stack, number) is None:
+        return UNKNOWN
     return NOT_REVERTED

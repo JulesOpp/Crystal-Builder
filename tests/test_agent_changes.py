@@ -293,8 +293,12 @@ def test_revert_undoes_back_to_just_before_the_burst(session, clock):
     assert changes.revert_plan(session.stack, 9) == changes.UNKNOWN
 
 
-def test_a_reverted_burst_is_restored_with_everything_undone_with_it(
+def test_restore_brings_back_a_burst_and_what_redo_passes_not_later(
         session, clock):
+    """Redo goes in order, so a burst comes back with whatever was
+    undone before it in time -- and with nothing made after it; a plan
+    that redid all of Redo would put back the person's edit and later
+    bursts nobody asked for."""
     _two_bursts_and_a_persons_edit(session, clock)
     for _ in range(changes.revert_plan(session.stack, 1)):
         session.stack.undo(session)
@@ -302,12 +306,40 @@ def test_a_reverted_burst_is_restored_with_everything_undone_with_it(
                  if b.number == 1)
     assert first.applied == "none" and first.reason == changes.REVERTED
     assert changes.revert_plan(session.stack, 1) == changes.REVERTED
-    assert changes.restore_plan(session.stack, 1) == 4
-    assert changes.restore_plan(session.stack, 2) == 4
+    assert changes.restore_plan(session.stack, 1) == 2
+    assert changes.restore_plan(session.stack, 2) == 3
+
+
+def test_reverting_newest_first_restores_the_older_burst_alone(session,
+                                                               clock):
+    """Two reverts, newest first, leave Redo as one revert of the older
+    burst would; restoring the older must not bring the newer back."""
+    _two_bursts_and_a_persons_edit(session, clock)
+    for number in (2, 1):
+        for _ in range(changes.revert_plan(session.stack, number)):
+            session.stack.undo(session)
+    assert changes.restore_plan(session.stack, 1) == 2
+
+
+def test_restore_counts_a_persons_step_undone_from_under_the_burst(
+        session, clock):
+    """A person's step undone by hand after the revert sits ahead of
+    the burst in Redo; a plan that left its redo out would stop one
+    step short of the burst's last."""
+    _person_adds(session)
+    session.checkpoint("First")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    session.add_atom("O", frac=[0.2, 0.3, 0.4])
+    for _ in range(changes.revert_plan(session.stack, 1)):
+        session.stack.undo(session)
+    session.stack.undo(session)          # the person's step, by hand
+    assert changes.restore_plan(session.stack, 1) == 3
 
 
 def test_restore_is_refused_for_a_burst_that_was_never_reverted(
         session, clock):
+    """Restore on a burst with nothing undone would redo nothing, or
+    redo someone else's steps, and say it had restored it."""
     _two_bursts_and_a_persons_edit(session, clock)
     assert changes.restore_plan(session.stack, 2) == changes.NOT_REVERTED
 
@@ -320,12 +352,15 @@ def test_an_edit_after_a_revert_replaces_what_restore_would_bring_back(
     for _ in range(changes.revert_plan(session.stack, 2)):
         session.stack.undo(session)
     _person_adds(session, frac=(0.6, 0.6, 0.6))
-    assert changes.restore_plan(session.stack, 2) == changes.REPLACED
+    assert changes.restore_plan(session.stack, 2) == changes.UNKNOWN
     assert [b.number for b in changes.bursts(session.stack)] == [1]
 
 
 def test_a_burst_partly_undone_by_hand_is_still_revertible(session,
                                                            clock):
+    """Undo by hand that stops inside a burst leaves part of it
+    applied; refusing then would leave the person no way to take the
+    rest back as one."""
     _two_bursts_and_a_persons_edit(session, clock)
     session.stack.undo(session)          # the person's edit
     session.stack.undo(session)          # the second burst's step
