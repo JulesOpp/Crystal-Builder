@@ -1476,3 +1476,5 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         self.settings.save_window(self)
         self.settings.sync()
         super().closeEvent(event)
+        if event.isAccepted():
+            layout.stop_scrolling_dock_tabs(self)
