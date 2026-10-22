@@ -231,11 +231,10 @@ their `--json`, and on 2026-10-01 the live link to the window
 - **MCP parity, the rest** (served context and the parity eval
   shipped: `docs/AI_ASSISTANT.md`'s "Served context and the parity
   eval"). In this order:
-  - **E: guardrails.** A checkpoint per agent turn, an *Agent changes*
-    strip in the window with one-click revert, and cost estimates up
-    front, with no prompts. This is what makes MCP better than raw access.
   - **C: jobs.** A long run returns a handle (status, progress, cancel,
-    result), so no answer is lost to one failed health probe.
+    result), so no answer is lost to one failed health probe, and a
+    cost estimate up front (moved from E): nothing estimates a
+    calculation's time today.
   - **B: seeing.** Queries over atoms, bonds and geometry with filters;
     run folders, logs and result tables; comparing two structures.
     `compare-two` in the eval measures it.

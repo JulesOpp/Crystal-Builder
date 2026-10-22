@@ -132,10 +132,10 @@ Over standard input and output it offers one tool for each verb --
 `set_space_group`, `merge_duplicates`, `recalculate_bonds`, `add_bond`,
 `remove_bond`, `set_bond_type`, `add_hydrogens`, `substitute`,
 `fill_pores`, `place_molecule`, `prepare`, `interpenetrate`, `energy`,
-`optimize`, `run`, `undo`, `redo`, `save` and `export` -- plus
-`documents`, `switch`, `capabilities` and `help_for`.  Each has its own
-keywords and returns a structured answer.  Without the `mcp` extra it
-exits saying what to install.
+`optimize`, `run`, `undo`, `redo`, `checkpoint`, `save` and `export`
+-- plus `documents`, `switch`, `capabilities` and `help_for`.  Each has
+its own keywords and returns a structured answer.  Without the `mcp`
+extra it exits saying what to install.
 
 **A proxy, or a host of its own.**  By default it is a proxy to the
 window when one is serving, and otherwise **works on files of its own**
@@ -187,6 +187,28 @@ names it.
 **Size.**  The Large structures limits apply to an assistant's
 supercell too, and the refusal is `SIZE_LIMIT`, naming the largest that
 fits ({ref}`the setting <preferences-large-structures>`).
+
+## Taking back what it did
+
+While an assistant can connect to the window, a line under the notice
+bar names the last thing it changed in the tab in front: *Assistant:
+Prepared MIL-88B · 6 steps · 14:32*. A line too long for the window is
+cut short, and its tooltip has the whole of it. **Revert** undoes it in
+one go. The history is a single line, so anything done after it goes
+too, your own edits included, and the button says so first: *Revert
+(also undoes 2 of yours)*. **Restore** then brings back exactly what
+Revert took, until you make a new edit or undo or redo further.
+**History** lists everything the assistant did in this tab, newest
+first, each with its own Revert, or Restore once it has been undone;
+a Restore there brings back that change and anything older that Redo
+passes on the way, never what came after it. While a calculation or a
+trajectory holds the tab, Revert waits, greyed, with the reason on its
+tooltip.
+
+The assistant is told on its next step: that what it did was taken
+back, or that you edited in between, so it looks again before going
+on. Its own undo and redo are not reported to it as yours. Undo and
+Redo work as always, a step at a time.
 
 ## What it records
 
