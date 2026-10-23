@@ -63,3 +63,24 @@ def test_window_mode_says_no_window_is_listening(capsys):
     pytest.importorskip("mcp")
     assert cli.main(["mcp", "--window"]) == 2
     assert "no window is listening" in capsys.readouterr().err
+
+
+def test_opening_or_switching_a_document_ends_the_assistants_burst(
+        rutile_cif, quartz, tmp_path):
+    """Opening or switching is the assistant turning to something
+    else; an edit after it that joined the burst before would be
+    listed, and reverted, with work done for another request."""
+    from xtal.agent.changes import origin_of
+    from xtal.agent.serve import HeadlessHost
+    from xtal.io import write_cif
+
+    other = tmp_path / "quartz.cif"
+    write_cif(quartz, other)
+    host = HeadlessHost()
+    session = host.open(rutile_cif, tmp_path / "ws")
+    session.add_atom("O", frac=[0.1, 0.2, 0.3])
+    host.open(rutile_cif, tmp_path / "ws").add_atom(
+        "O", frac=[0.2, 0.3, 0.4])
+    host.open(other, tmp_path / "ws")
+    host.switch(rutile_cif).add_atom("O", frac=[0.3, 0.4, 0.5])
+    assert [origin_of(c).burst for c in session.stack.done()] == [1, 2, 3]

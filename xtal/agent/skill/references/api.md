@@ -336,6 +336,14 @@ runs or fails.
 
 ### `redo()`
 
+### `checkpoint(label)`
+
+Ends the current burst of changes and names the next: the window lists
+your edits under `label` in its *Agent changes* strip, and the person
+can take them back as one with Revert. Call it when you start on a
+request, with what the person asked for (`"Prepared MIL-88B"`). Not an
+undo step; answered while the window is busy.
+
 ### `save(path)`
 
 Writes the session as a project (`.xtalproj`): the structure, its bonds

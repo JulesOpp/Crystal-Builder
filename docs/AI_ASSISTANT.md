@@ -417,3 +417,50 @@ strain-sweep 14 against 8), which is what sub-projects B (queries) and
 D (composition) are scheduled to close. One run each way: open-trimers
 passing on both sides here and failing on both in the baseline is the
 run-to-run spread of the grader's question check, not a change.
+
+## Guardrails: the assistant's changes, attributed and revertible (2026-10)
+
+Every step an assistant's verb pushes carries an `Origin` (its burst,
+its place in it, the verb, a `checkpoint` label, the time); a person's
+carries none. A burst is one run of the assistant's edits on one
+document, opened lazily by the session that pushes: it ends when the
+assistant calls `checkpoint(label)`, opens or switches documents,
+had been quiet for `BURST_GAP` (60 s) when a call began, or finds its
+last step is no longer the newest applied one (the person edited,
+undid or reverted). The gap is measured to where a call begins, not
+to where its step lands, so a relaxation longer than the gap is still
+the request it was part of (`Session._hear`; in the window the tab's
+session hears a calculation that a copy's session runs). The
+assistant's own `undo` and `redo` do not end it: taking back its own
+misstep is still the same request -- unless the redo re-applies a
+person's step over the burst, which ends it, so no burst ever holds a
+person's step. `checkpoint` names the *next* burst, and opening or
+switching documents forgets the name, so the assistant calls it once
+a document is open (after `open` or `build`) and again whenever the
+person asks for something new, as `mcp.md` says. `xtal/agent/changes.py` reads the bursts off the
+history itself and plans Revert (undo back to just before the burst,
+everything after it included, said beforehand) and Restore (redo the
+burst and whatever Redo must pass on the way, never a later change),
+so the strip cannot disagree with what Undo does.
+
+The window shows the latest burst in the *Agent changes* strip under
+the notice bar, while an assistant can be connected: Revert, Restore,
+and History for every burst. Its line reads *Two oxygens · 2 steps by
+the assistant · 14:05*, the request first so that a narrow column,
+which elides from the right, keeps what matters; the whole of it is
+the tooltip. The label is the assistant's own words and is shown as
+plain text everywhere (line, tooltip, menu). Revert says beforehand
+what else it takes: *Revert (also undoes 1 of yours)*, and History's
+entries likewise, *Revert: First (and 1 later assistant change; also
+undoes 1 of yours)*, with a greyed entry's reason as its tooltip. The
+strip's own Restore redoes exactly the steps its Revert took, is kept
+per tab (switching tabs and back keeps it), and is withdrawn once
+Redo no longer holds exactly those (another undo, a redo, an edit).
+History offers Restore for a burst only once all of it is undone,
+and that Restore is the plan above. Revert greys, saying why, while a
+calculation holds the tab or a trajectory plays. On its next call the
+assistant is told what happened behind its back:
+`AGENT_CHANGES_REVERTED` when steps of its own that it had seen
+applied were undone, counted by those; `PERSON_EDITED` when the person
+added steps, or undid only steps of their own; its own undo and redo
+are never reported to it as the person's. Cost estimates for calculations moved to sub-project C.
