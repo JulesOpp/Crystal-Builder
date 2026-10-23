@@ -54,6 +54,7 @@ from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.base import CommandStack
 from xtal.core import bonding, groups, p1
 from xtal.core.structure import Structure
+from xtal.view.settings import VIEW_CHOICES, ViewSettings, coerce_view
 
 #: The file beside the structure that records what the agent did, one
 #: JSON object per verb.  The GUI reads it to say that an entry was
@@ -301,10 +302,6 @@ class Session:
         """How the structure is drawn: every view setting (the Style
         panel's and the View menu's), and the choices of those that
         take one of a list.  Change them with ``set_view``."""
-        try:
-            from xtalapp.viewport.view_settings import VIEW_CHOICES
-        except ImportError:
-            return self._answer_refused("view", {}, _no_view_settings())
         n = self.n_atoms
         answer = VerbResult(
             "view", True, f"the view of {self._document_name()}",
@@ -324,11 +321,6 @@ class Session:
         answer's ``was`` holds the old values: send it back to put the
         view as it was."""
         args = {"settings": settings}
-        try:
-            from xtalapp.viewport.view_settings import coerce_view
-        except ImportError:
-            return self._answer_refused("set_view", args,
-                                        _no_view_settings())
         cleaned = coerce_view(settings)
         if isinstance(cleaned, str):
             return self._refused("set_view", args, cleaned,
@@ -356,14 +348,12 @@ class Session:
     def _current_view(self) -> dict:
         """Every view setting as ``ViewSettings.to_dict`` writes them:
         the defaults, overlaid with what was opened or set."""
-        from xtalapp.viewport.view_settings import ViewSettings
         return ViewSettings.from_dict(self._view).to_dict()
 
     def _apply_view(self, cleaned: dict) -> None:
         """Settings :func:`coerce_view` passed, merged into the view a
         saved project carries.  Only what was set is kept, so a project
         does not pin every default of the version that wrote it."""
-        from xtalapp.viewport.view_settings import ViewSettings
         settings = ViewSettings.from_dict(self._view)
         for name, value in cleaned.items():
             setattr(settings, name, value)
@@ -1630,15 +1620,6 @@ class BuildFailed(RuntimeError):
     def __init__(self, result: VerbResult):
         super().__init__(result.message)
         self.result = result
-
-
-def _no_view_settings() -> Diagnostic:
-    """The view's record is the window's, and a core-only install has
-    no window to have one."""
-    from xtal.install import command
-    return Diagnostic("VIEW_SETTING_REFUSED",
-                      f"view settings need the gui extra: "
-                      f"{command('gui')}")
 
 
 def _unavailable(module, action) -> Diagnostic | None:

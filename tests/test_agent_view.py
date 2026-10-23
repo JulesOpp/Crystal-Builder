@@ -15,11 +15,10 @@ import pytest
 
 from xtal.agent.session import Session
 from xtal.io.project import read_project
+from xtal.view import settings as view_settings
 
 # The module and not the function the package exports under its name.
 render_module = importlib.import_module("xtal.agent.render")
-
-view_settings = pytest.importorskip("xtalapp.viewport.view_settings")
 
 
 def _spy_on_render(monkeypatch):
@@ -129,19 +128,16 @@ def test_a_callers_view_is_not_changed_by_set_view(rutile):
     assert given == {"style": "spacefill"}
 
 
-def test_set_view_without_the_gui_extra_names_it(rutile, monkeypatch):
-    """A core-only install has no ViewSettings; the refusal must say
-    what to install, not raise ImportError at the client."""
-    from xtal.install import command
-
-    monkeypatch.setitem(sys.modules, "xtalapp.viewport.view_settings",
-                        None)
+def test_view_and_set_view_work_without_the_window(rutile, monkeypatch):
+    """The record is the core's (``xtal.view``): a core-only install,
+    with no ``xtalapp``, reads and changes the view.  It was refused
+    there, naming the gui extra, while the record was the window's."""
+    monkeypatch.setitem(sys.modules, "xtalapp", None)
     session = Session(rutile)
     for answer in (session.set_view({"style": "polyhedra"}),
                    session.view()):
-        assert not answer.ok
-        assert answer.diagnostics[0].code == "VIEW_SETTING_REFUSED"
-        assert command("gui") in answer.message
+        assert answer.ok, answer.message
+    assert session.view().data["view"]["style"] == "polyhedra"
 
 
 def test_a_saved_project_carries_the_view(tmp_path, rutile):
