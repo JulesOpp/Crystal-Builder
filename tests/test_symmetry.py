@@ -129,6 +129,58 @@ def test_asymmetrize_refuses_a_non_standard_setting(rutile):
     assert fixed.n_sites == 2
 
 
+def _lifted(rutile, dz=0.07):
+    """Rutile with every oxygen 0.21 A up c: P4_2nm as written, and
+    P4_2/mnm at half an Angstrom, with the oxygens off its z = 0
+    mirror -- a ring twisted out of the plane a loose search accepts
+    it in."""
+    flat = symmetry.reduce_to_p1(rutile)
+    for site in flat.sites:
+        if site.element == "O":
+            site.frac = site.frac + np.array([0.0, 0.0, dz])
+    flat.touch()
+    return flat
+
+
+def test_a_loose_group_names_the_sites_off_its_special_positions(
+        rutile):
+    """Each oxygen is generated twice, once either side of the mirror,
+    and "expansion gives 10 atoms, expected 6" alone left the person
+    to work out which atoms and why."""
+    flat = _lifted(rutile)
+    assert symmetry.detect(flat, 0.5).number == 136
+    result, report = symmetry.asymmetrize(flat, 0.5)
+    assert not report.ok
+    assert result is flat
+    assert [name for name, _gap in report.off_position] == ["O1"]
+    assert report.off_position[0][1] == pytest.approx(0.07 * 2.959,
+                                                      abs=1e-6)
+    assert "O1 0.21 A" in report.message
+    assert "P4_2/mnm" in report.message
+
+
+def test_snapping_puts_the_sites_on_their_positions_and_says_how_far(
+        rutile):
+    flat = _lifted(rutile)
+    back, report = symmetry.asymmetrize(flat, 0.5, snap=True)
+    assert report.ok, report.message
+    assert back.space_group.number == 136
+    assert p1.expand(back).n_atoms == 6
+    oxygen = next(s for s in back.sites if s.element == "O")
+    assert oxygen.frac[2] == pytest.approx(0.0, abs=1e-9)
+    assert any("0.2071 A" in note for note in report.warnings)
+
+
+def test_a_tight_tolerance_neither_refuses_nor_snaps(rutile):
+    """The group the coordinates have is found as before, and
+    ``snap`` has nothing to move."""
+    flat = _lifted(rutile)
+    back, report = symmetry.asymmetrize(flat, 0.01, snap=True)
+    assert report.ok
+    assert back.space_group.number == 102
+    assert not report.off_position
+
+
 def test_asymmetrize_keeps_labels_when_the_cell_is_untouched(rutile):
     flat = symmetry.reduce_to_p1(rutile)
     flat.sites[0].u_iso = 0.0123

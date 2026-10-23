@@ -64,20 +64,24 @@ class FindSymmetry(StructureOperation):
     not already in it.  The operation verifies itself by re-expanding
     the result; a failed check comes back as ``ok=False`` with the
     original structure, never as a plausible wrong answer.
+
+    ``snap`` puts sites the loose tolerance left off their special
+    positions onto them, rather than refusing and naming them.
     """
 
     change = Change.SYMMETRY | Change.CELL | Change.TOPOLOGY
     label = "Find symmetry"
 
     def __init__(self, symprec: float = symmetry.DEFAULT_SYMPREC,
-                 standardize_cell: bool = False):
+                 standardize_cell: bool = False, snap: bool = False):
         super().__init__()
         self.symprec = float(symprec)
         self.standardize_cell = bool(standardize_cell)
+        self.snap = bool(snap)
 
     def apply_to(self, structure):
         return symmetry.asymmetrize(structure, self.symprec,
-                                    self.standardize_cell)
+                                    self.standardize_cell, self.snap)
 
 
 class SetSpaceGroup(StructureOperation):

@@ -70,6 +70,21 @@ class _ScrollingDockTabs(QObject):
         return False
 
 
+def stop_scrolling_dock_tabs(window):
+    """Take the tab-bar filter off a window that has agreed to close.
+
+    Called from ``closeEvent`` because there is no later moment Python
+    hears of: by ``destroyed`` the children are gone already.  While
+    ``~QWidget`` takes the window apart Qt can still send it
+    ``ChildPolished``, and ``event.child()`` then hands shiboken a
+    child half way through its own destructor to find a Python type
+    for -- an access violation on Windows CI, in the teardown that
+    deletes a test's windows, with a dialog parented on the window.
+    A window that is closing has no tab bars left to fix.
+    """
+    window.removeEventFilter(window._dock_tabs)
+
+
 def build_docks(window):
     window._dock_tabs = _ScrollingDockTabs(window)
     window.installEventFilter(window._dock_tabs)
