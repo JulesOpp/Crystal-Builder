@@ -537,8 +537,8 @@ def test_set_view_in_the_window_changes_the_tabs_own_view(window, tab):
     heard = []
     tab.viewChanged.connect(lambda: heard.append(True))
     depth = tab.stack.depth
-    style = tab.view.style
-    assert (style, tab.view.show_rings) != ("polyhedra", True)
+    style, rings = tab.view.style, tab.view.show_rings
+    assert (style, rings) != ("polyhedra", True)
     answer = session.set_view({"style": "polyhedra", "show_rings": True})
     assert answer.ok, answer.message
     assert (tab.view.style, tab.view.show_rings) == ("polyhedra", True)
@@ -546,7 +546,7 @@ def test_set_view_in_the_window_changes_the_tabs_own_view(window, tab):
     assert session._view == {}
     assert answer.data["changed"] == {"style": "polyhedra",
                                       "show_rings": True}
-    assert answer.data["was"] == {"style": style, "show_rings": False}
+    assert answer.data["was"] == {"style": style, "show_rings": rings}
     # Not an undo step, so the strip has nothing to list.
     assert tab.stack.depth == depth
 

@@ -89,12 +89,18 @@ def _strip(path: Path) -> None:
 #  workflows/assistant.md: Taking back what it did
 # ----------------------------------------------------------------------
 
-def assistant_works() -> None:
-    """Two requests on MOF-5: one zinc made cobalt, then two oxygens
-    put in the cavities -- the strip names the second."""
+def open_mof5() -> None:
+    """MOF-5, once for every figure: opening the sample again raises
+    its tab with an *already open* notice over the strip."""
     win.open_sample("mof5")                                 # noqa: F821
     settle(800)                                             # noqa: F821
     win.reset_view()                                        # noqa: F821
+    settle(400)                                             # noqa: F821
+
+
+def assistant_works() -> None:
+    """Two requests on MOF-5: one zinc made cobalt, then two oxygens
+    put in the cavities -- the strip names the second."""
     session = win.agent_host.current()                      # noqa: F821
     session.checkpoint("One zinc to cobalt")
     assert session.set_element([0], "Co").ok
@@ -140,10 +146,43 @@ def agent_strip_reverted() -> None:
     settle(400)                                             # noqa: F821
 
 
+# ----------------------------------------------------------------------
+#  workflows/assistant.md: Asking it to change how a tab looks
+# ----------------------------------------------------------------------
+
+#: What the assistant is asked for.
+RESTYLE = {"style": "polyhedra", "show_rings": True,
+           "color_by": "coordination"}
+
+
+def view_before() -> None:
+    """MOF-5 as it opens, before anything is asked."""
+    _window_with_render(_out("view-before"))
+
+
+def view_after() -> None:
+    """The same window once the assistant has restyled the tab, then
+    put back with the answer's ``was``, so the strip's figures start
+    from MOF-5 as it opened (a view change is no undo step to take
+    back)."""
+    session = win.agent_host.current()                      # noqa: F821
+    answer = session.set_view(RESTYLE)
+    assert answer.ok, answer.message
+    settle(800)                                             # noqa: F821
+    print(f"shots: set_view {answer.message!r}, "
+          f"was {answer.data['was']!r}")
+    _window_with_render(_out("view-after"))
+    assert session.set_view(answer.data["was"]).ok
+    settle(400)                                             # noqa: F821
+
+
 server = imp("xtalapp.agent_server.AgentServer")            # noqa: F821
 running = server.__dict__["running"]
 server.running = property(lambda self: True)
 try:
+    open_mof5()
+    view_before()
+    view_after()
     assistant_works()
     agent_strip()
     agent_strip_also()

@@ -100,7 +100,7 @@ class Session:
         self.log: list[dict] = []
         # A project's view and selection are the person's, and an
         # agent that opened and saved it must hand them back as found.
-        self._view = view or {}
+        self._view = dict(view or {})
         self._project_session = project_session or {}
         #: What opening said, for a session made by :meth:`open`.
         self.opened: VerbResult | None = None

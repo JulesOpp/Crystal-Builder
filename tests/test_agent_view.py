@@ -98,11 +98,35 @@ def test_a_bad_setting_changes_nothing_and_is_refused_by_code(rutile):
 
 
 def test_an_empty_request_is_ok_and_changes_nothing(rutile):
+    """An empty call is a no-op said as one; refused, an assistant
+    that sends back an empty ``was`` would read an error for nothing
+    done."""
     session = Session(rutile)
     answer = session.set_view({})
     assert answer.ok
     assert answer.message == "no view settings given"
     assert answer.data == {"changed": {}, "was": {}}
+
+
+def test_a_view_change_is_not_counted_as_a_step(tmp_path):
+    """The window says how many steps an assistant took on an entry;
+    restyling counted there reads as edits the person must look for."""
+    from xtal.agent.session import summarise_log
+
+    log = tmp_path / "agent-session.jsonl"
+    log.write_text('{"verb": "view", "ok": true}\n'
+                   '{"verb": "set_view", "ok": true}\n',
+                   encoding="utf-8")
+    assert summarise_log(log) == (0, 0)
+
+
+def test_a_callers_view_is_not_changed_by_set_view(rutile):
+    """The view a session is opened with is the caller's own record;
+    ``set_view`` writing into it changed a project read elsewhere."""
+    given = {"style": "spacefill"}
+    session = Session(rutile, view=given)
+    assert session.set_view({"style": "polyhedra"}).ok
+    assert given == {"style": "spacefill"}
 
 
 def test_set_view_without_the_gui_extra_names_it(rutile, monkeypatch):
@@ -176,7 +200,8 @@ def test_the_render_project_carries_the_view(tmp_path, rutile,
     seen = []
 
     def runs(command, **kwargs):
-        seen.append(read_project(command[-3])[1])
+        project = next(a for a in command if a.endswith(".xtalproj"))
+        seen.append(read_project(project)[1])
         return subprocess.CompletedProcess(command, -11, "", "")
 
     monkeypatch.setattr(render_module.subprocess, "run", runs)

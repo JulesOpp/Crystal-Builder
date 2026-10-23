@@ -92,19 +92,17 @@ the setting takes.
 
 ### `set_view(settings)`
 
-Change how the structure is drawn, never the structure: `settings` is
-an object of setting names to values, e.g.
-`set_view({"style": "polyhedra", "show_rings": true, "color_by":
-"coordination"})`. All or nothing: an unknown name, a value of the wrong
-type or one outside its choices or range is refused with
-`VIEW_SETTING_REFUSED` and nothing changes. Not an undo step.
-`data["changed"]` gives the new values and `data["was"]` the old ones;
-send `was` back to put the view as it was. A `background` given without
-`background_follows_theme` stops following the theme, so a theme
-change does not paint over it; `was` then holds the old flag too. A
-saved project carries the
-view, and `render` draws it. In the window, the tab and its Style panel
-follow. Only when the person asks, and say what you changed.
+Change how the structure is drawn, never the structure: `settings` is an object
+of setting names to values, e.g. `set_view({"style": "polyhedra", "show_rings":
+true, "color_by": "coordination"})`. All or nothing: an unknown name, a value
+of the wrong type or one outside its choices or range is refused with
+`VIEW_SETTING_REFUSED` and nothing changes. Not an undo step. `data["changed"]`
+gives the new values and `data["was"]` the old ones; send `was` back to put the
+view as it was. A `background` given without `background_follows_theme` stops
+following the theme, so a theme change does not paint over it; `was` then holds
+the old flag too. A saved project carries the view, and `render` draws it. In
+the window, the tab and its Style panel follow. Only when the person asks, and
+say what you changed.
 
 ### `select(rule, atoms, **args)`
 
