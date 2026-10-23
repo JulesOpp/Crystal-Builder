@@ -131,7 +131,10 @@ def test_a_callers_view_is_not_changed_by_set_view(rutile):
 def test_view_and_set_view_work_without_the_window(rutile, monkeypatch):
     """The record is the core's (``xtal.view``): a core-only install,
     with no ``xtalapp``, reads and changes the view.  It was refused
-    there, naming the gui extra, while the record was the window's."""
+    there, naming the gui extra, while the record was the window's.
+    This checks the behaviour only, with ``xtalapp`` made unimportable;
+    that nothing under ``xtal/`` imports the shell is
+    ``test_core_is_headless``'s wall."""
     monkeypatch.setitem(sys.modules, "xtalapp", None)
     session = Session(rutile)
     for answer in (session.set_view({"style": "polyhedra"}),

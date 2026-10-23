@@ -474,15 +474,20 @@ values of each field that takes one of a list. `set_view(settings)`
 changes any of them. Both are logged, and neither is a step:
 `summarise_log` does not count them.
 
-**Validated, all or nothing.** `coerce_view`
-(`xtal/view/settings.py`, Qt- and VTK-free, moved there from
-`xtalapp/viewport/view_settings.py` so the core may import it) reads each field's type off the record:
-a bool is a bool or "true"/"false" (1 is refused, so 2 is not true), an
-int refuses 2.5, a colour is three integers 0-255, a range is low <=
-high, element keys are real elements, and a choice field takes only its
-choices. The first bad key or value refuses the whole request with
-`VIEW_SETTING_REFUSED` and a sentence naming what it takes ("did you
-mean show_rings" for a misspelt key); nothing is applied. A core-only
+**Validated, all or nothing.** `coerce_view` (`xtal/view/settings.py`,
+Qt- and VTK-free, moved there from `xtalapp/viewport/view_settings.py`
+so the core may import it) reads each field's type off the record: a
+bool is a bool or "true"/"false" (an integer is refused; send true or
+false), an int refuses 2.5, a colour is three integers 0-255, a display
+range is low <= high with both ends within the Display Range dialog's
+-20 to 20 cells, element keys are real elements, and a choice field
+takes only its choices. The first bad key or value refuses the whole
+request with `VIEW_SETTING_REFUSED` and a sentence naming what it takes
+("did you mean show_rings" for a misspelt key); nothing is applied.
+What a display range would draw is then held to the size limit as the
+dialog holds it (`limits.check_drawn`): over the hard limit it is
+`SIZE_LIMIT`, and over the soft one, where the person would be asked,
+`VIEW_SETTING_REFUSED` telling the assistant to ask them. A core-only
 install, with no `xtalapp`, reads and sets the view as the window does.
 An empty request is ok and changes nothing. A `background` given alone
 turns `background_follows_theme` off, so a theme change does not paint
