@@ -158,6 +158,9 @@ Crystal-Builder/
 │   ├── analysis/pxrd.py     # powder pattern: structure factors, LP, profiles
 │   ├── workspace.py          # the folder all the work is in: an entry per structure,
 │                             # its runs, and the tabs it was last left with
+│   ├── view/                 # how a structure is drawn, no Qt or VTK: settings.py (what is
+│   │                         #   drawn: never on the undo stack, saved with the session),
+│   │                         #   styles.py, colormaps.py -- the agent's view and set_view
 │   ├── params.py             # Param and Availability, shared by modules and engines
 │   ├── plugins.py            # entry-point discovery + in-tree registration
 │   └── cli.py                # headless: convert, symmetry, supercell, optimize, modules, run
@@ -176,7 +179,8 @@ Crystal-Builder/
 │   │   │                     #   space-filling, polyhedra, ORTEP, PLATON, cartoon
 │   │   ├── picking.py        # hardware selection → (site, image) ids
 │   │   ├── modes.py          # select / add atom / add bond / measure / move
-│   │   └── view_settings.py  # what is drawn: never on the undo stack, saved with the session
+│   │   └── view_settings.py  # alias of xtal/view/settings.py (as styles.py and colormaps.py
+│   │                         #   are of theirs), kept so the window's imports still resolve
 │   ├── docks/
 │   │   ├── workspace.py filetree.py    # what is on disk, and what has been run
 │   │   ├── modules.py results.py logview.py trajectory.py   # what can be run, and its output

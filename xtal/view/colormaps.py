@@ -1,6 +1,6 @@
 """
-xtalapp.viewport.colormaps
-==========================
+xtal.view.colormaps
+===================
 Turning a number per atom or per bond into a colour, for *Colour by*.
 
 The maps are matplotlib's, sampled at nine points and interpolated

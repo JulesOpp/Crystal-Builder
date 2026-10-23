@@ -1,6 +1,6 @@
 """
-xtalapp.viewport.styles
-=======================
+xtal.view.styles
+================
 Draw styles, as a registry.
 
 A style is a small record, not a class hierarchy: it says where an

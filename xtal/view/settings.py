@@ -1,6 +1,6 @@
 """
-xtalapp.viewport.view_settings
-==============================
+xtal.view.settings
+==================
 How a structure is drawn -- and nothing about what it *is*.
 
 ViewSettings is deliberately separate from Structure: changing a colour
@@ -26,7 +26,7 @@ from xtal.core import elements as el
 from xtal.core import scalars
 from xtal.view import colormaps, styles
 
-# Styles are looked up in xtalapp.viewport.styles; the name is stored
+# Styles are looked up in xtal.view.styles; the name is stored
 # here so settings stay a plain, serialisable record.
 #: Occupancy pies, so that a disordered site says it is one the moment
 #: a deposited structure opens -- and a fully occupied one looks
