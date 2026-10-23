@@ -86,9 +86,9 @@ How the structure is drawn: `data["view"]` is every view setting, the
 Style panel's and the View menu's, by name, and `data["choices"]` the
 values of each setting that takes one of a list (`style`, `color_by`,
 `color_map`, `label_mode`, `boundary`, `projection`, `pore_spheres`).
-Read it before `set_view`. Each setting's type and range are not listed:
-a value outside them is refused, and the refusal's message says what
-the setting takes.
+Read it before `set_view`. Each setting's type and range are not listed,
+to keep the answer small: a value outside them is refused, and the
+refusal's message names the setting's type and range.
 
 ### `set_view(settings)`
 
@@ -100,7 +100,11 @@ of the wrong type or one outside its choices or range is refused with
 gives the new values and `data["was"]` the old ones; send `was` back to put the
 view as it was. A `background` given without `background_follows_theme` stops
 following the theme, so a theme change does not paint over it; `was` then holds
-the old flag too. A saved project carries the view, and `render` draws it. In
+the old flag too. Display ranges (`range_a`, `range_b`, `range_c`) are held to
+the size limit the Display Range dialog applies: over its hard limit they are
+refused with `SIZE_LIMIT`, and over the size the person would be asked about
+with `VIEW_SETTING_REFUSED` -- ask the person to widen the range themselves.
+A saved project carries the view, and `render` draws it. In
 the window, the tab and its Style panel follow. Only when the person asks, and
 say what you changed.
 

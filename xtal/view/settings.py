@@ -574,6 +574,10 @@ BOND_RADIUS_RANGE = (0.01, 1.0)
 #: Below 5% a face is invisible and still hides what is behind it.
 OPACITY_RANGE = (0.05, 1.0)
 ELEMENT_RADIUS_RANGE = (0.05, 5.0)
+#: What the Display Range dialog's spins offer for either end of a
+#: range, in cells.  How much a range may draw is the size limit's
+#: (``xtal.core.limits.check_drawn``), not this.
+DISPLAY_RANGE_ENDS = (-20.0, 20.0)
 #: A dummy atom is a marker and not an atom, and a marker the size of
 #: a pore is one of the things it is for -- so it has no ceiling worth
 #: the name.  Qt needs a number.
@@ -681,6 +685,16 @@ def _span(value, *, wide=False) -> tuple[float, float]:
     return span
 
 
+def _display_range(value) -> tuple[float, float]:
+    lo, hi = DISPLAY_RANGE_ENDS
+    span = _span(value)
+    if not all(lo <= end <= hi for end in span):
+        raise _Refused(f"{value!r} does not have both ends from "
+                       f"{lo:g} to {hi:g} cells, as the Display Range "
+                       "dialog offers")
+    return span
+
+
 def _optional_span(value) -> tuple[float, float] | None:
     # A colour range of one value colours everything the middle of
     # the map, which says nothing.
@@ -772,9 +786,12 @@ _BY_TYPE = {
     int: ("integer", _int),
     tuple[int, int, int]: ("colour: three integers from 0 to 255",
                            _rgb),
-    tuple[float, float]: ("range in fractional coordinates: two "
-                          "numbers, low first", _span),
 }
+
+_DISPLAY_RANGE = (
+    "range in fractional coordinates: two numbers, low first, each "
+    f"from {DISPLAY_RANGE_ENDS[0]:g} to {DISPLAY_RANGE_ENDS[1]:g}",
+    _display_range)
 
 #: The fields whose declared type says too little -- a bare ``tuple``
 #: or ``dict`` -- or that take something besides it.
@@ -782,6 +799,9 @@ _BY_FIELD = {
     "background": (
         "colour: three integers from 0 to 255, or one of "
         + ", ".join(BACKGROUNDS), _background),
+    "range_a": _DISPLAY_RANGE,
+    "range_b": _DISPLAY_RANGE,
+    "range_c": _DISPLAY_RANGE,
     "color_range": (
         "null for the values' own least and greatest, or two numbers, "
         "low below high", _optional_span),
@@ -875,7 +895,12 @@ def coerce_view(changes) -> dict | str:
 
 def view_schema() -> dict[str, dict]:
     """Each field's type in words, its choices if it has a list of
-    them, and its default as ``to_dict`` writes it."""
+    them, and its default as ``to_dict`` writes it.
+
+    No verb answers with this: ``view`` gives the values and the
+    choices alone, to keep its answer small, and a refusal names a
+    setting's type and range.  It is the coverage sweep, which fails
+    for a field nobody has taught ``coerce_view`` to check."""
     defaults = ViewSettings().to_dict()
     return {name: {"type": words,
                    "choices": (list(VIEW_CHOICES[name])

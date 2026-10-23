@@ -52,7 +52,7 @@ from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.base import CommandStack
-from xtal.core import bonding, groups, p1
+from xtal.core import bonding, groups, limits, p1
 from xtal.core.structure import Structure
 from xtal.view.settings import VIEW_CHOICES, ViewSettings, coerce_view
 
@@ -334,6 +334,9 @@ class Session:
             self._record("set_view", args, answer)
             return answer
         before = self._current_view()
+        too_big = self._range_too_big(before, cleaned)
+        if too_big is not None:
+            return self._answer_refused("set_view", args, too_big)
         self._apply_view(cleaned)
         after = self._current_view()
         # As view() spells them, so ``was`` can be sent straight back.
@@ -344,6 +347,29 @@ class Session:
                   "was": {k: before[k] for k in cleaned}})
         self._record("set_view", args, answer)
         return answer
+
+    def _range_too_big(self, view: dict, cleaned: dict):
+        """The refusal for a display range the person's Display Range
+        dialog would not draw unasked, or None.  Over the hard limit
+        it is refused there too; over the soft one the person is
+        asked, and an assistant cannot be.  Answered ok, fifty cells
+        a side of MOF-5 was 53 M atoms and froze the window."""
+        axes = ("range_a", "range_b", "range_c")
+        if not any(axis in cleaned for axis in axes):
+            return None
+        ranges = [cleaned.get(axis, view[axis]) for axis in axes]
+        verdict = limits.check_drawn(self.n_atoms, ranges)
+        if verdict.refused:
+            return Diagnostic("SIZE_LIMIT", verdict.sentence)
+        if verdict.warned:
+            soft, _hard = limits.bounds("drawn")
+            return Diagnostic(
+                "VIEW_SETTING_REFUSED",
+                f"the picture would draw {limits.count(verdict.estimate)}"
+                f" atoms, over the {limits.count(soft)} the person is "
+                "asked about; ask the person to widen the display range "
+                "themselves")
+        return None
 
     def _current_view(self) -> dict:
         """Every view setting as ``ViewSettings.to_dict`` writes them:

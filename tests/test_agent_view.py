@@ -250,3 +250,69 @@ def test_a_background_set_by_hand_says_it_no_longer_follows_the_theme(
     assert session.set_view(answer.data["was"]).ok
     assert session.view().data["view"]["background_follows_theme"] \
         is True
+
+
+def test_a_display_range_over_the_hard_size_limit_is_refused(halite):
+    """Forty cells a side of halite is 512 000 drawn atoms, over the
+    400 000 the Display Range dialog refuses; answered ok, the window
+    froze building it (MOF-5 at fifty a side was 53 M)."""
+    session = Session(halite)
+    before = session.view().data["view"]
+    whole = [-20, 20]
+    answer = session.set_view({"range_a": whole, "range_b": whole,
+                               "range_c": whole})
+    assert not answer.ok
+    assert [d.code for d in answer.diagnostics] == ["SIZE_LIMIT"]
+    assert "the largest that fits" in answer.message
+    assert session.view().data["view"] == before
+
+
+def test_a_display_range_end_beyond_the_dialogs_spins_is_refused(
+        halite):
+    """The dialog's spins go from -20 to 20 cells; a range the person
+    cannot show there, or put back from it, is not one to set."""
+    session = Session(halite)
+    before = session.view().data["view"]
+    answer = session.set_view({"range_a": [0, 50], "range_b": [0, 50],
+                               "range_c": [0, 50]})
+    assert not answer.ok
+    assert [d.code for d in answer.diagnostics] == [
+        "VIEW_SETTING_REFUSED"]
+    assert "from -20 to 20" in answer.message
+    assert session.view().data["view"] == before
+
+
+def test_a_modest_display_range_is_applied(halite):
+    """The limit refuses what is too big, not every range: two cells
+    a side is 64 atoms of halite and is drawn."""
+    session = Session(halite)
+    answer = session.set_view({"range_a": [0, 2], "range_b": [0, 2],
+                               "range_c": [0, 2]})
+    assert answer.ok, answer.message
+    assert session.view().data["view"]["range_c"] == [0.0, 2.0]
+
+
+def test_a_range_the_person_would_be_asked_about_is_refused(rutile,
+                                                           halite):
+    """Over the soft limit the person is asked, and an assistant
+    cannot be: forty cells a side of rutile is 384 000 atoms, under
+    the hard limit and over the soft one.  Under Warn only nothing is
+    over the hard limit, so without this an assistant could draw
+    anything."""
+    from xtal.core import limits
+
+    whole = [-20, 20]
+    for profile, structure in ((limits.STANDARD, rutile),
+                               (limits.WARN_ONLY, halite)):
+        limits.use(profile)
+        session = Session(structure)
+        # Only range_c is sent: the others are the view's own.
+        assert session.set_view({"range_a": whole,
+                                 "range_b": whole}).ok
+        before = session.view().data["view"]
+        answer = session.set_view({"range_c": whole})
+        assert not answer.ok
+        assert [d.code for d in answer.diagnostics] == [
+            "VIEW_SETTING_REFUSED"]
+        assert "ask the person" in answer.message
+        assert session.view().data["view"] == before

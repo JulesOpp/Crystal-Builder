@@ -119,6 +119,9 @@ def test_types_are_coerced_from_what_a_client_sends():
     assert coerce_view({"range_a": [0, 2]}) == {"range_a": (0.0, 2.0)}
     assert coerce_view({"range_c": ["-0.5", 1.5]}) == {
         "range_c": (-0.5, 1.5)}
+    # The Display Range dialog's own ends.
+    assert coerce_view({"range_b": [-20, 20]}) == {
+        "range_b": (-20.0, 20.0)}
     assert coerce_view({"background": "white"}) == {
         "background": BACKGROUNDS["white"],
         "background_follows_theme": False}
@@ -176,6 +179,8 @@ def test_numbers_are_taken_up_to_their_limits():
     {"range_a": [2, 0]},
     {"range_a": [0, 1, 2]},
     {"range_a": 1},
+    {"range_a": [0, 20.5]},
+    {"range_b": [-21, 0]},
     {"color_range": [3, 1]},
     {"color_range": [2, 2]},
     {"ellipsoid_probability": 90},
