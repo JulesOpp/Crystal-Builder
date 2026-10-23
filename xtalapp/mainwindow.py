@@ -69,7 +69,7 @@ from xtalapp.viewport.view_settings import (
 from xtalapp.widgets.agent_strip import AgentStrip
 from xtalapp.widgets.notice import NoticeBar
 from xtalapp.widgets.start_pane import StartPane
-from xtalapp.widgets.tone import retone
+from xtalapp.widgets.tone import is_dark, retone
 from xtalapp.workspace_shell import WorkspaceShell
 
 APP_NAME = "Crystal Builder"
@@ -647,7 +647,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         rectangle sitting in the middle of a dark application.
         """
         if name == FOLLOW_THE_SYSTEM:
-            self.set_view(background=theme_background(),
+            self.set_view(background=theme_background(is_dark()),
                           background_follows_theme=True)
             return
         self.set_view(background=BACKGROUNDS[name],
@@ -663,7 +663,7 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         retone(self)
         for document in self.documents:
             if document.view.background_follows_theme:
-                document.update_view(background=theme_background())
+                document.update_view(background=theme_background(is_dark()))
 
     def changeEvent(self, event):
         if event.type() in (QEvent.PaletteChange, QEvent.ThemeChange,

@@ -66,7 +66,7 @@ from xtalapp.viewport.view_settings import (
     RING_SIZES,
     theme_background,
 )
-from xtalapp.widgets.tone import HINT, set_tone
+from xtalapp.widgets.tone import HINT, is_dark, set_tone
 
 #: The flat colours that belong to no element: the net a chemist drew
 #: over the framework, the planes the user defined, and the pore
@@ -1119,7 +1119,7 @@ class StylePanelDock(QDockWidget):
         """One of the four named backgrounds, or following the system."""
         name = self.background.currentData()
         if name == FOLLOW_THE_SYSTEM:
-            self._set(background=theme_background(),
+            self._set(background=theme_background(is_dark()),
                       background_follows_theme=True)
             return
         color = BACKGROUNDS.get(name)

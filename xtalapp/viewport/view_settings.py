@@ -142,10 +142,12 @@ THEME_BACKGROUNDS = {False: BACKGROUNDS["white"], True: BACKGROUNDS["slate"]}
 FOLLOW_THE_SYSTEM = "system"
 
 
-def theme_background() -> tuple[int, int, int]:
-    """The background that goes with the theme in force."""
-    from xtalapp.widgets.tone import is_dark
-    return THEME_BACKGROUNDS[is_dark()]
+def theme_background(dark: bool) -> tuple[int, int, int]:
+    """The background that goes with a light theme or a ``dark`` one.
+
+    The caller says which, because asking the palette is Qt's and this
+    record is read by the headless core too."""
+    return THEME_BACKGROUNDS[dark]
 
 
 @dataclass
