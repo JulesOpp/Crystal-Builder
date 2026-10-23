@@ -158,7 +158,8 @@ and, being set, kept the window from choosing.
 
 ## 3. CI
 
-- Test matrix: `ubuntu-latest · py3.12` returns, with the dormant
+- Test matrix: `ubuntu-24.04 · py3.12` (it was `ubuntu-latest` until
+  that became 26.04 on 2026-10-19; see the TODO) returns, with the dormant
   apt step plus `libosmesa6` and `mesa-utils` so the GL tests run
   instead of skipping. The comment that explains why Linux left is
   replaced with one that says why it is back: something is
