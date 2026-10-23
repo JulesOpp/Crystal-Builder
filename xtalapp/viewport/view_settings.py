@@ -558,9 +558,24 @@ VIEW_CHOICES: dict[str, tuple[str, ...]] = {
     "pore_spheres": tuple(v for v, _label, _tip in PORE_SPHERES),
 }
 
-#: The ring sizes a colour may be given for: the smallest ring there
-#: is, up to the largest the ring search is asked for.
+#: The ring sizes a colour may be given for and the search may be
+#: asked to go up to: the smallest ring there is, to the largest the
+#: Style panel offers -- above ten the search is seconds.
 RING_SIZES = range(3, 13)
+
+# What the Style panel's controls offer, which the panel is built from
+# and a client is held to: a value outside them is one the panel
+# cannot show, and some the scene cannot draw.
+ATOM_SCALE_MAX = 3.0
+AXES_SCALE_RANGE = (0.5, 3.0)
+BOND_RADIUS_RANGE = (0.01, 1.0)
+#: Below 5% a face is invisible and still hides what is behind it.
+OPACITY_RANGE = (0.05, 1.0)
+ELEMENT_RADIUS_RANGE = (0.05, 5.0)
+#: A dummy atom is a marker and not an atom, and a marker the size of
+#: a pore is one of the things it is for -- so it has no ceiling worth
+#: the name.  Qt needs a number.
+DUMMY_RADIUS_MAX = 1e4
 
 
 class _Refused(ValueError):
@@ -599,11 +614,34 @@ def _int(value) -> int:
     return int(number)
 
 
-def _positive(value) -> float:
-    number = _float(value)
-    if number <= 0:
-        raise _Refused(f"{value!r} is not more than 0")
-    return number
+def _number(lo=None, hi=None, *, integer=False, above=False,
+            below=False):
+    """(words, check) for a number from ``lo`` to ``hi``, either
+    left out for no limit; ``above`` and ``below`` leave out the end
+    itself."""
+    if lo is not None and hi is not None:
+        where = (f"between {lo:g} and {hi:g}, exclusive"
+                 if above and below else
+                 f"more than {lo:g}, at most {hi:g}" if above else
+                 f"from {lo:g} to {hi:g}")
+    elif lo is not None:
+        where = f"more than {lo:g}" if above else f"at least {lo:g}"
+    else:
+        where = f"less than {hi:g}" if below else f"at most {hi:g}"
+    read = _int if integer else _float
+
+    def check(value):
+        number = read(value)
+        if lo is not None and (number <= lo if above else number < lo) \
+                or hi is not None and (number >= hi if below
+                                       else number > hi):
+            raise _Refused(f"{value!r} is not {where}")
+        return number
+    return f"{'integer' if integer else 'number'} {where}", check
+
+
+_FRACTION = _number(0.0, 1.0)
+_OPACITY = _number(*OPACITY_RANGE)
 
 
 def _rgb(value) -> tuple[int, int, int]:
@@ -628,20 +666,23 @@ def _background(value) -> tuple[int, int, int]:
     return _rgb(value)
 
 
-def _span(value) -> tuple[float, float]:
+def _span(value, *, wide=False) -> tuple[float, float]:
     span = None
     if isinstance(value, (list, tuple)) and len(value) == 2:
         try:
             span = tuple(_float(v) for v in value)
         except _Refused:
             pass
-    if span is None or span[0] > span[1]:
-        raise _Refused(f"{value!r} is not two numbers, low first")
+    if span is None or span[0] > span[1] or wide and span[0] == span[1]:
+        raise _Refused(f"{value!r} is not two numbers, low first"
+                       + (", and not equal" if wide else ""))
     return span
 
 
 def _optional_span(value) -> tuple[float, float] | None:
-    return None if value is None else _span(value)
+    # A colour range of one value colours everything the middle of
+    # the map, which says nothing.
+    return None if value is None else _span(value, wide=True)
 
 
 def _symbol(value) -> str:
@@ -684,13 +725,29 @@ def _ring_size(value) -> int:
     return size
 
 
+def _radius(symbol: str, value) -> float:
+    lo, hi = ELEMENT_RADIUS_RANGE
+    if el.is_dummy(symbol):
+        hi = DUMMY_RADIUS_MAX
+    return _number(lo, hi)[1](value)
+
+
 def _keyed(key, coerce):
     """A dict whose keys and values are each checked -- JSON's keys
-    are strings, so a ring size arrives as "6"."""
+    are strings, so a ring size arrives as "6".  ``coerce`` is given
+    the checked key as well as the value."""
     def coerce_dict(value) -> dict:
         if not isinstance(value, dict):
             raise _Refused(f"{value!r} is not an object")
-        return {key(k): coerce(v) for k, v in value.items()}
+        cleaned = {}
+        for k, v in value.items():
+            checked = key(k)
+            # "o" and "O", or "6" and 6: which one won would be the
+            # order the client happened to write them in.
+            if checked in cleaned:
+                raise _Refused(f"{k!r} names {checked!r} a second time")
+            cleaned[checked] = coerce(checked, v)
+        return cleaned
     return coerce_dict
 
 
@@ -725,19 +782,43 @@ _BY_FIELD = {
         + ", ".join(BACKGROUNDS), _background),
     "color_range": (
         "null for the values' own least and greatest, or two numbers, "
-        "low first", _optional_span),
+        "low below high", _optional_span),
     "polyhedron_centres": (
         "list of element symbols; empty is every metal", _symbols),
     "polyhedron_pairs_off": (
         "list of element pairs that make no polyhedron, \"O-Ti\" or "
         "[\"O\", \"Ti\"]", _pairs),
     "element_colors": ("object: element symbol to colour",
-                       _keyed(_symbol, _rgb)),
-    "element_radii": ("object: element symbol to radius in Angstrom, "
-                      "more than 0", _keyed(_symbol, _positive)),
+                       _keyed(_symbol, lambda _k, v: _rgb(v))),
+    "element_radii": (
+        "object: element symbol to radius in Angstrom, from "
+        f"{ELEMENT_RADIUS_RANGE[0]:g} to {ELEMENT_RADIUS_RANGE[1]:g} "
+        f"(up to {DUMMY_RADIUS_MAX:g} for a dummy atom)",
+        _keyed(_symbol, _radius)),
     "ring_colors": (f"object: ring size from {RING_SIZES[0]} to "
                     f"{RING_SIZES[-1]} to colour",
-                    _keyed(_ring_size, _rgb)),
+                    _keyed(_ring_size, lambda _k, v: _rgb(v))),
+    "atom_scale": _number(0.0, ATOM_SCALE_MAX, above=True),
+    "bond_radius": _number(*BOND_RADIUS_RANGE),
+    "axes_scale": _number(*AXES_SCALE_RANGE),
+    # 1 is a sphere at infinity: transforms.probability_scale raises,
+    # and so would every redraw.  90 meant as 90% is the likely slip.
+    "ellipsoid_probability": (
+        "a probability between 0 and 1, exclusive",
+        _number(0.0, 1.0, above=True, below=True)[1]),
+    "depth_cue_strength": _FRACTION,
+    "depth_cue_start": _FRACTION,
+    "depth_cue_end": _FRACTION,
+    "polyhedron_opacity": _OPACITY,
+    "pore_opacity": _OPACITY,
+    "ring_opacity": _OPACITY,
+    "ring_max_size": _number(RING_SIZES[0], RING_SIZES[-1],
+                             integer=True),
+    # A polyhedron has at least a face: three vertices.
+    "polyhedron_min_vertices": _number(3, integer=True),
+    "pore_cavity": _number(0, integer=True),
+    # -1 is every copy.
+    "pore_copy": _number(-1, integer=True),
 }
 
 

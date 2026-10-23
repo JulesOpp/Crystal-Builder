@@ -50,13 +50,20 @@ from xtal.core import scalars
 from xtal.core.transforms import ELLIPSOID_LEVELS
 from xtalapp import docks
 from xtalapp.docks.columns import Collapsible, ReflowColumns
-from xtalapp.viewport import colormaps, styles
+from xtalapp.viewport import colormaps, styles, view_settings
 from xtalapp.viewport.scene import CUE_MIN_SPAN, cue_fraction
 from xtalapp.viewport.view_settings import (
+    ATOM_SCALE_MAX,
+    AXES_SCALE_RANGE,
     BACKGROUNDS,
+    BOND_RADIUS_RANGE,
+    DUMMY_RADIUS_MAX,
+    ELEMENT_RADIUS_RANGE,
     FOLLOW_THE_SYSTEM,
+    OPACITY_RANGE,
     PORE_SPHERES,
     RING_COLORS,
+    RING_SIZES,
     theme_background,
 )
 from xtalapp.widgets.tone import HINT, set_tone
@@ -67,13 +74,6 @@ from xtalapp.widgets.tone import HINT, set_tone
 #: they are the same kind of thing -- a note about the crystal rather
 #: than part of it -- and because the picture they are chosen against
 #: is the same picture.
-#: The largest radius an element can be drawn at, in Angstrom.
-ELEMENT_RADIUS_MAX = 5.0
-#: A dummy atom is a marker and not an atom, and a marker the size of
-#: a pore is one of the things it is for -- so it has no ceiling worth
-#: the name.  Qt needs a number.
-DUMMY_RADIUS_MAX = 1e4
-
 FLAT_COLORS = [("topology_color", "Net", "The colour of the topology "
                                          "net drawn over the bonds"),
                ("plane_color", "Planes", "The colour of every plane "
@@ -88,8 +88,9 @@ FLAT_COLORS = [("topology_color", "Net", "The colour of the topology "
 #: combo can go on showing instead of falling back to the first entry.
 CUSTOM_BACKGROUND = "custom"
 
-LABEL_MODES = [("none", "None"), ("element", "Element"),
-               ("label", "Site label"), ("index", "Atom index")]
+LABEL_MODES = list(zip(view_settings.LABEL_MODES,
+                       ("None", "Element", "Site label", "Atom index"),
+                       strict=True))
 ELEMENT_COLUMNS = ["El", "Colour", "Radius"]
 #: Inside each group box.  macOS's own are about twenty pixels a side,
 #: which is forty a group can never give back when the column narrows.
@@ -101,8 +102,8 @@ SWATCH_WIDTH = 44
 #: inside what a panel may ask of its column.
 RING_SWATCHES_PER_ROW = 4
 #: The corner triad's size, in percent of its default.
-AXES_SCALE_MIN = 50
-AXES_SCALE_MAX = 300
+AXES_SCALE_MIN = round(AXES_SCALE_RANGE[0] * 100)
+AXES_SCALE_MAX = round(AXES_SCALE_RANGE[1] * 100)
 #: How many elements the table shows before it scrolls.
 ELEMENT_ROWS = 8
 #: How many atom groups the list shows before it scrolls.
@@ -111,7 +112,9 @@ ATOM_GROUP_ROWS = 5
 ATOM_GROUP_SWATCH = 12
 # Sliders are integers; these turn a percentage into a scale factor.
 SCALE_STEPS = 200
-SCALE_MAX = 3.0
+SCALE_MAX = ATOM_SCALE_MAX
+#: The transparency sliders, in percent.
+OPACITY_PERCENT = tuple(round(v * 100) for v in OPACITY_RANGE)
 
 
 class PercentControl(QWidget):
@@ -289,7 +292,7 @@ class StylePanelDock(QDockWidget):
         form.addRow("Atom size", self.atom_scale)
 
         self.bond_radius = QDoubleSpinBox()
-        self.bond_radius.setRange(0.01, 1.0)
+        self.bond_radius.setRange(*BOND_RADIUS_RANGE)
         self.bond_radius.setSingleStep(0.02)
         self.bond_radius.setDecimals(3)
         self.bond_radius.setSuffix(" A")
@@ -391,7 +394,7 @@ class StylePanelDock(QDockWidget):
         box, form = self._form("Transparency")
 
         self.opacity = QSlider(Qt.Horizontal)
-        self.opacity.setRange(5, 100)
+        self.opacity.setRange(*OPACITY_PERCENT)
         self.opacity.setToolTip(
             "How solid coordination polyhedra are drawn")
         self.opacity.valueChanged.connect(
@@ -399,7 +402,7 @@ class StylePanelDock(QDockWidget):
         form.addRow("Polyhedra", self.opacity)
 
         self.pore_opacity = QSlider(Qt.Horizontal)
-        self.pore_opacity.setRange(5, 100)
+        self.pore_opacity.setRange(*OPACITY_PERCENT)
         self.pore_opacity.setToolTip(
             "How solid the pore spheres and the channel skeleton are "
             "drawn.  The framework has to stay readable through the "
@@ -409,7 +412,7 @@ class StylePanelDock(QDockWidget):
         form.addRow("Pores", self.pore_opacity)
 
         self.ring_opacity = QSlider(Qt.Horizontal)
-        self.ring_opacity.setRange(5, 100)
+        self.ring_opacity.setRange(*OPACITY_PERCENT)
         self.ring_opacity.setToolTip(
             "How solid the ring faces are drawn.  The atoms and bonds "
             "they are made of have to read through them")
@@ -605,7 +608,7 @@ class StylePanelDock(QDockWidget):
         form.addRow(self.rings)
 
         self.ring_max_size = QSpinBox()
-        self.ring_max_size.setRange(3, 12)
+        self.ring_max_size.setRange(RING_SIZES[0], RING_SIZES[-1])
         self.ring_max_size.setToolTip(
             "The largest ring looked for.  Each size up costs more on "
             "a large framework, and above ten it is seconds")
@@ -1213,9 +1216,10 @@ class StylePanelDock(QDockWidget):
         view = self.document.view
         value, ok = QInputDialog.getDouble(
             self, f"{symbol} radius", "Radius (A):",
-            view.base_radius(symbol, "covalent"), 0.05,
+            view.base_radius(symbol, "covalent"),
+            ELEMENT_RADIUS_RANGE[0],
             DUMMY_RADIUS_MAX if el.is_dummy(symbol)
-            else ELEMENT_RADIUS_MAX, 3)
+            else ELEMENT_RADIUS_RANGE[1], 3)
         if not ok:
             return
         radii = dict(view.element_radii)

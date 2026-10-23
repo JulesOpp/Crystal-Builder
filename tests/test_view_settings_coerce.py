@@ -15,6 +15,9 @@ from xtalapp.viewport import colormaps, styles
 from xtalapp.viewport.view_settings import (
     BACKGROUNDS,
     BOUNDARIES,
+    DUMMY_RADIUS_MAX,
+    ELEMENT_RADIUS_RANGE,
+    LABEL_MODES,
     PORE_SPHERES,
     VIEW_CHOICES,
     ViewSettings,
@@ -58,8 +61,7 @@ def test_the_choice_lists_are_the_existing_ones():
     assert VIEW_CHOICES["boundary"] == BOUNDARIES
     assert VIEW_CHOICES["pore_spheres"] == tuple(
         v for v, _label, _tip in PORE_SPHERES)
-    assert VIEW_CHOICES["label_mode"] == ("none", "element", "label",
-                                          "index")
+    assert VIEW_CHOICES["label_mode"] == LABEL_MODES
     assert VIEW_CHOICES["projection"] == ("perspective", "orthographic")
 
 
@@ -136,6 +138,22 @@ def test_types_are_coerced_from_what_a_client_sends():
         == {"ring_colors": {5: (1, 2, 3), 6: (4, 5, 6)}}
 
 
+def test_numbers_are_taken_up_to_their_limits():
+    """The ends of each range are values the panel offers; refusing
+    them would refuse what a person can set by hand."""
+    for changes in ({"ellipsoid_probability": 0.9},
+                    {"ellipsoid_probability": "0.99"},
+                    {"depth_cue_start": 0}, {"depth_cue_end": 1},
+                    {"polyhedron_opacity": 0.05}, {"ring_opacity": 1},
+                    {"atom_scale": 3}, {"bond_radius": 0.01},
+                    {"axes_scale": 0.5}, {"ring_max_size": 12},
+                    {"pore_cavity": 0}, {"polyhedron_min_vertices": 3},
+                    {"element_radii": {"Fe": ELEMENT_RADIUS_RANGE[1]}},
+                    # A marker the size of a pore is what one is for.
+                    {"element_radii": {"X": DUMMY_RADIUS_MAX}}):
+        assert isinstance(coerce_view(changes), dict), changes
+
+
 @pytest.mark.parametrize("changes", [
     {"show_rings": 2},
     {"show_rings": 1},
@@ -158,6 +176,23 @@ def test_types_are_coerced_from_what_a_client_sends():
     {"range_a": [0, 1, 2]},
     {"range_a": 1},
     {"color_range": [3, 1]},
+    {"color_range": [2, 2]},
+    {"ellipsoid_probability": 90},
+    {"ellipsoid_probability": 1},
+    {"ellipsoid_probability": 0},
+    {"atom_scale": 0},
+    {"atom_scale": 4},
+    {"bond_radius": -0.1},
+    {"axes_scale": 10},
+    {"polyhedron_opacity": 1.5},
+    {"pore_opacity": 0},
+    {"depth_cue_start": 1.2},
+    {"depth_cue_strength": -0.1},
+    {"ring_max_size": 2},
+    {"ring_max_size": 13},
+    {"polyhedron_min_vertices": 2},
+    {"pore_cavity": -1},
+    {"pore_copy": -2},
     {"color_range": "auto"},
     {"polyhedron_centres": ["Xx"]},
     {"polyhedron_centres": "Ti"},
@@ -168,6 +203,9 @@ def test_types_are_coerced_from_what_a_client_sends():
     {"element_colors": ["O"]},
     {"element_radii": {"Fe": 0}},
     {"element_radii": {"Fe": -0.5}},
+    {"element_radii": {"Fe": 6}},
+    {"element_colors": {"o": [0, 0, 0], "O": [1, 1, 1]}},
+    {"ring_colors": {"6": [1, 2, 3], 6: [4, 5, 6]}},
     {"ring_colors": {"2": [1, 2, 3]}},
     {"ring_colors": {"13": [1, 2, 3]}},
     {"ring_colors": {"six": [1, 2, 3]}},
