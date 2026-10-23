@@ -176,6 +176,10 @@ HIDDEN_IMPORTS = [
     # `collect_all` below should find it as a submodule; this is the
     # belt to that brace, and it costs a line.
     "matplotlib.backends.backend_qtagg",
+    # Help > Check for Updates imports it inside a method, and its
+    # hook is what collects plugins/tls; without a backend the build
+    # starts, and fails only when somebody asks it to connect.
+    "PySide6.QtNetwork",
 ]
 
 #: Collected whole, data files and all.  These are the extras SHELL.md

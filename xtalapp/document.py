@@ -1683,9 +1683,10 @@ class Document(QObject):
         return self.operate(symmetry_commands.ReduceToP1()).message
 
     def find_symmetry(self, symprec: float = 1e-5,
-                      standardize_cell: bool = False):
+                      standardize_cell: bool = False,
+                      snap: bool = False):
         return self.operate(symmetry_commands.FindSymmetry(
-            symprec, standardize_cell))
+            symprec, standardize_cell, snap))
 
     def set_space_group(self, group, mode: str = "reinterpret"):
         return self.operate(symmetry_commands.SetSpaceGroup(

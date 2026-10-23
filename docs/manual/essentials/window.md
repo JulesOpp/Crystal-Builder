@@ -2,10 +2,11 @@
 
 The *Window* menu shows and hides the fourteen panels and puts the
 layout back; the *Help* menu opens the application's own command
-reference, reveals its log, sends feedback and says which version this
-is.  After this page you can find a panel you have closed, recover a
-layout you have broken, and read the same list of commands this
-manual's appendix holds without leaving the application.
+reference, reveals its log, sends feedback, checks for a newer release
+and says which version this is.  After this page you can find a panel
+you have closed, recover a layout you have broken, and read the same
+list of commands this manual's appendix holds without leaving the
+application.
 
 ## Window
 
@@ -56,7 +57,12 @@ squeezed column is a divider to drag, and a layout beyond rescue is
    of the log already in it.  You see the whole email before it
    opens, and nothing is sent until you send it.  The crash box has
    the same button, with the error in it.
-4. {ref}`About Crystal Builder <cmd-about>` gives the version and the
+4. {ref}`Check for Updates <cmd-check_updates>` asks GitHub which
+   release is the latest and, if it is newer than this copy, offers to
+   open its download page in your browser.  Nothing is downloaded or
+   installed, and nothing is asked of GitHub until you choose it.  On
+   macOS it is in the application menu.
+5. {ref}`About Crystal Builder <cmd-about>` gives the version and the
    libraries underneath -- gemmi {cite}`wojdyr2022gemmi` and spglib
    {cite}`togo2024spglib` for the structure model and symmetry, VTK
    for the rendering.  On macOS it is in the application menu.

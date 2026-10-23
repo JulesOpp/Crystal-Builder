@@ -582,3 +582,10 @@ def test_rietx_is_collected_with_its_sources_on_disk():
         text = (bundle.HERE / spec).read_text(encoding="utf-8")
         assert "module_collection_mode=bundle.MODULE_COLLECTION_MODE" \
             in text, spec
+
+
+def test_qt_s_network_is_named_to_pyinstaller():
+    """Help ▸ Check for Updates imports QtNetwork inside a method, and
+    its hook is what collects the tls plugins; naming the module is
+    what makes sure the hook runs."""
+    assert "PySide6.QtNetwork" in bundle.HIDDEN_IMPORTS

@@ -285,6 +285,33 @@ def test_tabbed_panels_scroll_their_tabs_rather_than_widen(qtbot,
     assert all(b.usesScrollButtons() for b in bars)
 
 
+def test_a_closed_window_no_longer_hands_its_children_to_python(
+        qtbot, window, monkeypatch):
+    """The tab-bar filter wraps every child Qt polishes on the window,
+    and while a closed window is being deleted that can be a child
+    half way through its destructor: Windows CI died of an access
+    violation in ``event.child()`` deleting a test's windows.  So the
+    filter is gone once the close is accepted, before any delete."""
+    from PySide6.QtCore import QChildEvent, QCoreApplication
+
+    from xtalapp.layout import _ScrollingDockTabs
+
+    seen = []
+
+    def record(self, watched, event):
+        seen.append(event.type())
+        return False
+
+    monkeypatch.setattr(_ScrollingDockTabs, "eventFilter", record)
+    polished = QChildEvent(QEvent.Type.ChildPolished, window.info_dock)
+    QCoreApplication.sendEvent(window, polished)
+    assert QEvent.Type.ChildPolished in seen
+    assert window.close()
+    seen.clear()
+    QCoreApplication.sendEvent(window, polished)
+    assert seen == []
+
+
 def test_the_viewport_does_not_make_the_panels_native_windows(qtbot,
                                                               window):
     """VTK draws into a native window, and by default Qt makes every

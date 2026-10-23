@@ -672,6 +672,13 @@ def build_actions(window):
             "window could be better.  Opens an email in your own mail "
             "client, with the version and, for a bug, the end of the "
             "log in it; you see all of it before you send it.")
+    add("check_updates", "Check for &Updates...",
+        window.check_for_updates,
+        role=QAction.MenuRole.ApplicationSpecificRole,
+        tip="Ask GitHub which release of Crystal Builder is the "
+            "latest and, if it is newer than this one, offer to open "
+            "its download page.  Nothing is downloaded or installed, "
+            "and nothing is asked of GitHub until you choose this.")
     add("install_ai_skill", "Set up an &AI assistant",
         window.install_ai_skill,
         tip="Put the crystal-builder skill where Claude Code reads it "
@@ -849,7 +856,8 @@ def build_menus(window):
                                           None, "install_ai_skill",
                                           "connect_ai_assistant",
                                           "show_log", "send_feedback",
-                                          None, "about"])
+                                          None, "check_updates",
+                                          "about"])
 
 def build_sample_menu(window) -> None:
     """The structures that ship with the application, as one submenu.
