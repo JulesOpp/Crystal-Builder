@@ -44,8 +44,12 @@ jobs:
                                   # then fails the run.
           - os: windows-latest
             python: "3.12"
-          - os: ubuntu-latest
-            python: "3.12"
+          - os: ubuntu-24.04      # Not ubuntu-latest: that became
+            python: "3.12"        # 26.04 on 2026-10-19, whose Mesa
+                                  # drew nothing for three of
+                                  # test_vtk_render's pixel checks and
+                                  # ran past the 12-minute cap.  Move
+                                  # on purpose, with those looked at.
     steps:
       - uses: actions/checkout@v7
         with:
@@ -159,7 +163,9 @@ jobs:
   # reference pages are generated from the application and committed,
   # so nothing here needs a display or the application installed.
   manual:
-    runs-on: ubuntu-latest
+    # 24.04 and not latest: the cached TeX packages are a 24.04
+    # install, and restored onto 26.04 they left no mktexlsr.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25   # the backstop for a cold cache on a slow mirror
     steps:
       - uses: actions/checkout@v7

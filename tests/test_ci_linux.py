@@ -43,7 +43,7 @@ def test_the_test_matrix_runs_linux_again(workflow):
     (the AppImage launcher, the desktop entry) run nowhere."""
     rows = workflow["jobs"]["test"]["strategy"]["matrix"]["include"]
 
-    assert {"os": "ubuntu-latest", "python": "3.12"} in rows
+    assert {"os": "ubuntu-24.04", "python": "3.12"} in rows
 
 
 def test_the_linux_bundle_is_built_on_the_glibc_floor(workflow):

@@ -20,6 +20,15 @@ something runnable and a green suite, the rule
 
 ## After v1.0 (1.0.x)
 
+- **CI on Ubuntu 26.04.** `ubuntu-latest` became 26.04 on 2026-10-19,
+  and the test matrix and the manual job were pinned to `ubuntu-24.04`
+  that day: under 26.04's Mesa three of `test_vtk_render.py`'s pixel
+  checks saw nothing drawn (oxygen red, an occupancy pie, ring faces)
+  and the run passed the 12-minute cap, and the manual's cached TeX
+  packages, a 24.04 install, left no `mktexlsr`. Moving means looking
+  at those three tests on 26.04's software GL and rebuilding the TeX
+  cache (bump its `version`); 24.04 runners are supported into 2028.
+
 Raised by the 2026-10-03 review of `main` and deliberately left out of 1.0:
 
 - **Signing**: a Developer ID for macOS (notarised) and a code-signing
