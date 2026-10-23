@@ -278,20 +278,17 @@ class Session:
     def render(self, path: PathName, view: View = "diagonal",
                size: tuple[int, int] = (800, 600),
                style: str | None = None, highlight: Sequence[int] = (),
-               show_cell: bool = True) -> VerbResult:
+               show_cell: bool | None = None) -> VerbResult:
         """A PNG of the current structure, drawn with the view
         ``set_view`` gave it -- see :func:`xtal.agent.render.render`.
         ``view`` is ``"diagonal"``, ``"a"``, ``"b"``, ``"c"``, a
         lattice direction ``[u, v, w]``, or a plane ``{"hkl": [h, k,
-        l]}`` seen face on, along its normal.  ``style`` draws this
-        picture in another style without changing the view's.
-        ``highlight`` names P1 atoms to draw selected, which is how to
-        find the atoms a diagnostic names."""
+        l]}`` seen face on, along its normal.  ``style`` and
+        ``show_cell`` draw this picture otherwise without changing the
+        view; left out, they are the view's own.  ``highlight`` names
+        P1 atoms to draw selected, which is how to find the atoms a
+        diagnostic names."""
         from xtal.agent.render import render
-        if style is None:
-            # ball_stick and not the record's default when none was
-            # set: the picture an agent got before it could set one.
-            style = self._view.get("style", "ball_stick")
         answer = render(self.structure, path, view=view, size=size,
                         style=style, highlight=highlight,
                         show_cell=show_cell, view_settings=self._view)

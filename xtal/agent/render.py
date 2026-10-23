@@ -73,8 +73,8 @@ FROZEN = "connect the window to render (Help ▸ Connect an AI assistant)"
 
 
 def render(structure, path, view="diagonal", size=(800, 600),
-           style: str = "ball_stick", highlight=(),
-           show_cell: bool = True,
+           style: str | None = None, highlight=(),
+           show_cell: bool | None = None,
            view_settings: dict | None = None) -> VerbResult:
     """Draw ``structure`` to a PNG at ``path``.
 
@@ -83,9 +83,11 @@ def render(structure, path, view="diagonal", size=(800, 600),
     ``[u, v, w]``, or ``{"hkl": [h, k, l]}`` (looking straight onto
     that plane, along its normal).  ``highlight`` names P1 atoms to
     draw selected, which is how to see where the atoms a diagnostic
-    names actually are.  ``view_settings`` is the rest of how it is
-    drawn -- rings, colour by, display ranges -- as a project's view
-    holds them; ``style`` and ``show_cell`` win over theirs.
+    names actually are.  ``view_settings`` is how it is drawn --
+    style, rings, colour by, display ranges -- as a project's view
+    holds them; ``style`` and ``show_cell``, given, win over its own
+    for this picture, and ``None`` is the view's (the record's default
+    where it has none).
     """
     from xtal.io.project import write_project
 
@@ -95,7 +97,7 @@ def render(structure, path, view="diagonal", size=(800, 600),
     args = {"view": as_view(view),
             "size": [int(size[0]), int(size[1])], "style": style,
             "highlight": [int(a) for a in highlight],
-            "show_cell": bool(show_cell)}
+            "show_cell": None if show_cell is None else bool(show_cell)}
     if getattr(sys, "frozen", False):
         # A packaged `xtal` is a program and not an interpreter: there
         # is no `-m` to run the snapshot module with.  The window has a

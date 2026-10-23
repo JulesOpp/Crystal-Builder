@@ -139,11 +139,16 @@ def test_render_is_handed_the_sessions_view(tmp_path, rutile,
     calls = _spy_on_render(monkeypatch)
     session = Session(rutile)
     session.render(tmp_path / "before.png")
-    assert calls[-1]["style"] == "ball_stick"
-    session.set_view({"style": "polyhedra", "show_rings": True})
+    # None is the view's own: one default style, the record's.
+    assert calls[-1]["style"] is None
+    assert calls[-1]["show_cell"] is None
+    session.set_view({"style": "polyhedra", "show_rings": True,
+                      "show_cell": False})
     session.render(tmp_path / "after.png")
-    assert calls[-1]["style"] == "polyhedra"
+    assert calls[-1]["style"] is None
+    assert calls[-1]["view_settings"]["style"] == "polyhedra"
     assert calls[-1]["view_settings"]["show_rings"] is True
+    assert calls[-1]["view_settings"]["show_cell"] is False
 
 
 def test_an_explicit_style_wins_for_that_render_only(tmp_path, rutile,
@@ -152,12 +157,15 @@ def test_an_explicit_style_wins_for_that_render_only(tmp_path, rutile,
     to how the tab is drawn."""
     calls = _spy_on_render(monkeypatch)
     session = Session(rutile)
-    session.set_view({"style": "polyhedra"})
-    session.render(tmp_path / "x.png", style="spacefill")
+    session.set_view({"style": "polyhedra", "show_cell": False})
+    session.render(tmp_path / "x.png", style="spacefill",
+                   show_cell=True)
     assert calls[-1]["style"] == "spacefill"
-    assert session.view().data["view"]["style"] == "polyhedra"
+    assert calls[-1]["show_cell"] is True
+    view = session.view().data["view"]
+    assert (view["style"], view["show_cell"]) == ("polyhedra", False)
     session.render(tmp_path / "y.png")
-    assert calls[-1]["style"] == "polyhedra"
+    assert (calls[-1]["style"], calls[-1]["show_cell"]) == (None, None)
 
 
 def test_the_render_project_carries_the_view(tmp_path, rutile,
@@ -183,6 +191,17 @@ def test_the_snapshot_draws_with_the_projects_view():
     """The snapshot built a fresh ViewSettings from the style alone,
     so rings, colour by and display ranges never reached a picture."""
     snapshot = pytest.importorskip("xtalapp.viewport.snapshot")
+    view = {"style": "polyhedra", "show_cell": False,
+            "show_rings": True}
+    settings = snapshot.settings_for(view, {"style": None,
+                                            "show_cell": None})
+    assert settings.style == "polyhedra"
+    assert settings.show_cell is False
+    assert settings.show_rings is True
+    # The record's own default, the one view() reports.
+    assert snapshot.settings_for(None, {"style": None,
+                                        "show_cell": None}).style \
+        == view_settings.ViewSettings().style
     settings = snapshot.settings_for(
         {"style": "polyhedra", "show_rings": True,
          "color_by": "coordination", "range_c": [0.0, 2.0]},
@@ -195,3 +214,18 @@ def test_the_snapshot_draws_with_the_projects_view():
     assert snapshot.settings_for(None, {"style": "ball_stick",
                                         "show_cell": True}).style \
         == "ball_stick"
+
+
+def test_a_background_set_by_hand_says_it_no_longer_follows_the_theme(
+        rutile):
+    """``was`` must put the view back as it was: a background sent
+    back without the theme flag would stay pinned after the undoing
+    call."""
+    session = Session(rutile, view={"background_follows_theme": True})
+    answer = session.set_view({"background": [10, 20, 30]})
+    assert answer.ok, answer.message
+    assert answer.data["changed"]["background_follows_theme"] is False
+    assert answer.data["was"]["background_follows_theme"] is True
+    assert session.set_view(answer.data["was"]).ok
+    assert session.view().data["view"]["background_follows_theme"] \
+        is True

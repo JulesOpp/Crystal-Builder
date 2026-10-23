@@ -120,9 +120,10 @@ def test_types_are_coerced_from_what_a_client_sends():
     assert coerce_view({"range_c": ["-0.5", 1.5]}) == {
         "range_c": (-0.5, 1.5)}
     assert coerce_view({"background": "white"}) == {
-        "background": BACKGROUNDS["white"]}
+        "background": BACKGROUNDS["white"],
+        "background_follows_theme": False}
     assert coerce_view({"background": [10, 20, 30]}) == {
-        "background": (10, 20, 30)}
+        "background": (10, 20, 30), "background_follows_theme": False}
     assert coerce_view({"color_range": None}) == {"color_range": None}
     assert coerce_view({"color_range": [1, "2.5"]}) == {
         "color_range": (1.0, 2.5)}
@@ -271,3 +272,18 @@ def test_coerced_values_round_trip_through_to_dict_and_from_dict():
     assert back == settings
     for key, value in cleaned.items():
         assert getattr(back, key) == value, key
+
+
+def test_a_background_given_by_hand_stops_following_the_theme():
+    """A colour chosen by hand is never overwritten: left following
+    the theme, the next light-to-dark switch would paint over the
+    background the assistant was asked for, as View > Background's
+    own colours already know."""
+    assert coerce_view({"background": "slate"})[
+        "background_follows_theme"] is False
+    # Said outright, both together, the request is taken as it is.
+    assert coerce_view({"background": "slate",
+                        "background_follows_theme": True})[
+        "background_follows_theme"] is True
+    assert "background_follows_theme" not in coerce_view(
+        {"show_rings": True})

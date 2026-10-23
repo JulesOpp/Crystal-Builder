@@ -863,6 +863,11 @@ def coerce_view(changes) -> dict | str:
             cleaned[name] = kinds[name][1](value)
         except _Refused as refused:
             return f"view setting {name}: {refused}"
+    # A colour chosen by hand is never overwritten, by a theme change
+    # or anything else: View > Background's colours stop following the
+    # theme, and so does one an assistant was asked for.
+    if "background" in cleaned:
+        cleaned.setdefault("background_follows_theme", False)
     return cleaned
 
 

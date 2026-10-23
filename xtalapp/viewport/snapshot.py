@@ -34,13 +34,15 @@ def _direction(lattice, view) -> np.ndarray:
 
 def settings_for(view, args):
     """The project's view, with the style and cell box the render was
-    asked for over it.  A fresh ViewSettings here drew every picture
-    in the defaults, whatever an assistant had set."""
+    asked for over it where one was (``None`` is the view's own).  A
+    fresh ViewSettings here drew every picture in the defaults,
+    whatever an assistant had set."""
     from xtalapp.viewport.view_settings import ViewSettings
 
     settings = ViewSettings.from_dict(view or {})
-    settings.style = args["style"]
-    settings.show_cell = args["show_cell"]
+    for name in ("style", "show_cell"):
+        if args.get(name) is not None:
+            setattr(settings, name, args[name])
     return settings
 
 
