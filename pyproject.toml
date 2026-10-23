@@ -170,7 +170,7 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
             "xtal.mof", "xtal.mof.pormake", "xtal.mof.library",
             "xtal.build", "xtal.build.data", "xtal.carbon",
             "xtal.polymer", "xtal.orca",
-            "xtal.agent", "xtal.agent.skill", "xtal.powder",
+            "xtal.agent", "xtal.agent.skill", "xtal.powder", "xtal.view",
             "xtalapp", "xtalapp.viewport", "xtalapp.docks",
             "xtalapp.dialogs", "xtalapp.widgets", "xtalapp.widgets.sketcher",
             "xtalapp.refine"]

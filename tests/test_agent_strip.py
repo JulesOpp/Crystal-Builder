@@ -513,3 +513,117 @@ def test_historys_revert_says_it_takes_the_persons_later_edits(
     assert "Revert: First (and 1 later assistant change; also undoes " \
         "1 of yours)" in texts
     assert "Revert: Second (also undoes 1 of yours)" in texts
+
+
+# -- the view ----------------------------------------------------------
+
+def _play_back(tab):
+    """The tab put into playback: two frames, as a trajectory opens."""
+    from xtal.io.trajectory import Trajectory, frame_of
+
+    moved = tab.structure.copy()
+    moved.sites[0].frac = moved.sites[0].frac + [0.01, 0.0, 0.0]
+    moved.touch()
+    tab.open_trajectory(Trajectory(
+        [frame_of(tab.structure, step=0), frame_of(moved, step=1)]))
+    assert tab.is_playing
+
+
+def test_set_view_in_the_window_changes_the_tabs_own_view(window, tab):
+    """The tab's ``Document.view`` is what the scene draws and a Save
+    writes; a ``set_view`` that only moved the session's private dict
+    answered ok and changed nothing the person could see."""
+    session = window.agent_host.current()
+    heard = []
+    tab.viewChanged.connect(lambda: heard.append(True))
+    depth = tab.stack.depth
+    style, rings = tab.view.style, tab.view.show_rings
+    assert (style, rings) != ("polyhedra", True)
+    answer = session.set_view({"style": "polyhedra", "show_rings": True})
+    assert answer.ok, answer.message
+    assert (tab.view.style, tab.view.show_rings) == ("polyhedra", True)
+    assert heard
+    assert session._view == {}
+    assert answer.data["changed"] == {"style": "polyhedra",
+                                      "show_rings": True}
+    assert answer.data["was"] == {"style": style, "show_rings": rings}
+    # Not an undo step, so the strip has nothing to list.
+    assert tab.stack.depth == depth
+
+
+def test_the_style_panel_shows_the_style_the_assistant_set(window, tab):
+    """The person reads the style off the panel: a panel left showing
+    the old one contradicts the picture, and the next touch of it
+    would put the old style back."""
+    from xtalapp.viewport import styles
+
+    assert tab.view.style != "polyhedra"
+    window.agent_host.current().set_view({"style": "polyhedra"})
+    assert window.style_dock.style.currentText() == \
+        styles.get("polyhedra").label
+
+
+def test_set_view_is_refused_while_the_tab_plays_back(window, tab):
+    """Playback is redrawing the tab frame by frame; the refusal says
+    so, where a change landing under it would look ignored."""
+    session = window.agent_host.current()
+    style = tab.view.style
+    _play_back(tab)
+    answer = session.set_view({"style": "polyhedra"})
+    assert "WINDOW_BUSY" in _codes(answer)
+    assert tab.view.style == style
+
+
+def test_set_view_is_answered_while_a_calculation_runs(window, tab):
+    """A calculation holds the structure, not how it is drawn: refused
+    here, an assistant could not restyle the tab while it waited."""
+    session = window.agent_host.current()
+    tab.hold("a test calculation")
+    try:
+        with AgentCalculation(window, "optimize"):
+            answer = session.set_view({"style": "spacefill"})
+    finally:
+        tab.release()
+    assert answer.ok, answer.message
+    assert tab.view.style == "spacefill"
+
+
+def test_view_in_the_window_reads_the_tabs_settings(window, tab):
+    """What the person chose in the Style panel is the view; reading
+    the session's own dict instead gave the defaults."""
+    tab.update_view(style="spacefill", show_rings=True)
+    _play_back(tab)
+    answer = window.agent_host.current().view()
+    assert answer.ok, answer.message
+    assert answer.data["view"]["style"] == "spacefill"
+    assert answer.data["view"]["show_rings"] is True
+
+
+def test_the_windows_render_takes_the_same_arguments_as_headless():
+    """One tool schema serves both hosts: a default that differs here
+    is a different answer to the same call."""
+    import inspect
+
+    from xtal.agent.session import Session
+    from xtalapp.agent_host import WindowSession
+
+    assert inspect.signature(WindowSession.render) == \
+        inspect.signature(Session.render)
+
+
+def test_a_display_range_over_the_size_limit_leaves_the_tab_alone(
+        window, tmp_path, halite):
+    """The window's set_view answers through Session.set_view, so the
+    size limit holds there too: forty cells a side of halite is
+    512 000 atoms, and drawing it froze the window."""
+    cif = tmp_path / "halite.cif"
+    write_cif(halite, cif)
+    tab = window.open_path(cif)
+    session = window.agent_host.current()
+    assert session.document is tab
+    before = tab.view.to_dict()
+    whole = [-20, 20]
+    answer = session.set_view({"range_a": whole, "range_b": whole,
+                               "range_c": whole})
+    assert _codes(answer) == ["SIZE_LIMIT"]
+    assert tab.view.to_dict() == before

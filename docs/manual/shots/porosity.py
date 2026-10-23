@@ -1,9 +1,12 @@
 """Chapter 5's screenshots (Porosity and Properties), one function per
 figure.
 
-Run through the run-app driver with a scratch profile::
+Run through the run-app driver with a scratch profile, in a neutral
+folder outside the repository (the Structure panel's file row shows
+the scratch path)::
 
-    python .claude/skills/run-app/drive.py --scratch build/manual-shots \
+    python .claude/skills/run-app/drive.py \
+        --scratch /tmp/crystal-builder-shots \
         --script docs/manual/shots/porosity.py
 
 Each function writes ``docs/manual/figures/porosity/<name>.png``.  The

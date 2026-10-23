@@ -464,3 +464,60 @@ assistant is told what happened behind its back:
 applied were undone, counted by those; `PERSON_EDITED` when the person
 added steps, or undid only steps of their own; its own undo and redo
 are never reported to it as the person's. Cost estimates for calculations moved to sub-project C.
+
+## The view: how a tab looks (2026-10)
+
+Asked by Julius: could an assistant change the style, the ring filling
+and the like? Two verbs, after `render` in `VERBS`. `view()` answers
+every `ViewSettings` field by name (`to_dict`) and `VIEW_CHOICES`, the
+values of each field that takes one of a list. `set_view(settings)`
+changes any of them. Both are logged, and neither is a step:
+`summarise_log` does not count them.
+
+**Validated, all or nothing.** `coerce_view` (`xtal/view/settings.py`,
+Qt- and VTK-free, moved there from `xtalapp/viewport/view_settings.py`
+so the core may import it) reads each field's type off the record: a
+bool is a bool or "true"/"false" (an integer is refused; send true or
+false), an int refuses 2.5, a colour is three integers 0-255, a display
+range is low <= high with both ends within the Display Range dialog's
+-20 to 20 cells, element keys are real elements, and a choice field
+takes only its choices. The first bad key or value refuses the whole
+request with `VIEW_SETTING_REFUSED` and a sentence naming what it takes
+("did you mean show_rings" for a misspelt key); nothing is applied.
+What a display range would draw is then held to the size limit as the
+dialog holds it (`limits.check_drawn`): over the hard limit it is
+`SIZE_LIMIT`, and over the soft one, where the person would be asked,
+`VIEW_SETTING_REFUSED` telling the assistant to ask them -- unless it
+draws no more than the range already does, which the person accepted.
+A core-only install, with no `xtalapp`, reads and sets the view as the
+window does. An empty request is ok and changes nothing. A `background`
+given alone turns `background_follows_theme` off, so a theme change
+does not paint over it.
+
+**Not an undo step.** A style draws the structure and never changes
+it, so a view change is not on the stack, does not mark the document
+modified, and the *Agent changes* strip does not list it; it cannot be
+reverted there. The answer's `data["changed"]` and `data["was"]` hold
+the new and old values of the same keys, so sending `was` back is the
+way to put the view as it was.
+
+**In the window** `WindowSession` reads and writes the tab's own
+`Document.view`: `set_view` coerces first, then on the GUI thread calls
+`Document.update_view`, whose `viewChanged` the scene and the Style
+panel follow, so the panel shows what was set. It is refused with
+`WINDOW_BUSY` only while the tab plays a trajectory back (playback is
+redrawing it); a calculation holds the structure, not how it is drawn,
+so it is answered then. The status bar announces it like any verb.
+
+**Headless** the session merges the cleaned settings into its own view
+(a copy of whatever it was opened with), which a saved project carries.
+`render` writes that view into the scratch project it hands the
+snapshot subprocess, and the snapshot now draws the project's view, so
+rings, Colour by and display ranges reach the picture. `render`'s
+`style` and `show_cell` default to `None`, the view's own; given, they
+win for that picture only. A headless render is always orthographic.
+
+`mcp.md` tells the assistant to change the view only when the person
+asks, to read it with `view` first, and to say what it changed. Out of
+scope: view changes as undo steps, reverting them per request, and the
+camera (not in `ViewSettings`).

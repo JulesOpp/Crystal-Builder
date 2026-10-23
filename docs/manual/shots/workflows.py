@@ -2,10 +2,12 @@
 
 Run through the run-app driver with a scratch profile, so every
 figure is a first-run window at one size and nothing of the user's is
-read or written::
+read or written, in a neutral folder outside the repository
+(the Structure panel's file row shows the scratch path)::
 
     XTAL_NO_CONFIRM_CLOSE=1 python .claude/skills/run-app/drive.py \
-        --scratch build/manual-shots --script docs/manual/shots/workflows.py
+        --scratch /tmp/crystal-builder-shots \
+        --script docs/manual/shots/workflows.py
 
 Each function writes ``docs/manual/figures/workflows/<name>.png``.
 The assistant is the window's own host (``win.agent_host``) driven
@@ -89,12 +91,18 @@ def _strip(path: Path) -> None:
 #  workflows/assistant.md: Taking back what it did
 # ----------------------------------------------------------------------
 
-def assistant_works() -> None:
-    """Two requests on MOF-5: one zinc made cobalt, then two oxygens
-    put in the cavities -- the strip names the second."""
+def open_mof5() -> None:
+    """MOF-5, once for every figure: opening the sample again raises
+    its tab with an *already open* notice over the strip."""
     win.open_sample("mof5")                                 # noqa: F821
     settle(800)                                             # noqa: F821
     win.reset_view()                                        # noqa: F821
+    settle(400)                                             # noqa: F821
+
+
+def assistant_works() -> None:
+    """Two requests on MOF-5: one zinc made cobalt, then two oxygens
+    put in the cavities -- the strip names the second."""
     session = win.agent_host.current()                      # noqa: F821
     session.checkpoint("One zinc to cobalt")
     assert session.set_element([0], "Co").ok
@@ -140,10 +148,45 @@ def agent_strip_reverted() -> None:
     settle(400)                                             # noqa: F821
 
 
+# ----------------------------------------------------------------------
+#  workflows/assistant.md: Asking it to change how a tab looks
+# ----------------------------------------------------------------------
+
+#: What the assistant is asked for.
+RESTYLE = {"style": "polyhedra", "show_rings": True,
+           "color_by": "coordination"}
+
+
+def view_before() -> None:
+    """MOF-5 as it opens, before anything is asked."""
+    _window_with_render(_out("view-before"))
+
+
+def view_after() -> None:
+    """The same window once the assistant has restyled the tab, then
+    put back with the answer's ``was``, so the strip's figures start
+    from MOF-5 as it opened (a view change is no undo step to take
+    back)."""
+    session = win.agent_host.current()                      # noqa: F821
+    # The colour key, or the figure's colours say nothing; the prose's
+    # example (RESTYLE) stays the three settings it names.
+    answer = session.set_view({**RESTYLE, "show_legend": True})
+    assert answer.ok, answer.message
+    settle(800)                                             # noqa: F821
+    print(f"shots: set_view {answer.message!r}, "
+          f"was {answer.data['was']!r}")
+    _window_with_render(_out("view-after"))
+    assert session.set_view(answer.data["was"]).ok
+    settle(400)                                             # noqa: F821
+
+
 server = imp("xtalapp.agent_server.AgentServer")            # noqa: F821
 running = server.__dict__["running"]
 server.running = property(lambda self: True)
 try:
+    open_mof5()
+    view_before()
+    view_after()
     assistant_works()
     agent_strip()
     agent_strip_also()

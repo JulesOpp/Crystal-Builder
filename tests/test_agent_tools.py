@@ -552,3 +552,17 @@ def test_checkpoint_is_a_tool_with_a_text_label():
     tool = _talk(conversation)["checkpoint"]
     assert tool.inputSchema["properties"]["label"]["type"] == "string"
     assert tool.inputSchema["required"] == ["label"]
+
+
+def test_set_view_takes_an_object_and_view_takes_nothing():
+    """``settings`` typed as anything but an object is one a client
+    sends as text, and every request is then refused; ``view`` with a
+    parameter is a tool the assistant cannot call bare."""
+    async def conversation(client):
+        return {t.name: t for t in (await client.list_tools()).tools}
+
+    tools = _talk(conversation)
+    schema = tools["set_view"].inputSchema
+    assert schema["properties"]["settings"]["type"] == "object"
+    assert schema["required"] == ["settings"]
+    assert tools["view"].inputSchema.get("properties", {}) == {}

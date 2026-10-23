@@ -126,16 +126,17 @@ options:
 ```
 
 Over standard input and output it offers one tool for each verb --
-`open`, `new`, `build`, `inspect`, `render`, `select`, `add_atom`,
-`delete_sites`, `set_element`, `move_sites`, `set_cell`, `supercell`,
-`slab`, `reduce_to_p1`, `find_symmetry`, `standardize`,
-`set_space_group`, `merge_duplicates`, `recalculate_bonds`, `add_bond`,
-`remove_bond`, `set_bond_type`, `add_hydrogens`, `substitute`,
-`fill_pores`, `place_molecule`, `prepare`, `interpenetrate`, `energy`,
-`optimize`, `run`, `undo`, `redo`, `checkpoint`, `save` and `export`
--- plus `documents`, `switch`, `capabilities` and `help_for`.  Each has
-its own keywords and returns a structured answer.  Without the `mcp`
-extra it exits saying what to install.
+`open`, `new`, `build`, `inspect`, `render`, `view`, `set_view`,
+`select`, `add_atom`, `delete_sites`, `set_element`, `move_sites`,
+`set_cell`, `supercell`, `slab`, `reduce_to_p1`, `find_symmetry`,
+`standardize`, `set_space_group`, `merge_duplicates`,
+`recalculate_bonds`, `add_bond`, `remove_bond`, `set_bond_type`,
+`add_hydrogens`, `substitute`, `fill_pores`, `place_molecule`,
+`prepare`, `interpenetrate`, `energy`, `optimize`, `run`, `undo`,
+`redo`, `checkpoint`, `save` and `export` -- plus `documents`, `switch`,
+`capabilities` and `help_for`.  Each has its own keywords and returns a
+structured answer.  Without the `mcp` extra it exits saying what to
+install.
 
 **A proxy, or a host of its own.**  By default it is a proxy to the
 window when one is serving, and otherwise **works on files of its own**
@@ -232,6 +233,45 @@ undone since it last looked, or, separately, that you edited in
 between (undoing only your own edits counts as editing), so it looks
 again before going on. Its own undo and redo are not reported to it as
 yours. Undo and Redo work as always, a step at a time.
+
+## Asking it to change how a tab looks
+
+An assistant can also change **how** a tab draws its structure, never the
+structure itself: the style, rings, *Colour by*, labels, display ranges,
+colours and the rest of what the {ref}`Style panel <panel-style_dock>`
+and the View menu set.  It reads the settings with `view`, which lists
+the choices each one takes, and changes them with `set_view`.  Ask it to
+"show MOF-5 as polyhedra with the rings filled, coloured by
+coordination" and it sends `set_view({"style": "polyhedra",
+"show_rings": true, "color_by": "coordination"})`: the tab redraws, the
+Style panel moves to match, and the status bar says what it set.
+
+:::{figure} /figures/workflows/view-before.png
+:name: fig-view-before
+:width: 90%
+
+MOF-5 as it opens.
+:::
+
+:::{figure} /figures/workflows/view-after.png
+:name: fig-view-after
+:width: 90%
+
+The same tab after the assistant's `set_view`: *Polyhedra* round the
+zinc, the rings filled, the atoms coloured by coordination, and the
+colour bar at the top right (`show_legend`, sent as well for the
+figure) saying which colour is which count.
+:::
+
+A request is taken whole or not at all: a misspelt setting, a value of
+the wrong kind or a style the panel does not offer is refused with
+`VIEW_SETTING_REFUSED`, which names what it takes, and nothing changes.
+A view change is **not an undo step**, so Ctrl+Z and the *Agent
+changes* line leave it alone; the answer carries the old values, and
+the assistant puts them back by sending them, or you choose again in
+the Style panel.  It is refused with `WINDOW_BUSY` while a trajectory
+plays, and answered while a calculation runs.  Without a window, the
+view is saved into the project and a `render` draws it.
 
 ## What it records
 

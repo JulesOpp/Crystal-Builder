@@ -418,6 +418,38 @@ def test_a_client_and_each_verb_it_lands_are_said_in_the_status_bar(
     assert f"AI assistant: add_atom: {answer['message']}" in said
 
 
+def test_set_view_over_http_restyles_the_tab_on_the_gui_thread(
+        qtbot, monkeypatch, window, tmp_path, rutile):
+    """``set_view`` from a client crosses to the GUI thread and moves
+    the tab's own view; a worker thread writing it raced the scene, and
+    a call that stopped at the session left the tab as it was."""
+    from xtalapp.document import Document
+
+    _rutile_tab(window, tmp_path, rutile)
+    _switch_on(qtbot, window)
+    tab = window.current_document()
+    assert tab.view.style != "polyhedra"
+    writers = []
+    real = Document.update_view
+
+    def update_view(self, **changes):
+        writers.append(threading.current_thread())
+        return real(self, **changes)
+
+    monkeypatch.setattr(Document, "update_view", update_view)
+
+    answer = _answer(qtbot, window.agent_server, "set_view",
+                     {"settings": {"style": "polyhedra",
+                                   "show_rings": True}})
+
+    assert answer["ok"], answer
+    assert answer["data"]["changed"] == {"style": "polyhedra",
+                                         "show_rings": True}
+    assert (tab.view.style, tab.view.show_rings) == ("polyhedra", True)
+    assert writers
+    assert set(writers) == {threading.main_thread()}
+
+
 def test_a_second_window_does_not_start_over_a_live_one(
         qtbot, window, tmp_path, appdata):
     """Two windows cannot both be what ``xtal mcp`` finds: the second
