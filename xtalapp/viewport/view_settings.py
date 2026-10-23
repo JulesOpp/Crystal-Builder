@@ -16,11 +16,15 @@ atom at x = 0 *and* its copy at x = 1, the way VESTA does.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+import difflib
+import functools
+import math
+import typing
+from dataclasses import dataclass, field, fields, replace
 
 from xtal.core import elements as el
 from xtal.core import scalars
-from xtalapp.viewport import styles
+from xtalapp.viewport import colormaps, styles
 
 # Styles are looked up in xtalapp.viewport.styles; the name is stored
 # here so settings stay a plain, serialisable record.
@@ -524,3 +528,269 @@ class ViewSettings:
         if d.get("color_range") is not None:
             s.color_range = tuple(float(v) for v in d["color_range"])
         return s
+
+
+# -- what a client may ask for ------------------------------------------
+#
+# An assistant's request arrives as JSON, so every value is checked
+# against the record's own type here before anything is set.  Unlike
+# from_dict, which falls back to a default so that an old project
+# still opens, a request that names something this version does not
+# have is refused: the client asked for that picture and would
+# otherwise be told it got it.
+
+#: The values of ``label_mode``, in the order the Style panel offers
+#: them.
+LABEL_MODES = ("none", "element", "label", "index")
+PROJECTIONS = ("perspective", "orthographic")
+
+#: The string fields that take one of a fixed set of values.  Built
+#: from the lists the panel and the scene use, never copied, so a
+#: style added there is one a client may ask for.
+VIEW_CHOICES: dict[str, tuple[str, ...]] = {
+    "style": tuple(styles.names()),
+    # "" is Element: the colours per element, not a quantity.
+    "color_by": ("",) + tuple(scalars.QUANTITIES),
+    "color_map": tuple(colormaps.COLOR_MAPS),
+    "label_mode": LABEL_MODES,
+    "boundary": BOUNDARIES,
+    "projection": PROJECTIONS,
+    "pore_spheres": tuple(v for v, _label, _tip in PORE_SPHERES),
+}
+
+#: The ring sizes a colour may be given for: the smallest ring there
+#: is, up to the largest the ring search is asked for.
+RING_SIZES = range(3, 13)
+
+
+class _Refused(ValueError):
+    """One value that cannot be set, carrying the reason why."""
+
+
+def _bool(value) -> bool:
+    # 0 and 1 are refused, so that a 2 is not quietly taken as true.
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str) and value.strip().lower() in ("true",
+                                                            "false"):
+        return value.strip().lower() == "true"
+    raise _Refused(f"{value!r} is not true or false")
+
+
+def _float(value) -> float:
+    # A bool is an int to Python and never a number to a client.
+    if isinstance(value, (int, float, str)) and \
+            not isinstance(value, bool):
+        try:
+            number = float(value)
+        except ValueError:
+            pass
+        else:
+            # NaN or infinity would reach the scene and draw nothing.
+            if math.isfinite(number):
+                return number
+    raise _Refused(f"{value!r} is not a number")
+
+
+def _int(value) -> int:
+    number = _float(value)
+    if not number.is_integer():
+        raise _Refused(f"{value!r} is not a whole number")
+    return int(number)
+
+
+def _positive(value) -> float:
+    number = _float(value)
+    if number <= 0:
+        raise _Refused(f"{value!r} is not more than 0")
+    return number
+
+
+def _rgb(value) -> tuple[int, int, int]:
+    rgb = None
+    if isinstance(value, (list, tuple)) and len(value) == 3:
+        try:
+            rgb = tuple(_int(c) for c in value)
+        except _Refused:
+            pass
+    if rgb is None or not all(0 <= c <= 255 for c in rgb):
+        raise _Refused(f"{value!r} is not a colour: three integers "
+                       "from 0 to 255")
+    return rgb
+
+
+def _background(value) -> tuple[int, int, int]:
+    if isinstance(value, str):
+        if value in BACKGROUNDS:
+            return BACKGROUNDS[value]
+        raise _Refused(f"{value!r} is not one of "
+                       f"{', '.join(map(repr, BACKGROUNDS))}")
+    return _rgb(value)
+
+
+def _span(value) -> tuple[float, float]:
+    span = None
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        try:
+            span = tuple(_float(v) for v in value)
+        except _Refused:
+            pass
+    if span is None or span[0] > span[1]:
+        raise _Refused(f"{value!r} is not two numbers, low first")
+    return span
+
+
+def _optional_span(value) -> tuple[float, float] | None:
+    return None if value is None else _span(value)
+
+
+def _symbol(value) -> str:
+    # The strict reading: "Kryptonite" is not krypton here.
+    symbol = el.canonical_symbol(value) if isinstance(value, str) \
+        else None
+    if symbol is None:
+        raise _Refused(f"{value!r} is not an element symbol")
+    return symbol
+
+
+def _symbols(value) -> tuple:
+    # A bare string is refused rather than read letter by letter.
+    if not isinstance(value, (list, tuple)):
+        raise _Refused(f"{value!r} is not a list of element symbols")
+    return tuple(_symbol(v) for v in value)
+
+
+def _pair(value) -> str:
+    if isinstance(value, str) and "-" in value:
+        value = value.split("-", 1)
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        raise _Refused(f"{value!r} is not a pair of elements, "
+                       "\"O-Ti\" or [\"O\", \"Ti\"]")
+    # Spelt as the builder spells a pair, so one pair is one entry.
+    return "-".join(sorted(_symbol(v) for v in value))
+
+
+def _pairs(value) -> tuple:
+    if not isinstance(value, (list, tuple)):
+        raise _Refused(f"{value!r} is not a list of element pairs")
+    return tuple(_pair(v) for v in value)
+
+
+def _ring_size(value) -> int:
+    size = _int(value)
+    if size not in RING_SIZES:
+        raise _Refused(f"{value!r} is not a ring size from "
+                       f"{RING_SIZES[0]} to {RING_SIZES[-1]}")
+    return size
+
+
+def _keyed(key, coerce):
+    """A dict whose keys and values are each checked -- JSON's keys
+    are strings, so a ring size arrives as "6"."""
+    def coerce_dict(value) -> dict:
+        if not isinstance(value, dict):
+            raise _Refused(f"{value!r} is not an object")
+        return {key(k): coerce(v) for k, v in value.items()}
+    return coerce_dict
+
+
+def _choice(name: str):
+    choices = VIEW_CHOICES[name]
+
+    def coerce_choice(value) -> str:
+        if isinstance(value, str) and value in choices:
+            return value
+        raise _Refused(f"{value!r} is not one of "
+                       f"{', '.join(map(repr, choices))}")
+    return coerce_choice
+
+
+#: How each type of field is checked, as (what it is in words, the
+#: function that checks it).
+_BY_TYPE = {
+    bool: ("true or false", _bool),
+    float: ("number", _float),
+    int: ("integer", _int),
+    tuple[int, int, int]: ("colour: three integers from 0 to 255",
+                           _rgb),
+    tuple[float, float]: ("range in fractional coordinates: two "
+                          "numbers, low first", _span),
+}
+
+#: The fields whose declared type says too little -- a bare ``tuple``
+#: or ``dict`` -- or that take something besides it.
+_BY_FIELD = {
+    "background": (
+        "colour: three integers from 0 to 255, or one of "
+        + ", ".join(BACKGROUNDS), _background),
+    "color_range": (
+        "null for the values' own least and greatest, or two numbers, "
+        "low first", _optional_span),
+    "polyhedron_centres": (
+        "list of element symbols; empty is every metal", _symbols),
+    "polyhedron_pairs_off": (
+        "list of element pairs that make no polyhedron, \"O-Ti\" or "
+        "[\"O\", \"Ti\"]", _pairs),
+    "element_colors": ("object: element symbol to colour",
+                       _keyed(_symbol, _rgb)),
+    "element_radii": ("object: element symbol to radius in Angstrom, "
+                      "more than 0", _keyed(_symbol, _positive)),
+    "ring_colors": (f"object: ring size from {RING_SIZES[0]} to "
+                    f"{RING_SIZES[-1]} to colour",
+                    _keyed(_ring_size, _rgb)),
+}
+
+
+@functools.cache
+def _kinds() -> dict[str, tuple[str, typing.Callable]]:
+    """Every field's (words, check).  Worked out on first use, so a
+    field of a type nobody has taught this fails the schema's test
+    rather than the import of the module that draws everything."""
+    hints = typing.get_type_hints(ViewSettings)
+    kinds = {}
+    for f in fields(ViewSettings):
+        if f.name in _BY_FIELD:
+            kinds[f.name] = _BY_FIELD[f.name]
+        elif f.name in VIEW_CHOICES:
+            kinds[f.name] = ("one of the choices", _choice(f.name))
+        else:
+            kinds[f.name] = _BY_TYPE[hints[f.name]]
+    return kinds
+
+
+def coerce_view(changes) -> dict | str:
+    """``changes`` as values ViewSettings holds, or the one sentence
+    saying why not.
+
+    All or nothing: the first key or value that cannot be set refuses
+    the whole request, because half a change applied is a picture
+    nobody asked for.
+    """
+    if not isinstance(changes, dict):
+        return ("view settings are an object of setting names to "
+                f"values, not {type(changes).__name__}")
+    kinds = _kinds()
+    cleaned = {}
+    for name, value in changes.items():
+        if name not in kinds:
+            names = sorted(kinds)
+            close = difflib.get_close_matches(str(name), names)
+            hint = f"; did you mean {', '.join(close)}?" if close else "."
+            return (f"there is no view setting {name!r}{hint} "
+                    f"The settings are {', '.join(names)}")
+        try:
+            cleaned[name] = kinds[name][1](value)
+        except _Refused as refused:
+            return f"view setting {name}: {refused}"
+    return cleaned
+
+
+def view_schema() -> dict[str, dict]:
+    """Each field's type in words, its choices if it has a list of
+    them, and its default as ``to_dict`` writes it."""
+    defaults = ViewSettings().to_dict()
+    return {name: {"type": words,
+                   "choices": (list(VIEW_CHOICES[name])
+                               if name in VIEW_CHOICES else None),
+                   "default": defaults[name]}
+            for name, (words, _check) in _kinds().items()}
