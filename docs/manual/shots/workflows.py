@@ -2,10 +2,12 @@
 
 Run through the run-app driver with a scratch profile, so every
 figure is a first-run window at one size and nothing of the user's is
-read or written::
+read or written, in a neutral folder outside the repository
+(the Structure panel's file row shows the scratch path)::
 
     XTAL_NO_CONFIRM_CLOSE=1 python .claude/skills/run-app/drive.py \
-        --scratch build/manual-shots --script docs/manual/shots/workflows.py
+        --scratch /tmp/crystal-builder-shots \
+        --script docs/manual/shots/workflows.py
 
 Each function writes ``docs/manual/figures/workflows/<name>.png``.
 The assistant is the window's own host (``win.agent_host``) driven
@@ -166,7 +168,9 @@ def view_after() -> None:
     from MOF-5 as it opened (a view change is no undo step to take
     back)."""
     session = win.agent_host.current()                      # noqa: F821
-    answer = session.set_view(RESTYLE)
+    # The colour key, or the figure's colours say nothing; the prose's
+    # example (RESTYLE) stays the three settings it names.
+    answer = session.set_view({**RESTYLE, "show_legend": True})
     assert answer.ok, answer.message
     settle(800)                                             # noqa: F821
     print(f"shots: set_view {answer.message!r}, "

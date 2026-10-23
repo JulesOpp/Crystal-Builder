@@ -3,9 +3,11 @@ figure.
 
 Run through the run-app driver with a scratch profile, so every
 figure is a first-run window at one size and nothing of the user's is
-read or written::
+read or written, in a neutral folder outside the repository
+(the Structure panel's file row shows the scratch path)::
 
-    python .claude/skills/run-app/drive.py --scratch build/manual-shots \
+    python .claude/skills/run-app/drive.py \
+        --scratch /tmp/crystal-builder-shots \
         --script docs/manual/shots/frameworks.py
 
 Each function writes ``docs/manual/figures/frameworks/<name>.png``.

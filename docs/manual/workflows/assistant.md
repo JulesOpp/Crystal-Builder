@@ -258,7 +258,9 @@ MOF-5 as it opens.
 :width: 90%
 
 The same tab after the assistant's `set_view`: *Polyhedra* round the
-zinc, the rings filled, the atoms coloured by coordination.
+zinc, the rings filled, the atoms coloured by coordination, and the
+colour bar at the top right (`show_legend`, sent as well for the
+figure) saying which colour is which count.
 :::
 
 A request is taken whole or not at all: a misspelt setting, a value of
