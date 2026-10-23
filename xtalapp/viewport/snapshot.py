@@ -32,6 +32,18 @@ def _direction(lattice, view) -> np.ndarray:
     return -np.asarray(lattice.to_cart(np.asarray(view, float)))
 
 
+def settings_for(view, args):
+    """The project's view, with the style and cell box the render was
+    asked for over it.  A fresh ViewSettings here drew every picture
+    in the defaults, whatever an assistant had set."""
+    from xtalapp.viewport.view_settings import ViewSettings
+
+    settings = ViewSettings.from_dict(view or {})
+    settings.style = args["style"]
+    settings.show_cell = args["show_cell"]
+    return settings
+
+
 def draw(project, out, args) -> None:
     """The half that runs in the subprocess, and may die there."""
     from vtkmodules.vtkIOImage import vtkPNGWriter
@@ -43,12 +55,10 @@ def draw(project, out, args) -> None:
     from xtal.core.selection import Selection
     from xtal.io.project import read_project
     from xtalapp.viewport.builder import build_scene
-    from xtalapp.viewport.view_settings import ViewSettings
     from xtalapp.viewport.vtk_scene import VtkScene
 
-    structure, _view, _session = read_project(project)
-    settings = ViewSettings(style=args["style"],
-                            show_cell=args["show_cell"])
+    structure, view, _session = read_project(project)
+    settings = settings_for(view, args)
     selection = Selection(atoms=set(args["highlight"]))
     model = build_scene(structure, settings, selection=selection)
     scene = VtkScene()
@@ -59,7 +69,8 @@ def draw(project, out, args) -> None:
     window.AddRenderer(scene.renderer)
     # Orthographic: under perspective the near face of a cell is
     # bigger than the far one, and a straight channel looks like a
-    # funnel -- a thing an agent would then try to explain.
+    # funnel -- a thing an agent would then try to explain.  So the
+    # view's own projection is not the picture's.
     scene.set_projection("orthographic")
     scene.reset_camera()
     scene.look_along(_direction(structure.lattice, args["view"]))

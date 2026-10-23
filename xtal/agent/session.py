@@ -277,22 +277,101 @@ class Session:
 
     def render(self, path: PathName, view: View = "diagonal",
                size: tuple[int, int] = (800, 600),
-               style: str = "ball_stick", highlight: Sequence[int] = (),
+               style: str | None = None, highlight: Sequence[int] = (),
                show_cell: bool = True) -> VerbResult:
-        """A PNG of the current structure -- see
-        :func:`xtal.agent.render.render`.  ``view`` is ``"diagonal"``,
-        ``"a"``, ``"b"``, ``"c"``, a lattice direction ``[u, v, w]``,
-        or a plane ``{"hkl": [h, k, l]}`` seen face on, along its
-        normal.  ``highlight`` names P1 atoms to draw selected, which
-        is how to find the atoms a diagnostic names."""
+        """A PNG of the current structure, drawn with the view
+        ``set_view`` gave it -- see :func:`xtal.agent.render.render`.
+        ``view`` is ``"diagonal"``, ``"a"``, ``"b"``, ``"c"``, a
+        lattice direction ``[u, v, w]``, or a plane ``{"hkl": [h, k,
+        l]}`` seen face on, along its normal.  ``style`` draws this
+        picture in another style without changing the view's.
+        ``highlight`` names P1 atoms to draw selected, which is how to
+        find the atoms a diagnostic names."""
         from xtal.agent.render import render
+        if style is None:
+            # ball_stick and not the record's default when none was
+            # set: the picture an agent got before it could set one.
+            style = self._view.get("style", "ball_stick")
         answer = render(self.structure, path, view=view, size=size,
                         style=style, highlight=highlight,
-                        show_cell=show_cell)
+                        show_cell=show_cell, view_settings=self._view)
         answer.atoms_before = answer.atoms_after = self.n_atoms
         self._record("render", {"path": str(path), "view": view},
                      answer)
         return answer
+
+    def view(self) -> VerbResult:
+        """How the structure is drawn: every view setting (the Style
+        panel's and the View menu's), and the choices of those that
+        take one of a list.  Change them with ``set_view``."""
+        try:
+            from xtalapp.viewport.view_settings import VIEW_CHOICES
+        except ImportError:
+            return self._answer_refused("view", {}, _no_view_settings())
+        n = self.n_atoms
+        answer = VerbResult(
+            "view", True, f"the view of {self._document_name()}",
+            atoms_before=n, atoms_after=n,
+            data={"view": self._current_view(),
+                  "choices": {name: list(values)
+                              for name, values in VIEW_CHOICES.items()}})
+        self._record("view", {}, answer)
+        return answer
+
+    def set_view(self, settings: dict) -> VerbResult:
+        """Change how the structure is drawn: ``settings`` is an object
+        of view setting names to values, e.g. ``{"style": "polyhedra",
+        "show_rings": true}``; ``view`` lists them and their choices.
+        All or nothing -- one bad name or value and nothing changes.
+        Not an undo step, and the structure is never touched.  The
+        answer's ``was`` holds the old values: send it back to put the
+        view as it was."""
+        args = {"settings": settings}
+        try:
+            from xtalapp.viewport.view_settings import coerce_view
+        except ImportError:
+            return self._answer_refused("set_view", args,
+                                        _no_view_settings())
+        cleaned = coerce_view(settings)
+        if isinstance(cleaned, str):
+            return self._refused("set_view", args, cleaned,
+                                 "VIEW_SETTING_REFUSED")
+        n = self.n_atoms
+        if not cleaned:
+            answer = VerbResult("set_view", True,
+                                "no view settings given",
+                                atoms_before=n, atoms_after=n,
+                                data={"changed": {}, "was": {}})
+            self._record("set_view", args, answer)
+            return answer
+        before = self._current_view()
+        self._apply_view(cleaned)
+        after = self._current_view()
+        # As view() spells them, so ``was`` can be sent straight back.
+        answer = VerbResult(
+            "set_view", True, "set " + ", ".join(cleaned),
+            atoms_before=n, atoms_after=n,
+            data={"changed": {k: after[k] for k in cleaned},
+                  "was": {k: before[k] for k in cleaned}})
+        self._record("set_view", args, answer)
+        return answer
+
+    def _current_view(self) -> dict:
+        """Every view setting as ``ViewSettings.to_dict`` writes them:
+        the defaults, overlaid with what was opened or set."""
+        from xtalapp.viewport.view_settings import ViewSettings
+        return ViewSettings.from_dict(self._view).to_dict()
+
+    def _apply_view(self, cleaned: dict) -> None:
+        """Settings :func:`coerce_view` passed, merged into the view a
+        saved project carries.  Only what was set is kept, so a project
+        does not pin every default of the version that wrote it."""
+        from xtalapp.viewport.view_settings import ViewSettings
+        settings = ViewSettings.from_dict(self._view)
+        for name, value in cleaned.items():
+            setattr(settings, name, value)
+        written = settings.to_dict()
+        self._view.update({k: written[k] for k in cleaned})
 
     def select(self, rule: str, atoms: Sequence[int] = (),
                **args) -> VerbResult:
@@ -1519,7 +1598,8 @@ class _Relaxation:
 
 
 #: Verbs that record without changing anything worth counting.
-_NOT_STEPS = frozenset({"open", "save", "render", "export", "energy"})
+_NOT_STEPS = frozenset({"open", "save", "render", "export", "energy",
+                        "view", "set_view"})
 
 
 def summarise_log(path) -> tuple[int, int] | None:
@@ -1553,6 +1633,15 @@ class BuildFailed(RuntimeError):
     def __init__(self, result: VerbResult):
         super().__init__(result.message)
         self.result = result
+
+
+def _no_view_settings() -> Diagnostic:
+    """The view's record is the window's, and a core-only install has
+    no window to have one."""
+    from xtal.install import command
+    return Diagnostic("VIEW_SETTING_REFUSED",
+                      f"view settings need the gui extra: "
+                      f"{command('gui')}")
 
 
 def _unavailable(module, action) -> Diagnostic | None:

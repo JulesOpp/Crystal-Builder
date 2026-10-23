@@ -74,7 +74,8 @@ FROZEN = "connect the window to render (Help ▸ Connect an AI assistant)"
 
 def render(structure, path, view="diagonal", size=(800, 600),
            style: str = "ball_stick", highlight=(),
-           show_cell: bool = True) -> VerbResult:
+           show_cell: bool = True,
+           view_settings: dict | None = None) -> VerbResult:
     """Draw ``structure`` to a PNG at ``path``.
 
     ``view`` is ``"diagonal"`` (the viewport's opening view), ``"a"``,
@@ -82,7 +83,9 @@ def render(structure, path, view="diagonal", size=(800, 600),
     ``[u, v, w]``, or ``{"hkl": [h, k, l]}`` (looking straight onto
     that plane, along its normal).  ``highlight`` names P1 atoms to
     draw selected, which is how to see where the atoms a diagnostic
-    names actually are.
+    names actually are.  ``view_settings`` is the rest of how it is
+    drawn -- rings, colour by, display ranges -- as a project's view
+    holds them; ``style`` and ``show_cell`` win over theirs.
     """
     from xtal.io.project import write_project
 
@@ -104,7 +107,8 @@ def render(structure, path, view="diagonal", size=(800, 600),
                                   f"{install_command('gui')}")
     with tempfile.TemporaryDirectory() as scratch:
         project = write_project(structure,
-                                Path(scratch) / "render.xtalproj")
+                                Path(scratch) / "render.xtalproj",
+                                view=view_settings)
         command = [sys.executable, "-m", "xtalapp.viewport.snapshot",
                    str(project), str(path.resolve()), repr(args)]
         try:
