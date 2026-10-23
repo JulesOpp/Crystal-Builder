@@ -487,11 +487,12 @@ request with `VIEW_SETTING_REFUSED` and a sentence naming what it takes
 What a display range would draw is then held to the size limit as the
 dialog holds it (`limits.check_drawn`): over the hard limit it is
 `SIZE_LIMIT`, and over the soft one, where the person would be asked,
-`VIEW_SETTING_REFUSED` telling the assistant to ask them. A core-only
-install, with no `xtalapp`, reads and sets the view as the window does.
-An empty request is ok and changes nothing. A `background` given alone
-turns `background_follows_theme` off, so a theme change does not paint
-over it.
+`VIEW_SETTING_REFUSED` telling the assistant to ask them -- unless it
+draws no more than the range already does, which the person accepted.
+A core-only install, with no `xtalapp`, reads and sets the view as the
+window does. An empty request is ok and changes nothing. A `background`
+given alone turns `background_follows_theme` off, so a theme change
+does not paint over it.
 
 **Not an undo step.** A style draws the structure and never changes
 it, so a view change is not on the stack, does not mark the document

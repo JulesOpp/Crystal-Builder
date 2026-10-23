@@ -609,3 +609,21 @@ def test_the_windows_render_takes_the_same_arguments_as_headless():
 
     assert inspect.signature(WindowSession.render) == \
         inspect.signature(Session.render)
+
+
+def test_a_display_range_over_the_size_limit_leaves_the_tab_alone(
+        window, tmp_path, halite):
+    """The window's set_view answers through Session.set_view, so the
+    size limit holds there too: forty cells a side of halite is
+    512 000 atoms, and drawing it froze the window."""
+    cif = tmp_path / "halite.cif"
+    write_cif(halite, cif)
+    tab = window.open_path(cif)
+    session = window.agent_host.current()
+    assert session.document is tab
+    before = tab.view.to_dict()
+    whole = [-20, 20]
+    answer = session.set_view({"range_a": whole, "range_b": whole,
+                               "range_c": whole})
+    assert _codes(answer) == ["SIZE_LIMIT"]
+    assert tab.view.to_dict() == before

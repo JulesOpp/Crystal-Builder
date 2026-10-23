@@ -319,3 +319,22 @@ def test_a_range_the_person_would_be_asked_about_is_refused(rutile,
             "VIEW_SETTING_REFUSED"]
         assert "ask the person" in answer.message
         assert session.view().data["view"] == before
+
+
+def test_a_range_the_person_already_accepted_may_be_narrowed(rutile):
+    """Over the soft limit only a wider picture is a new question: the
+    person was asked about the one on screen, and an assistant told
+    to look at less of it was refused for drawing too much."""
+    whole = [-20, 20]
+    # As the person left it, through the Display Range dialog's Yes:
+    # 384 000 atoms of rutile, over the soft limit.
+    session = Session(rutile, view={"range_a": whole, "range_b": whole,
+                                    "range_c": whole})
+    narrower = session.set_view({"range_c": [-20, 19]})
+    assert narrower.ok, narrower.message
+    assert session.set_view({"range_c": [-20, 19]}).ok
+    wider = session.set_view({"range_c": whole})
+    assert not wider.ok
+    assert [d.code for d in wider.diagnostics] == [
+        "VIEW_SETTING_REFUSED"]
+    assert session.view().data["view"]["range_c"] == [-20.0, 19.0]

@@ -102,8 +102,9 @@ view as it was. A `background` given without `background_follows_theme` stops
 following the theme, so a theme change does not paint over it; `was` then holds
 the old flag too. Display ranges (`range_a`, `range_b`, `range_c`) are held to
 the size limit the Display Range dialog applies: over its hard limit they are
-refused with `SIZE_LIMIT`, and over the size the person would be asked about
-with `VIEW_SETTING_REFUSED` -- ask the person to widen the range themselves.
+refused with `SIZE_LIMIT`, and over the size the person would be asked about,
+and wider than what is drawn now, with `VIEW_SETTING_REFUSED` -- ask the person
+to widen the range themselves.
 A saved project carries the view, and `render` draws it. In
 the window, the tab and its Style panel follow. Only when the person asks, and
 say what you changed.

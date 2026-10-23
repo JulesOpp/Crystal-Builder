@@ -352,8 +352,10 @@ class Session:
         """The refusal for a display range the person's Display Range
         dialog would not draw unasked, or None.  Over the hard limit
         it is refused there too; over the soft one the person is
-        asked, and an assistant cannot be.  Answered ok, fifty cells
-        a side of MOF-5 was 53 M atoms and froze the window."""
+        asked, and an assistant cannot be -- unless it draws no more
+        than the range already does, which the person has accepted.
+        Answered ok, fifty cells a side of MOF-5 was 53 M atoms and
+        froze the window."""
         axes = ("range_a", "range_b", "range_c")
         if not any(axis in cleaned for axis in axes):
             return None
@@ -361,7 +363,11 @@ class Session:
         verdict = limits.check_drawn(self.n_atoms, ranges)
         if verdict.refused:
             return Diagnostic("SIZE_LIMIT", verdict.sentence)
-        if verdict.warned:
+        # A picture the person already accepted is theirs: narrowing
+        # it, or leaving it as it is, is no new question to ask.
+        drawn_now = limits.drawn_atoms(
+            self.n_atoms, [view[axis] for axis in axes])
+        if verdict.warned and verdict.estimate > drawn_now:
             soft, _hard = limits.bounds("drawn")
             return Diagnostic(
                 "VIEW_SETTING_REFUSED",
