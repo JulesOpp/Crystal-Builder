@@ -1,0 +1,20 @@
+2026-09-18 20:39:48.762 python[28007:9867557] +[IMKClient subclass]: chose IMKClient_Legacy
+2026-09-18 20:39:48.762 python[28007:9867557] +[IMKInputSession subclass]: chose IMKInputSession_Legacy
+        6.37 real         4.07 user         0.81 sys
+           420216832  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               50864  page reclaims
+               11555  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   2  messages sent
+                   0  messages received
+                   0  signals received
+                2441  voluntary context switches
+               11907  involuntary context switches
+         58636921146  instructions retired
+         15965147554  cycles elapsed
+           405851584  peak memory footprint

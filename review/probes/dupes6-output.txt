@@ -1,0 +1,260 @@
+==========================================================
+  xtalapp/dialogs/build_molecule.py:73
+  xtalapp/dialogs/module_form.py:256
+  xtalapp/dialogs/mof_build.py:95
+  xtalapp/dialogs/net_draw.py:82
+   | def __init__(self, module, action, parent=None, initial=None):
+   | super().__init__(parent)
+   | self.module = module
+   | self.action = action
+   | self.setWindowTitle(f"{module.label}: "
+   | f"{action.label.rstrip('.')}")
+==========================================================
+  xtal/ff/dftb/calculator.py:220
+  xtal/ff/mace/calculator.py:360
+  xtal/ff/xtb/calculator.py:234
+   | self.structure = structure
+   | self.cell = p1.expand(structure)
+   | if self.cell.n_atoms == 0:
+   | raise CalculatorError(
+   | "there are no atoms to compute an energy for")
+   | self.symbols = tuple(self.cell.elements)
+==========================================================
+  xtalapp/bands.py:61
+  xtalapp/bands.py:163
+  xtalapp/widgets/brillouin.py:95
+   | def paintEvent(self, _event) -> None:
+   | painter = QPainter(self)
+   | try:
+   | self.paint(painter, QRectF(self.rect()))
+   | finally:
+   | painter.end()
+==========================================================
+  xtalapp/dialogs/build_molecule.py:230
+  xtalapp/dialogs/mof_build.py:436
+  xtalapp/dialogs/net_draw.py:234
+   | @classmethod
+   | def ask(cls, module, action, parent=None, initial=None):
+   | The same contract as
+   | :meth:`xtalapp.dialogs.module_form.ModuleDialog.ask`, which is
+   | the whole of what ``Action.dialog`` promises.
+   | dialog = cls(module, action, parent, initial)
+==========================================================
+  xtalapp/dialogs/dftb_run.py:67
+  xtalapp/dialogs/scan.py:740
+  xtalapp/dialogs/stl_export.py:44
+   | @classmethod
+   | def ask(cls, module, action, parent=None, initial=None):
+   | dialog = cls(module, action, parent, initial)
+   | if dialog.exec() != QDialog.Accepted:
+   | return None
+   | return dialog.values()
+==========================================================
+  xtal/ff/dftb/calculator.py:245
+  xtal/ff/xtb/calculator.py:249
+   | self.calls = 0
+   | self.seconds = 0.0
+   | @property
+   | def n_atoms(self) -> int:
+   | return self.cell.n_atoms
+   | def summary(self) -> str:
+==========================================================
+  xtal/ff/dftb/calculator.py:321
+  xtal/ff/xtb/calculator.py:310
+   | positions = np.asarray(positions, dtype=float).reshape(-1, 3)
+   | matrix = np.asarray(matrix, dtype=float).reshape(3, 3)
+   | if len(positions) != self.n_atoms:
+   | raise CalculatorError(
+   | f"this calculator was built for {self.n_atoms} atoms "
+   | f"and was handed {len(positions)}")
+==========================================================
+  xtal/ff/dftb/calculator.py:350
+  xtal/ff/xtb/calculator.py:335
+   | log=log)
+   | outcome = process.run(cancel=self.cancel)
+   | self.calls += 1
+   | self.seconds += outcome.seconds
+   | log.close()
+   | if outcome.cancelled:
+==========================================================
+  xtal/ff/dftb/calculator.py:439
+  xtal/ff/xtb/calculator.py:504
+   | def __init__(self, path):
+   | self.path = Path(path)
+   | self._handle = self.path.open("w", encoding="utf-8")
+   | def write(self, text: str) -> None:
+   | self._handle.write(f"{text}\n")
+   | self._handle.flush()
+==========================================================
+  xtal/ff/optimize.py:1427
+  xtalapp/workers.py:141
+   | steps=last.iteration,
+   | initial_energy=first.energy,
+   | energy=last.energy,
+   | max_force=last.max_force,
+   | frac=last.frac,
+   | terms=dict(last.terms),
+==========================================================
+  xtal/io/trajectory.py:385
+  xtal/workspace.py:643
+   | def close(self) -> None:
+   | if self._handle is not None and not self._handle.closed:
+   | self._handle.close()
+   | @property
+   | def closed(self) -> bool:
+   | return self._handle is None or self._handle.closed
+==========================================================
+  xtalapp/curve.py:297
+  xtalapp/histogram.py:123
+   | painter.setPen(palette.color(palette.ColorRole.Mid))
+   | painter.drawText(self.rect(), Qt.AlignCenter,
+   | "Nothing to plot")
+   | return
+   | box = QRectF(LEFT, TOP, self.width() - LEFT - RIGHT,
+   | self.height() - TOP - BOTTOM)
+==========================================================
+  xtalapp/curve.py:402
+  xtalapp/histogram.py:223
+   | span = max(last - first, 1e-9)
+   | grid = QPen(palette.color(palette.ColorRole.Mid))
+   | grid.setWidth(1)
+   | grid.setStyle(Qt.DotLine)
+   | for value in _ticks(first, last):
+   | at = box.left() + box.width() * (value - first) / span
+==========================================================
+  xtalapp/curve.py:432
+  xtalapp/histogram.py:249
+   | metrics = painter.fontMetrics()
+   | y = box.top() + 3
+   | for text, color in entries:
+   | width = metrics.horizontalAdvance(text) + 8
+   | patch = QRectF(box.right() - width - 4, y, width,
+   | metrics.height())
+==========================================================
+  xtalapp/curve.py:465
+  xtalapp/histogram.py:294
+   | plot.resize(width, height)
+   | picture = QPixmap(width * scale, height * scale)
+   | picture.setDevicePixelRatio(scale)
+   | picture.fill(plot.palette().base().color())
+   | painter = QPainter(picture)
+   | plot.render(painter, QPoint())
+==========================================================
+  xtalapp/dialogs/add_atom.py:76
+  xtalapp/dialogs/add_centroid.py:64
+   | self.label = QLineEdit()
+   | self.label.setPlaceholderText("auto")
+   | self.warning = QLabel()
+   | self.warning.setStyleSheet("color:
+   | self.warning.setWordWrap(True)
+   | self.warning.hide()
+==========================================================
+  xtalapp/dialogs/add_atom.py:97
+  xtalapp/dialogs/add_centroid.py:79
+   | form.addRow("Label", self.label)
+   | buttons = QDialogButtonBox(QDialogButtonBox.Ok
+   | | QDialogButtonBox.Cancel)
+   | buttons.accepted.connect(self._accept)
+   | buttons.rejected.connect(self.reject)
+   | layout = QVBoxLayout(self)
+==========================================================
+  xtalapp/dialogs/add_atom.py:135
+  xtalapp/dialogs/add_centroid.py:97
+   | if el.canonical_symbol(self.element.currentText()) is None:
+   | self.warning.setText(
+   | f"{self.element.currentText().strip()!r} is not an "
+   | f"element symbol.")
+   | self.warning.show()
+   | return
+==========================================================
+  xtalapp/dialogs/build_molecule.py:102
+  xtalapp/dialogs/draw_block.py:90
+   | self._quiet = QTimer(self)
+   | self._quiet.setSingleShot(True)
+   | self._quiet.setInterval(QUIET_MS)
+   | self._quiet.timeout.connect(self._rebuild)
+   | for name in ("smiles", "optimise", "seed"):
+   | on_change(self.form.widgets.get(name), self._touched)
+==========================================================
+  xtalapp/dialogs/display_range.py:98
+  xtalapp/dialogs/supercell.py:56
+   | self.preview = QLabel()
+   | self.preview.setWordWrap(True)
+   | self.buttons = QDialogButtonBox(QDialogButtonBox.Ok
+   | | QDialogButtonBox.Cancel)
+   | self.buttons.accepted.connect(self.accept)
+   | self.buttons.rejected.connect(self.reject)
+==========================================================
+  xtalapp/dialogs/export.py:132
+  xtalapp/dialogs/image_export.py:118
+   | self.path = QLineEdit()
+   | browse = QPushButton("Browse...")
+   | browse.clicked.connect(self.choose_path)
+   | path_row = QHBoxLayout()
+   | path_row.addWidget(self.path, 1)
+   | path_row.addWidget(browse)
+==========================================================
+  xtalapp/dialogs/landscape.py:140
+  xtalapp/dialogs/pattern.py:178
+   | self.figure_button = buttons.addButton(
+   | "Save figure...", QDialogButtonBox.ActionRole)
+   | self.figure_button.setToolTip(
+   | "PDF, SVG or EPS keeps the text editable in a vector "
+   | "editor; PNG and TIFF are raster")
+   | self.figure_button.clicked.connect(self.save_figure)
+==========================================================
+  xtalapp/dialogs/landscape.py:302
+  xtalapp/dialogs/pattern.py:396
+   | FIGURE_FILTERS)
+   | if not path:
+   | return
+   | try:
+   | with mpl.rc_context(EDITABLE_TEXT):
+   | self.figure.savefig(path, dpi=RASTER_DPI,
+==========================================================
+  xtalapp/dialogs/landscape.py:312
+  xtalapp/dialogs/pattern.py:406
+   | except (OSError, ValueError) as exc:
+   | QMessageBox.warning(self, "Save the figure", str(exc))
+   | return
+   | self.directory = str(Path(path).parent)
+   | self.status.setText(
+   | f"Wrote {Path(path).name}"
+==========================================================
+  xtalapp/dialogs/module_form.py:172
+  xtalapp/dialogs/mof_build.py:609
+   | button.clicked.connect(self._browse)
+   | layout = QHBoxLayout(self)
+   | layout.setContentsMargins(0, 0, 0, 0)
+   | layout.addWidget(self.edit, 1)
+   | layout.addWidget(button)
+   | def _browse(self) -> None:
+==========================================================
+  xtalapp/dialogs/module_form.py:266
+  xtalapp/dialogs/scan.py:483
+   | buttons = QDialogButtonBox(QDialogButtonBox.Ok |
+   | QDialogButtonBox.Cancel)
+   | buttons.button(QDialogButtonBox.Ok).setText("Run")
+   | self.buttons = buttons
+   | buttons.accepted.connect(self.accept)
+   | buttons.rejected.connect(self.reject)
+==========================================================
+  xtalapp/dialogs/spacegroup.py:168
+  xtalapp/dialogs/subgroup.py:374
+   | @classmethod
+   | def ask(cls, document, parent=None):
+   | None if it was cancelled."""
+   | dialog = cls(document, parent)
+   | if dialog.exec() != QDialog.Accepted:
+   | return None
+==========================================================
+  xtalapp/histogram.py:58
+  xtalapp/plot.py:45
+   | magnitude = abs(value)
+   | if magnitude < 1e-9:
+   | return "0"
+   | if magnitude >= 1e5 or magnitude < 1e-2:
+   | return f"{value:.0e}"
+   | if magnitude >= 100:
+
+28 cross-file repeated 6-line windows (imports stripped)
