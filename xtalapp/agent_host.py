@@ -53,8 +53,9 @@ from xtal.agent.session import Session
 from xtal.agent.tools import HOST_VERBS, NO_SESSION, Host
 
 #: Verbs that change nothing, and so may run while the window is busy:
-#: an assistant waiting for a calculation can still look.
-READ_ONLY = ("inspect", "select")
+#: an assistant waiting for a calculation can still look, and name
+#: what it does next (``checkpoint`` touches no structure).
+READ_ONLY = ("inspect", "select", "checkpoint")
 
 #: Verbs that compute over a copy, off the GUI thread.
 CALCULATIONS = ("energy", "optimize", "run", "thermochemistry")
@@ -277,6 +278,7 @@ class WindowSession(Session):
         # an undo then an edit leave the depth where it was.
         self._revision = 0
         document.structureChanged.connect(self._changed)
+        self._init_bursts()
 
     def _changed(self, _change) -> None:
         self._revision += 1
@@ -325,6 +327,14 @@ class WindowSession(Session):
         Session._record(self, verb, args, answer)
         self._announce(verb, answer)
 
+    def _noticed(self):
+        """Read on the GUI thread: a calculation's answer is recorded
+        on the server's, and the tab's history is the GUI thread's."""
+        try:
+            return self._bridge.call(lambda: Session._noticed(self))
+        except BridgeClosed:
+            return []
+
     def _announce(self, verb, answer: VerbResult) -> None:
         """The answer in the status bar, while the window is serving:
         the person is watching, and this is where the window says
@@ -364,7 +374,19 @@ class WindowSession(Session):
     def _land(self, verb, command, message, args, notes,
               data) -> VerbResult:
         before = self.n_atoms
-        self.document.run(command)
+        bursting = self._burst_state()
+        # Session._tag seals the tab's stack, which is the document's:
+        # the same seal Document.break_merge makes.
+        self._tag(verb, command)
+        try:
+            self.document.run(command)
+        except BaseException:
+            # Refused before it reached the history (a held tab): the
+            # burst goes on as if it had not been tried.
+            for name, value in bursting.items():
+                setattr(self, name, value)
+            raise
+        self.document.break_merge()
         answer = VerbResult(verb, True, message, undo_label=command.label,
                             atoms_before=before, atoms_after=self.n_atoms,
                             data=dict(data or {}),
@@ -375,22 +397,28 @@ class WindowSession(Session):
     @_served
     def undo(self) -> VerbResult:
         before = self.n_atoms
-        label = self.document.undo()
+        label, told = self._own_move(self.document.undo)
+        if label:
+            self._kept_after_own_move()
         answer = VerbResult(
             "undo", bool(label),
             f"undid {label}" if label else "nothing to undo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("undo", {}, answer)
         return answer
 
     @_served
     def redo(self) -> VerbResult:
         before = self.n_atoms
-        label = self.document.redo()
+        label, told = self._own_move(self.document.redo)
+        if label:
+            self._kept_after_own_move()
         answer = VerbResult(
             "redo", bool(label),
             f"redid {label}" if label else "nothing to redo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("redo", {}, answer)
         return answer
 
@@ -466,8 +494,11 @@ class WindowSession(Session):
         calculation, _revision, generation, over = started
         with calculation:
             answer = compute(over)
-        # Recorded by the copy's session, which is not this one; and
-        # not said under a server that is not the one asked.
+        # Recorded by the copy's session, which is not this one: the
+        # tab's must still hear that the assistant was working, or its
+        # next step is measured from before the calculation.
+        self._heard()
+        # Not said under a server that is not the one asked.
         if generation == self._bridge.generation:
             self._announce(verb, answer)
         if verb != "energy":
@@ -488,6 +519,9 @@ class WindowSession(Session):
         busy = self._busy(verb, args)
         if busy is not None:
             return busy
+        # The tab's session hears the call begin, though the copy's
+        # runs it: an optimize lands here, and the gap is to its start.
+        self._hear()
         calculation = AgentCalculation(self.window, verb)
         calculation.start()
         over = Session(self.document.structure.copy(), self.path,
@@ -503,6 +537,7 @@ class WindowSession(Session):
         with calculation:
             relaxed = over._relax(args, options)
         if isinstance(relaxed, VerbResult):
+            self._heard()
             return self._named(relaxed)
         return _Pending(relaxed, revision, generation, over)
 
@@ -741,6 +776,7 @@ class WindowHost(Host):
         held = self._held(path)
         if held is not None:
             self._raise(held)
+            held.close_burst()
             self._current_session = held
             return held
         if not path.exists():
@@ -755,6 +791,7 @@ class WindowHost(Host):
             "open", True, f"opened {document.path.name}",
             atoms_after=session.n_atoms)
         session._record("open", {"path": str(path)}, session.opened)
+        session.close_burst()
         self._current_session = session
         return session
 
@@ -763,6 +800,7 @@ class WindowHost(Host):
         if held is None:
             raise LookupError(f"{path} is not open")
         self._raise(held)
+        held.close_burst()
         self._current_session = held
         return held
 

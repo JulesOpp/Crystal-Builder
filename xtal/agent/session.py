@@ -36,12 +36,14 @@ from __future__ import annotations
 import json
 import os
 import time
+import weakref
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 
+from xtal.agent import changes
 from xtal.agent.answers import VerbResult
 from xtal.agent.diagnostics import Diagnostic
 from xtal.agent.render import VIEWS
@@ -80,6 +82,14 @@ class Session:
     than the constructor.
     """
 
+    # What _record reads before a session has run _init_bursts: the
+    # window's session skips __init__, and logging must not depend on
+    # it having opened a burst.
+    _tagged = None
+    # Nothing answered yet, so nothing to tell: not the same as having
+    # answered over an empty history, after which every step is news.
+    _mark = None
+
     def __init__(self, structure: Structure, path: Path | None = None,
                  entry=None, view: dict | None = None,
                  project_session: dict | None = None):
@@ -94,6 +104,7 @@ class Session:
         self._project_session = project_session or {}
         #: What opening said, for a session made by :meth:`open`.
         self.opened: VerbResult | None = None
+        self._init_bursts()
 
     # ------------------------------------------------------------------
     #  GETTING ONE
@@ -260,7 +271,9 @@ class Session:
     def inspect(self, symprec: float | None = None):
         """:func:`xtal.agent.inspect.inspect` of the current structure."""
         from xtal.agent.inspect import DEFAULT_SYMPREC, inspect
-        return inspect(self.structure, symprec or DEFAULT_SYMPREC)
+        found = inspect(self.structure, symprec or DEFAULT_SYMPREC)
+        found.diagnostics.extend(self._noticed())
+        return found
 
     def render(self, path: PathName, view: View = "diagonal",
                size: tuple[int, int] = (800, 600),
@@ -762,6 +775,7 @@ class Session:
 
     def energy(self, engine: str = "uff", **options) -> VerbResult:
         """A single point.  Changes nothing, so it is not on the stack."""
+        self._hear()
         args = {"engine": engine, **options}
         calculator, refused = self._calculator(engine, options)
         if refused is not None:
@@ -817,6 +831,7 @@ class Session:
         from xtal.ff import optimize as ff_optimize
         from xtal.ff import record as ff_record
 
+        self._hear()
         engine = args["engine"]
         calculator, refused = self._calculator(engine, options)
         if refused is not None:
@@ -983,6 +998,7 @@ class Session:
         from xtal.modules import MODULES, Job
         from xtal.modules import record as module_record
 
+        self._hear()
         args = params if args is None else args
         plugins.load()
         module, entry_action = MODULES.find(action)
@@ -1038,21 +1054,27 @@ class Session:
 
     def undo(self) -> VerbResult:
         before = self.n_atoms
-        command = self.stack.undo(self)
+        command, told = self._own_move(lambda: self.stack.undo(self))
+        if command is not None:
+            self._kept_after_own_move()
         answer = VerbResult(
             "undo", command is not None,
             f"undid {command.label}" if command else "nothing to undo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("undo", {}, answer)
         return answer
 
     def redo(self) -> VerbResult:
         before = self.n_atoms
-        command = self.stack.redo(self)
+        command, told = self._own_move(lambda: self.stack.redo(self))
+        if command is not None:
+            self._kept_after_own_move()
         answer = VerbResult(
             "redo", command is not None,
             f"redid {command.label}" if command else "nothing to redo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("redo", {}, answer)
         return answer
 
@@ -1096,13 +1118,239 @@ class Session:
         return self.entry.path / LOG_NAME if self.entry else None
 
     # ------------------------------------------------------------------
+    #  BURSTS: which of the history's steps were this session's
+    # ------------------------------------------------------------------
+
+    def _init_bursts(self) -> None:
+        """No burst open yet.  A separate method because the window's
+        session does not run ``__init__``."""
+        self._burst = 0
+        self._step = 0
+        self._burst_label = ""
+        self._next_label = ""
+        self._closed = True
+        self._last_call: float | None = None
+        self._began: float | None = None  # a long call, when it began
+        self._last_pushed = None          # weakref to our last step
+        self._ours_empty = False          # an empty history is ours
+        self._tagged = None               # the Origin this verb pushed
+        self._mark: list | None = None    # (weakref, origin) we saw
+
+    def close_burst(self) -> None:
+        """End the burst: the next edit is a new request.  What a host
+        calls when the assistant opens or switches documents.  A
+        checkpoint's name goes too: it was for the request on the
+        document being left."""
+        self._closed = True
+        self._next_label = ""
+
+    def _tag(self, verb: str, command) -> None:
+        """Say ``command`` is this verb's, in the right burst.
+
+        A new burst opens when the last one was closed (``checkpoint``,
+        ``close_burst``), when the assistant had been quiet for
+        :data:`~xtal.agent.changes.BURST_GAP` when this call began
+        (:meth:`_hear`), or when its last step is
+        no longer the newest applied one -- the person edited, undid or
+        reverted since.  A person's undo then redo of that step puts it
+        back on top, so the burst goes on, and so does the assistant's
+        own undo or redo (:meth:`_kept_after_own_move`).  Sealing the
+        stack either side keeps the step its own: merged into the
+        person's, it would be one undo step with two authors.
+        """
+        now = changes.clock()
+        began = self._began if self._began is not None else now
+        last = self._last_pushed() if self._last_pushed else None
+        done = self.stack.done()
+        ours = done[-1] is last if done else self._ours_empty
+        if (self._closed or self._last_call is None
+                or began - self._last_call > changes.BURST_GAP
+                or not ours):
+            self._burst = changes.next_burst(self.stack)
+            self._step = 0
+            self._closed = False
+            self._burst_label, self._next_label = self._next_label, ""
+        self._step += 1
+        command.origin = changes.Origin(self._burst, self._step, verb,
+                                        self._burst_label, now)
+        self._last_pushed = weakref.ref(command)
+        self._ours_empty = False
+        self._tagged = command.origin
+        self.stack.break_merge()
+
+    def _kept_after_own_move(self) -> None:
+        """The assistant's own undo or redo moved the stack: whatever
+        is now the newest applied step -- or the empty history -- is
+        where its burst goes on from.  Taking back its own misstep is
+        still the same request.
+
+        Unless a step of the burst is still applied under one that is
+        not the burst's: a redo that re-applied the person's edit puts
+        it on top of the burst, and going on would put their step
+        inside the assistant's, for a Revert to take unsaid.  The
+        burst ends there.
+
+        Its next step is numbered after the burst's last *applied*
+        one: the step it undid goes when that is pushed, and a burst
+        whose numbers skip one reads as one whose start the history
+        let go (:func:`xtal.agent.changes.bursts`)."""
+        done = self.stack.done()
+        steps = [o.step for c in done
+                 if (o := changes.origin_of(c)) is not None
+                 and o.burst == self._burst]
+        top = changes.origin_of(done[-1]) if done else None
+        if steps and (top is None or top.burst != self._burst):
+            self._last_pushed = None
+            self._ours_empty = False
+            return
+        self._last_pushed = weakref.ref(done[-1]) if done else None
+        self._ours_empty = not done
+        self._step = max(steps, default=0)
+
+    #: What :meth:`_tag` moves, put back when the push it tagged for
+    #: fails -- or a failed step spends the checkpoint's name, or ends
+    #: the burst the next step belongs to.
+    _BURST_STATE = ("_burst", "_step", "_burst_label", "_next_label",
+                    "_closed", "_last_pushed", "_ours_empty", "_tagged")
+
+    def _burst_state(self) -> dict:
+        return {name: getattr(self, name) for name in self._BURST_STATE}
+
+    def checkpoint(self, label: str) -> VerbResult:
+        """End the current burst of changes and name the next one.
+
+        Call it when starting on a person's request, with what they
+        asked for ("Prepared MIL-88B"): the window lists the assistant's
+        changes under that name, and Revert takes them back as one.
+        Not an undo step, and answered while the window is busy.
+        """
+        name = " ".join(str(label).split())[:changes.LABEL_LENGTH]
+        self._closed = True
+        self._next_label = name
+        answer = VerbResult(
+            "checkpoint", True,
+            f"the next changes are '{name}'" if name
+            else "the next changes start a new burst",
+            atoms_before=self.n_atoms, atoms_after=self.n_atoms)
+        self._record("checkpoint", {"label": label}, answer)
+        return answer
+
+    def _hear(self) -> None:
+        """A call that may run longer than the gap has begun.  The gap
+        is the assistant's silence before a call, so it is measured to
+        here and not to when the call's step lands: a two-minute
+        relaxation is the assistant working, not the person pausing."""
+        self._began = changes.clock()
+
+    def _heard(self) -> None:
+        """A call has been answered: the assistant's silence starts
+        now."""
+        self._last_call = changes.clock()
+        self._began = None
+
+    def _noticed(self) -> list[Diagnostic]:
+        """What changed in the history behind this session's back since
+        its last answer, said once, and the mark moved to now.
+
+        Undone: the steps applied at the last answer that are no longer
+        applied, counted from the top, since Undo and Revert take from
+        the top.  Said as a revert only when some were the assistant's,
+        and counted by those: the person undoing their own edit is the
+        person editing.  A trimmed history usually loses only the bottom, but
+        a trim past the step that was on top at the last answer reads
+        as undone too.  Edited: the person's steps applied above the
+        last one we saw.  Where both happened -- the person undid ours
+        and then edited -- the revert is what is said: it is the one
+        that makes the assistant's own account wrong.
+
+        The mark keeps each step's origin beside it: a push clears the
+        redo list, so a step undone before this verb pushed is gone by
+        the time its answer is recorded, and its label with it.
+        """
+        done = self.stack.done()
+        here = {id(c) for c in done}
+        mark = self._mark
+        self._remark()
+        if mark is None:
+            return []
+        seen = [(ref(), origin) for ref, origin in mark]
+        undone = 0
+        for command, _origin in reversed(seen):
+            if command is not None and id(command) in here:
+                break
+            undone += 1
+        name = self._document_name()
+        if undone:
+            mine = [o for _c, o in list(reversed(seen))[:undone] if o]
+            if not mine:
+                return [Diagnostic(
+                    "PERSON_EDITED",
+                    f"the person undid {undone} step(s) on {name} since "
+                    f"your last call; inspect before deciding anything")]
+            latest = mine[0]
+            return [Diagnostic(
+                "AGENT_CHANGES_REVERTED",
+                f"{len(mine)} step(s) applied to {name} at your last "
+                f"call were undone or reverted -- the latest, "
+                f"'{latest.label or latest.verb}'; inspect before going "
+                f"on")]
+        top = next((c for c, _o in reversed(seen) if c is not None),
+                   None)
+        start = next((i + 1 for i, c in enumerate(done) if c is top), 0)
+        added = sum(1 for c in done[start:]
+                    if changes.origin_of(c) is None)
+        if added:
+            return [Diagnostic(
+                "PERSON_EDITED",
+                f"the person made {added} edit(s) to {name} since your "
+                f"last call; inspect before deciding anything")]
+        return []
+
+    def _remark(self) -> None:
+        """Take the history as it is now as seen, saying nothing."""
+        self._mark = [(weakref.ref(c), changes.origin_of(c))
+                      for c in self.stack.done()]
+
+    def _own_move(self, move):
+        """``move()`` -- the assistant's own undo or redo -- with what
+        the person did before it said, and the move itself not: told
+        its own undo reverted its steps, an assistant inspects for
+        nothing or puts them back.  Returns what ``move`` returned and
+        the notices, for the answer; ``_record`` then finds the mark
+        current and adds none.  A move that raises (the window's, on a
+        held tab) puts the mark back: the notices it took went nowhere,
+        and the next answer must still give them."""
+        previous = self._mark
+        told = self._noticed()
+        try:
+            moved = move()
+        except BaseException:
+            self._mark = previous
+            raise
+        self._remark()
+        return moved, told
+
+    def _document_name(self) -> str:
+        return self.path.name if self.path else "the structure"
+
+    # ------------------------------------------------------------------
     #  PLUMBING
     # ------------------------------------------------------------------
 
     def _push(self, verb, command, message, args, notes=(),
               data=None) -> VerbResult:
         before = self.n_atoms
-        self.stack.push(command, self)
+        bursting = self._burst_state()
+        self._tag(verb, command)
+        try:
+            self.stack.push(command, self)
+        except BaseException:
+            # Never reached the history: no row may name its burst,
+            # and the burst goes on as if it had not been tried.
+            for name, value in bursting.items():
+                setattr(self, name, value)
+            raise
+        self.stack.break_merge()
         answer = VerbResult(verb, True, message, undo_label=command.label,
                             atoms_before=before, atoms_after=self.n_atoms,
                             data=dict(data or {}),
@@ -1210,12 +1458,17 @@ class Session:
         return (0, 0, 0), tuple(int(x) for x in -np.round(delta))
 
     def _record(self, verb, args, answer: VerbResult) -> None:
+        answer.diagnostics.extend(self._noticed())
         row = {"time": time.strftime("%Y-%m-%dT%H:%M:%S"),
                "verb": verb, "args": _jsonable(args),
                "ok": answer.ok, "message": answer.message,
                "atoms": answer.atoms_after,
                "diagnostics": [f"{d.level}:{d.code}"
                                for d in answer.diagnostics]}
+        tagged, self._tagged = self._tagged, None
+        if tagged is not None:
+            row["burst"] = tagged.burst
+        self._heard()
         self.log.append(row)
         if self.log_path is not None:
             with self.log_path.open("a", encoding="utf-8") as out:

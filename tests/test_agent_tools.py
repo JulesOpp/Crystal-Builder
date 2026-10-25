@@ -541,3 +541,14 @@ def test_a_proxy_prompt_missing_an_argument_says_which():
     with pytest.raises(ValueError, match="missing argument 'path' for "
                                          "prompt 'porosity-report'"):
         proxy._prompt("porosity-report", {})
+
+
+def test_checkpoint_is_a_tool_with_a_text_label():
+    """The instructions tell an assistant to call it at the start of
+    each request; a missing tool is a refused call every time."""
+    async def conversation(client):
+        return {t.name: t for t in (await client.list_tools()).tools}
+
+    tool = _talk(conversation)["checkpoint"]
+    assert tool.inputSchema["properties"]["label"]["type"] == "string"
+    assert tool.inputSchema["required"] == ["label"]

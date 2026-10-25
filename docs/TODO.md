@@ -20,6 +20,15 @@ something runnable and a green suite, the rule
 
 ## After v1.0 (1.0.x)
 
+- **CI on Ubuntu 26.04.** `ubuntu-latest` became 26.04 on 2026-10-19,
+  and the test matrix and the manual job were pinned to `ubuntu-24.04`
+  that day: under 26.04's Mesa three of `test_vtk_render.py`'s pixel
+  checks saw nothing drawn (oxygen red, an occupancy pie, ring faces)
+  and the run passed the 12-minute cap, and the manual's cached TeX
+  packages, a 24.04 install, left no `mktexlsr`. Moving means looking
+  at those three tests on 26.04's software GL and rebuilding the TeX
+  cache (bump its `version`); 24.04 runners are supported into 2028.
+
 Raised by the 2026-10-03 review of `main` and deliberately left out of 1.0:
 
 - **Signing**: a Developer ID for macOS (notarised) and a code-signing
@@ -229,13 +238,20 @@ their `--json`, and on 2026-10-01 the live link to the window
 - **A manual chapter**, *Working with an AI assistant*, once
   `docs/manual/` exists (interface stretch, phase 4).
 - **MCP parity, the rest** (served context and the parity eval
-  shipped: `docs/AI_ASSISTANT.md`'s "Served context and the parity
-  eval"). In this order:
-  - **E: guardrails.** A checkpoint per agent turn, an *Agent changes*
-    strip in the window with one-click revert, and cost estimates up
-    front, with no prompts. This is what makes MCP better than raw access.
+  shipped, and so has E, the guardrails: `docs/AI_ASSISTANT.md`'s
+  "Served context and the parity eval" and "Guardrails: the
+  assistant's changes, attributed and revertible"). In this order:
   - **C: jobs.** A long run returns a handle (status, progress, cancel,
-    result), so no answer is lost to one failed health probe.
+    result), so no answer is lost to one failed health probe, and a
+    cost estimate up front (moved from E): nothing estimates a
+    calculation's time today.
+    - `WindowSession._gate` should refuse with `WINDOW_BUSY` when
+      `document.held` is set without a counted calculation: today
+      the verb gets past the gate and `Document.run` raises
+      `DocumentHeld`.
+    - The *Agent changes* strip could read `window.agent_server` and
+      treat `None` as not serving, instead of building the server
+      object (`ensure_agent_server`) just to ask whether it runs.
   - **B: seeing.** Queries over atoms, bonds and geometry with filters;
     run folders, logs and result tables; comparing two structures.
     `compare-two` in the eval measures it.

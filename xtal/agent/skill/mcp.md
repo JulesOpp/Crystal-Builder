@@ -31,19 +31,23 @@ Every rule below is here because one of those happened.
    checks stop you.
 2. `documents`: in the window, the person may already have it open.
 3. `open` the file with a workspace, or `build` a framework.
-4. `inspect` before anything else. An error such as `COINCIDENT_ATOMS`
+4. Once the document is open, call `checkpoint` with a short label
+   saying what the person asked for when you start on a request, and
+   again whenever the person asks for something new, so the window
+   groups your changes under it.
+5. `inspect` before anything else. An error such as `COINCIDENT_ATOMS`
    means every later number is for the wrong crystal: fix it first.
-5. `prepare` a structure from a database or a paper before any
+6. `prepare` a structure from a database or a paper before any
    calculation, and report every step it names.
-6. Edit one verb at a time, reading each answer.
-7. `recalculate_bonds` only when the geometry is where you want it.
-8. `inspect` again and compare: atom count, formula, coordination,
+7. Edit one verb at a time, reading each answer.
+8. `recalculate_bonds` only when the geometry is where you want it.
+9. `inspect` again and compare: atom count, formula, coordination,
    detected group.
-9. Only then `energy`, `optimize` or `run`; `inspect` after a
-   relaxation too.
-10. `render` and look when the task is geometric; numbers first,
+10. Only then `energy`, `optimize` or `run`; `inspect` after a
+    relaxation too.
+11. `render` and look when the task is geometric; numbers first,
     pixels second.
-11. `save`, and give the person the path.
+12. `save`, and give the person the path.
 
 ## Never
 
@@ -75,6 +79,9 @@ again; `WINDOW_BUSY` because the window is closing or stopped serving
 means it is gone: tell the person rather than waiting.
 `DOCUMENT_CHANGED` means the person edited while you computed:
 `inspect` again before deciding anything.
+If the person undoes or reverts what you did, or edits in between,
+your next answer says so (`AGENT_CHANGES_REVERTED`, `PERSON_EDITED`):
+inspect before going on.
 
 ## Guides
 
