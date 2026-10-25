@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 from xtal.core import limits
+from xtal.view.settings import DISPLAY_RANGE_ENDS
 from xtalapp.dialogs.answered import answered
 from xtalapp.widgets.tone import WARNING, set_tone
 
@@ -82,7 +83,7 @@ class DisplayRangeDialog(QDialog):
             for values, value, column in ((self.los, lo, 1),
                                           (self.his, hi, 2)):
                 spin = QDoubleSpinBox()
-                spin.setRange(-20.0, 20.0)
+                spin.setRange(*DISPLAY_RANGE_ENDS)
                 spin.setDecimals(3)
                 spin.setSingleStep(0.25)
                 spin.setValue(float(value))

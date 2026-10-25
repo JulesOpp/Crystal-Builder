@@ -43,6 +43,7 @@ from xtalapp import samples
 from xtalapp.dialogs.answered import answered
 from xtalapp.document import PROJECT_EXTENSION, Document
 from xtalapp.viewport.view_settings import theme_background
+from xtalapp.widgets.tone import is_dark
 
 #: The environment variable that turns the unsaved-changes prompt off.
 NO_CONFIRM_CLOSE_ENV = "XTAL_NO_CONFIRM_CLOSE"
@@ -119,7 +120,7 @@ class DocumentSet:
             document.view.style = default["style"]
             follows = default["background_follows_theme"]
             document.view.background_follows_theme = follows
-            document.view.background = (theme_background() if follows
+            document.view.background = (theme_background(is_dark()) if follows
                                         else default["background"])
         viewport = self.window._viewport_factory(document, self.tabs)
         if hasattr(viewport, "preview_interval_ms"):

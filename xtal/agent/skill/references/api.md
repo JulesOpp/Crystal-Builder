@@ -72,9 +72,42 @@ A PNG, drawn as the viewport draws it, in a subprocess. `view` is
 or a plane `{"hkl": [h, k, l]}` -- seen face on, along its normal,
 which outside an orthogonal cell is not the direction `[h, k, l]`;
 `style` is a viewport style (`ball_stick`, `stick`, `spacefill`,
-`wireframe`, `polyhedra`, `net` …); `highlight` is a list of P1 atoms to
-draw selected. Orthographic, so a straight channel looks straight. Comes
-back `ok=False` with `RENDER_UNAVAILABLE` where there is no OpenGL.
+`wireframe`, `polyhedra`, `net` …) and `show_cell` true or false, each
+for this picture only; left out, both are the view's own (`view`,
+`set_view`). `highlight` is a list of P1 atoms to draw selected.
+Everything else `set_view` set (rings, colour by, display ranges) is
+drawn too, except the projection: a headless render is always
+orthographic, so a straight channel looks straight. Comes back
+`ok=False` with `RENDER_UNAVAILABLE` where there is no OpenGL.
+
+### `view()`
+
+How the structure is drawn: `data["view"]` is every view setting, the
+Style panel's and the View menu's, by name, and `data["choices"]` the
+values of each setting that takes one of a list (`style`, `color_by`,
+`color_map`, `label_mode`, `boundary`, `projection`, `pore_spheres`).
+Read it before `set_view`. Each setting's type and range are not listed,
+to keep the answer small: a value outside them is refused, and the
+refusal's message names the setting's type and range.
+
+### `set_view(settings)`
+
+Change how the structure is drawn, never the structure: `settings` is an object
+of setting names to values, e.g. `set_view({"style": "polyhedra", "show_rings":
+true, "color_by": "coordination"})`. All or nothing: an unknown name, a value
+of the wrong type or one outside its choices or range is refused with
+`VIEW_SETTING_REFUSED` and nothing changes. Not an undo step. `data["changed"]`
+gives the new values and `data["was"]` the old ones; send `was` back to put the
+view as it was. A `background` given without `background_follows_theme` stops
+following the theme, so a theme change does not paint over it; `was` then holds
+the old flag too. Display ranges (`range_a`, `range_b`, `range_c`) are held to
+the size limit the Display Range dialog applies: over its hard limit they are
+refused with `SIZE_LIMIT`, and over the size the person would be asked about,
+and wider than what is drawn now, with `VIEW_SETTING_REFUSED` -- ask the person
+to widen the range themselves.
+A saved project carries the view, and `render` draws it. In
+the window, the tab and its Style panel follow. Only when the person asks, and
+say what you changed.
 
 ### `select(rule, atoms, **args)`
 

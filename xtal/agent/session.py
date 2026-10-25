@@ -52,8 +52,9 @@ from xtal.commands import bonds as bond_commands
 from xtal.commands import cell as cell_commands
 from xtal.commands import symmetry as symmetry_commands
 from xtal.commands.base import CommandStack
-from xtal.core import bonding, groups, p1
+from xtal.core import bonding, groups, limits, p1
 from xtal.core.structure import Structure
+from xtal.view.settings import VIEW_CHOICES, ViewSettings, coerce_view
 
 #: The file beside the structure that records what the agent did, one
 #: JSON object per verb.  The GUI reads it to say that an entry was
@@ -100,7 +101,7 @@ class Session:
         self.log: list[dict] = []
         # A project's view and selection are the person's, and an
         # agent that opened and saved it must hand them back as found.
-        self._view = view or {}
+        self._view = dict(view or {})
         self._project_session = project_session or {}
         #: What opening said, for a session made by :meth:`open`.
         self.opened: VerbResult | None = None
@@ -277,22 +278,119 @@ class Session:
 
     def render(self, path: PathName, view: View = "diagonal",
                size: tuple[int, int] = (800, 600),
-               style: str = "ball_stick", highlight: Sequence[int] = (),
-               show_cell: bool = True) -> VerbResult:
-        """A PNG of the current structure -- see
-        :func:`xtal.agent.render.render`.  ``view`` is ``"diagonal"``,
-        ``"a"``, ``"b"``, ``"c"``, a lattice direction ``[u, v, w]``,
-        or a plane ``{"hkl": [h, k, l]}`` seen face on, along its
-        normal.  ``highlight`` names P1 atoms to draw selected, which
-        is how to find the atoms a diagnostic names."""
+               style: str | None = None, highlight: Sequence[int] = (),
+               show_cell: bool | None = None) -> VerbResult:
+        """A PNG of the current structure, drawn with the view
+        ``set_view`` gave it -- see :func:`xtal.agent.render.render`.
+        ``view`` is ``"diagonal"``, ``"a"``, ``"b"``, ``"c"``, a
+        lattice direction ``[u, v, w]``, or a plane ``{"hkl": [h, k,
+        l]}`` seen face on, along its normal.  ``style`` and
+        ``show_cell`` draw this picture otherwise without changing the
+        view; left out, they are the view's own.  ``highlight`` names
+        P1 atoms to draw selected, which is how to find the atoms a
+        diagnostic names."""
         from xtal.agent.render import render
         answer = render(self.structure, path, view=view, size=size,
                         style=style, highlight=highlight,
-                        show_cell=show_cell)
+                        show_cell=show_cell, view_settings=self._view)
         answer.atoms_before = answer.atoms_after = self.n_atoms
         self._record("render", {"path": str(path), "view": view},
                      answer)
         return answer
+
+    def view(self) -> VerbResult:
+        """How the structure is drawn: every view setting (the Style
+        panel's and the View menu's), and the choices of those that
+        take one of a list.  Change them with ``set_view``."""
+        n = self.n_atoms
+        answer = VerbResult(
+            "view", True, f"the view of {self._document_name()}",
+            atoms_before=n, atoms_after=n,
+            data={"view": self._current_view(),
+                  "choices": {name: list(values)
+                              for name, values in VIEW_CHOICES.items()}})
+        self._record("view", {}, answer)
+        return answer
+
+    def set_view(self, settings: dict) -> VerbResult:
+        """Change how the structure is drawn: ``settings`` is an object
+        of view setting names to values, e.g. ``{"style": "polyhedra",
+        "show_rings": true}``; ``view`` lists them and their choices.
+        All or nothing -- one bad name or value and nothing changes.
+        Not an undo step, and the structure is never touched.  The
+        answer's ``was`` holds the old values: send it back to put the
+        view as it was."""
+        args = {"settings": settings}
+        cleaned = coerce_view(settings)
+        if isinstance(cleaned, str):
+            return self._refused("set_view", args, cleaned,
+                                 "VIEW_SETTING_REFUSED")
+        n = self.n_atoms
+        if not cleaned:
+            answer = VerbResult("set_view", True,
+                                "no view settings given",
+                                atoms_before=n, atoms_after=n,
+                                data={"changed": {}, "was": {}})
+            self._record("set_view", args, answer)
+            return answer
+        before = self._current_view()
+        too_big = self._range_too_big(before, cleaned)
+        if too_big is not None:
+            return self._answer_refused("set_view", args, too_big)
+        self._apply_view(cleaned)
+        after = self._current_view()
+        # As view() spells them, so ``was`` can be sent straight back.
+        answer = VerbResult(
+            "set_view", True, "set " + ", ".join(cleaned),
+            atoms_before=n, atoms_after=n,
+            data={"changed": {k: after[k] for k in cleaned},
+                  "was": {k: before[k] for k in cleaned}})
+        self._record("set_view", args, answer)
+        return answer
+
+    def _range_too_big(self, view: dict, cleaned: dict):
+        """The refusal for a display range the person's Display Range
+        dialog would not draw unasked, or None.  Over the hard limit
+        it is refused there too; over the soft one the person is
+        asked, and an assistant cannot be -- unless it draws no more
+        than the range already does, which the person has accepted.
+        Answered ok, fifty cells a side of MOF-5 was 53 M atoms and
+        froze the window."""
+        axes = ("range_a", "range_b", "range_c")
+        if not any(axis in cleaned for axis in axes):
+            return None
+        ranges = [cleaned.get(axis, view[axis]) for axis in axes]
+        verdict = limits.check_drawn(self.n_atoms, ranges)
+        if verdict.refused:
+            return Diagnostic("SIZE_LIMIT", verdict.sentence)
+        # A picture the person already accepted is theirs: narrowing
+        # it, or leaving it as it is, is no new question to ask.
+        drawn_now = limits.drawn_atoms(
+            self.n_atoms, [view[axis] for axis in axes])
+        if verdict.warned and verdict.estimate > drawn_now:
+            soft, _hard = limits.bounds("drawn")
+            return Diagnostic(
+                "VIEW_SETTING_REFUSED",
+                f"the picture would draw {limits.count(verdict.estimate)}"
+                f" atoms, over the {limits.count(soft)} the person is "
+                "asked about; ask the person to widen the display range "
+                "themselves")
+        return None
+
+    def _current_view(self) -> dict:
+        """Every view setting as ``ViewSettings.to_dict`` writes them:
+        the defaults, overlaid with what was opened or set."""
+        return ViewSettings.from_dict(self._view).to_dict()
+
+    def _apply_view(self, cleaned: dict) -> None:
+        """Settings :func:`coerce_view` passed, merged into the view a
+        saved project carries.  Only what was set is kept, so a project
+        does not pin every default of the version that wrote it."""
+        settings = ViewSettings.from_dict(self._view)
+        for name, value in cleaned.items():
+            setattr(settings, name, value)
+        written = settings.to_dict()
+        self._view.update({k: written[k] for k in cleaned})
 
     def select(self, rule: str, atoms: Sequence[int] = (),
                **args) -> VerbResult:
@@ -1519,7 +1617,8 @@ class _Relaxation:
 
 
 #: Verbs that record without changing anything worth counting.
-_NOT_STEPS = frozenset({"open", "save", "render", "export", "energy"})
+_NOT_STEPS = frozenset({"open", "save", "render", "export", "energy",
+                        "view", "set_view"})
 
 
 def summarise_log(path) -> tuple[int, int] | None:
