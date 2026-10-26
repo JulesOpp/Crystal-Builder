@@ -174,6 +174,9 @@ CODES: dict[str, Code] = {
     "RENDER_UNAVAILABLE": Code(
         ERROR, "No picture is possible here. Work from inspect(); the "
                "numbers are what the judgement rests on anyway."),
+    "VIEW_SETTING_REFUSED": Code(
+        ERROR, "Nothing was changed. Call view to see the settings and "
+               "their choices, then send only valid ones."),
     # -- the window ----------------------------------------------------
     "WINDOW_BUSY": Code(
         ERROR, "Nothing was changed. If the message says a trajectory "

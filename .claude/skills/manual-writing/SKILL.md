@@ -123,10 +123,12 @@ choose it; the reference already says what values it takes.
 ## Screenshots: `docs/manual/shots/<chapter>.py`
 
 A `run-app --script` file, run with a scratch profile so every figure
-is a first-run window at a fixed size:
+is a first-run window at a fixed size. The scratch is a neutral folder
+outside the repository, because the Structure panel's file row shows
+its path:
 
 ```bash
-python .claude/skills/run-app/drive.py --scratch build/manual-shots \
+python .claude/skills/run-app/drive.py --scratch /tmp/crystal-builder-shots \
   --script docs/manual/shots/<chapter>.py
 ```
 

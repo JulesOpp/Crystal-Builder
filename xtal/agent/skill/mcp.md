@@ -82,6 +82,9 @@ means it is gone: tell the person rather than waiting.
 If the person undoes or reverts what you did, or edits in between,
 your next answer says so (`AGENT_CHANGES_REVERTED`, `PERSON_EDITED`):
 inspect before going on.
+Change how a tab looks (`set_view`) only when the person asks; read it
+with `view` first, and say what you changed. `VIEW_SETTING_REFUSED`
+means nothing changed: send only names and values `view` lists.
 
 ## Guides
 
