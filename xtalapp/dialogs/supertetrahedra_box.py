@@ -27,7 +27,6 @@ Greyed rather than hidden, as the partition section is.
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -42,6 +41,7 @@ from PySide6.QtWidgets import (
 from xtal.mof import decorate, linkers
 from xtal.mof.catalog import CatalogError, installed
 from xtalapp.busy import busy
+from xtalapp.widgets.choices import set_choice_enabled
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: How many fillers each window lists.
@@ -328,9 +328,7 @@ class SupertetrahedraBox(QWidget):
         at = combo.findData(every)
         if why and at >= 0:
             combo.setItemData(at, why, Qt.ToolTipRole)
-            model = combo.model()
-            if isinstance(model, QStandardItemModel):
-                model.item(at).setEnabled(False)
+            set_choice_enabled(combo, at, False)
         if any(s == size for s, _ in self._untried):
             return
         # The row's last one: point it at a fill that can be made.

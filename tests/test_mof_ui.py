@@ -43,6 +43,7 @@ from xtalapp.dialogs import module_dialog  # noqa: E402
 from xtalapp.dialogs.module_form import ModuleDialog  # noqa: E402
 from xtalapp.mainwindow import MainWindow  # noqa: E402
 from xtalapp.settings import AppSettings  # noqa: E402
+from xtalapp.widgets.choices import choice_enabled  # noqa: E402
 
 needs_database = pytest.mark.skipif(
     database_root() is None,
@@ -1163,6 +1164,28 @@ def test_a_refused_partitioner_shows_its_reason_and_cannot_be_chosen(
 
 
 @needs_database
+def test_refilling_the_partitioners_leaves_the_workspace_menu_whole(
+        pacs, window):
+    """CI failed once in the trimer test above, refreshing the
+    workspace after a block was drawn: ``'QStandardItem' object has no
+    attribute 'connect'`` from the menu's ``addAction``.  Greying tppb
+    through ``model().item()`` left a wrapper the model kept; the next
+    refill freed the item, and the QAction Qt then made on its address
+    came back to Python as that QStandardItem.  Which address is
+    reused is the allocator's choice, so this refills until it would
+    have been."""
+    from tests.conftest_qt import item_wrappers
+
+    box = _acs(pacs)
+    before = item_wrappers()
+    for _ in range(25):
+        box.set_framework(pacs.catalog, "acs", "N589", "E14")
+        assert not box._enabled(box.choice.findData("tppb"))
+        window.refresh_workspace()
+    assert item_wrappers() == before
+
+
+@needs_database
 def test_a_suggested_linker_goes_on_the_edge_row(pacs):
     box = _acs(pacs)
     box.set_value("tpt")
@@ -1338,13 +1361,18 @@ def test_filling_four_rings_keeps_the_blocks_and_adds_a_filler_row(
 @needs_database
 def test_a_refused_fill_is_greyed_with_its_reason(st):
     """Every other site of sod's 4-ring is turned onto the others by
-    its fourfold axis: listed, greyed, the reason its tooltip."""
+    its fourfold axis: listed, greyed, the reason its tooltip --
+    and no item wrapper left for a refill to strand."""
+    from tests.conftest_qt import item_wrappers
+
+    before = item_wrappers()
     box = _sod(st)
     _tick, every = box._rows[4]
     at = every.findData(2)
     assert at >= 0
-    assert not every.model().item(at).isEnabled()
+    assert not choice_enabled(every, at)
     assert "symmetry" in every.itemData(at, Qt.ToolTipRole)
+    assert item_wrappers() == before
 
 
 @needs_database
@@ -1355,7 +1383,7 @@ def test_half_a_six_ring_is_offered_and_says_the_group_it_is_written_in(
     box = _sod(st)
     tick, every = box._rows[6]
     at = every.findData(2)
-    assert every.model().item(at).isEnabled()
+    assert choice_enabled(every, at)
     every.setCurrentIndex(at)
     tick.setChecked(True)
     assert st._topology.name == "sod-st-f6e2"
@@ -1436,7 +1464,7 @@ def test_a_net_clicked_lists_its_fills_and_tries_them_afterwards(st):
     assert every.findData(2) >= 0 and box._untried
     box.settle()
     assert not box._untried
-    assert not every.model().item(every.findData(2)).isEnabled()
+    assert not choice_enabled(every, every.findData(2))
 
 
 @needs_database

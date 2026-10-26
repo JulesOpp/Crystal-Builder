@@ -28,7 +28,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QStandardItemModel
 from PySide6.QtWidgets import (
     QComboBox,
     QGridLayout,
@@ -44,6 +43,7 @@ from xtal.mof.trimer import TrimerError
 from xtalapp.busy import busy
 from xtalapp.dialogs.mof_preview import BlockPreview
 from xtalapp.dialogs.rod_build import PREVIEW, drawn_linker
+from xtalapp.widgets.choices import choice_enabled, set_choice_enabled
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
 #: How many linkers *Suggest linkers* lists.
@@ -237,16 +237,15 @@ class PartitionBox(QWidget):
         self.choice.clear()
         self.choice.addItem("None", "")
         self.choice.addItem("Best fit", partition.AUTO)
-        model = self.choice.model()
         for fit in fits:
             p = partition.partitioner(fit.partitioner, self._catalog)
             self.choice.addItem(f"{p.name} -- {p.full_name}", p.name)
             at = self.choice.count() - 1
             self.choice.setItemData(at, fit.sentence(), Qt.ToolTipRole)
-            if not fit.ok and isinstance(model, QStandardItemModel):
-                model.item(at).setEnabled(False)
+            if not fit.ok:
+                set_choice_enabled(self.choice, at, False)
         if fits and not any(f.ok for f in fits):
-            model.item(1).setEnabled(False)
+            set_choice_enabled(self.choice, 1, False)
         closing = sum(f.ok for f in fits)
         self.count.setText(
             f"{closing} of {len(fits)} close the cell" if fits else
@@ -260,10 +259,7 @@ class PartitionBox(QWidget):
         self._draw()
 
     def _enabled(self, at: int) -> bool:
-        model = self.choice.model()
-        if not isinstance(model, QStandardItemModel):
-            return True
-        return model.item(at).isEnabled()
+        return choice_enabled(self.choice, at)
 
     def shown(self) -> str:
         """The partitioner the picture is of, ``""`` for none: the one
