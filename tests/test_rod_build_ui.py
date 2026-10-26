@@ -9,8 +9,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
+from tests.conftest_qt import item_wrappers
 from xtal.modules import MODULES
 from xtal.mof import rodbuild
 from xtal.mof.catalog import database_root
@@ -18,6 +20,7 @@ from xtal.mof.rodbuild import RodRequest
 from xtalapp.dialogs.rod_build import FITTING, RodBuildDialog
 from xtalapp.mainwindow import MainWindow
 from xtalapp.settings import AppSettings
+from xtalapp.widgets.choices import choice_enabled
 
 
 class _Stub(QWidget):
@@ -77,14 +80,21 @@ def test_the_angle_placeholder_is_the_angle_a_build_would_use(
     assert not dialog.angle.isEnabled()
 
 
-def test_a_rod_with_no_hand_has_no_hands_to_choose(dialog):
+def test_a_rod_with_no_hand_has_no_hands_to_choose(qtbot, window):
     """MIL-53 is straight; Ni2Cl2BTDD's helices alternate or not, and
-    on a pattern with triangles they cannot alternate."""
+    on a pattern with triangles they cannot alternate -- greyed, and
+    no item wrapper left behind to be mistaken for a later object.
+    Counted from before the dialog, which greys as it is built."""
+    before = item_wrappers()
+    dialog = RodBuildDialog(*MODULES.find("mof.rod"), window)
+    qtbot.addWidget(dialog)
     assert not dialog.hands.isEnabled()
     dialog.rod.setCurrentIndex(dialog.rod.findData("Ni2Cl2BTDD_Ni"))
     assert dialog.hands.isEnabled()
     dialog.pattern.setCurrentIndex(dialog.pattern.findData("hxl"))
-    assert not dialog.hands.model().item(2).isEnabled()
+    assert not choice_enabled(dialog.hands, 2)
+    assert "triangles" in dialog.hands.itemData(2, Qt.ToolTipRole)
+    assert item_wrappers() == before
 
 
 def test_the_linker_is_the_rods_own_unless_another_is_picked(dialog):
