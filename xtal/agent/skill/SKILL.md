@@ -38,6 +38,7 @@ the Crystal Builder window, so leave them something they can check.
 | the task is to build a framework on a net | [`references/mof.md`](references/mof.md) |
 | a zeolite-templated carbon, a schwarzite, a disordered carbon | [`references/carbon.md`](references/carbon.md) |
 | the task is an amorphous polymer, a polymer membrane, or a PIM | [`references/polymer.md`](references/polymer.md) |
+| a carbon or BN nanotube, periodic or capped (`nanotube.build`) | [`references/api.md`](references/api.md), under `build` |
 | an energy, a relaxation or a scan: which engine, and what it means | [`references/calculations.md`](references/calculations.md) |
 | pore volume, surface area, pore size, or a PXRD pattern | [`references/porosity.md`](references/porosity.md) |
 | where files land, and how the person opens what you made | [`references/workspace.md`](references/workspace.md) |

@@ -51,8 +51,11 @@ BUDGETS = {
     "supercell": (50_000, 200_000),
     "grid": (1_500_000, 4_000_000),
     "carbon": (10_000, 30_000),
-    # A nanotube costs nothing to roll; what it costs is the window
-    # holding it, which is what the supercell's budget is about.
+    # What this budget guards is the window holding the tube, as the
+    # supercell's does: the atoms built.  It does not guard the
+    # rolling, which a finite tube does over whole periods -- a
+    # (200,199) piece of about 4,000 atoms rolls 477,604 a period and
+    # took 18.5 s and 0.8 GB, on a worker thread, under this budget.
     "nanotube": (50_000, 200_000),
     # A phonopy supercell is evaluated once per displacement, so its
     # size is an engine's single point many times over: 2,000 atoms

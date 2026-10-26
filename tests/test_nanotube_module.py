@@ -190,7 +190,8 @@ def test_a_finite_estimate_is_an_upper_bound_within_the_edges(
         n, m, ends, length):
     """A refusal rests on this count, so it must not undercount.  It
     may overcount by the edges' worth, 6(n+m) at most: measured from
-    (5,0) to (15,15) at 3 to 120 A."""
+    (5,0) to (15,15) at 3 to 120 A, and on (40,39), whose 291 A period
+    is far longer than the 5 A cut from it."""
     from xtal.nanotube import build
     recipe = Recipe(n, m, ends=ends, length=length)
     built = len(build.build(recipe).structure.sites)

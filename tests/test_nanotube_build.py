@@ -258,11 +258,12 @@ def test_a_bn_tube_is_semiconducting_and_another_pair_unclassified():
 
 def test_the_stated_bonds_survive_a_project_round_trip(tmp_path):
     """Saved and reopened, the tube keeps its stated bonds; none are
-    perceived again, which would bond nothing new on a good tube but
-    is not the builder's graph."""
+    perceived again.  Built at 1.75 A, longer than C-C's bonding
+    distance, so perceiving on reopening would lose every C-C bond
+    and this would fail."""
     from xtal.io.project import read_project_structure, write_project
 
-    built = tube.build(Recipe(6, 5, ends="capped"))
+    built = tube.build(Recipe(6, 5, ends="capped", bond=1.75))
     path = write_project(built.structure, tmp_path / "tube")
     again = read_project_structure(path)
     before = sorted((b.i, b.j, tuple(b.image))
