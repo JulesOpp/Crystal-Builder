@@ -36,6 +36,20 @@ def test_a_tube_too_thin_to_roll_is_refused_saying_why(n, m, reason):
     assert reason in str(e.value)
 
 
+@pytest.mark.parametrize("n, m", [(10, 10), (40, 39)])
+def test_a_bond_too_short_for_the_flat_sheet_is_refused_naming_the_bond(
+        n, m):
+    """Below about 0.97 A the flat sheet's own second neighbours,
+    sqrt(3) bonds apart, are within C-C's bonding distance, so every
+    tube is refused however wide.  The sentence names the bond; it
+    used to blame a 34 A tube for being thin."""
+    with pytest.raises(NanotubeError) as e:
+        tube.build(Recipe(n, m, bond=0.9))
+    assert str(e.value) == (
+        "at a 0.90 A bond even the flat sheet puts second neighbours "
+        "1.56 A apart, within bonding distance (1.68 A)")
+
+
 def test_a_thin_tube_that_rolls_is_built_with_a_compression_note():
     """(3,0) rolls, but with its bonds 3% short; (5,0) is within 3%
     and gets no note.  The note tells a person to relax it before

@@ -346,14 +346,26 @@ def _refuse_if_too_thin(recipe, rolled, symbols, shortest) -> None:
 
     c = recipe.chirality
     across = f"a ({c.n},{c.m}) tube is {c.diameter:.1f} A across"
+    rules = BondRules()
+    cutoffs = np.array([[rules.cutoff(a, b)[1] for b in symbols]
+                        for a in symbols])
+    # A bond this short fails on the flat sheet, before any rolling:
+    # its second neighbours, sqrt(3) bonds apart and on one
+    # sublattice, are within bonding distance, so every tube would be
+    # refused, and saying that one is too thin sends a person to make
+    # it wider, which cannot help.
+    second = math.sqrt(3.0) * recipe.bond
+    limit = float(max(cutoffs[0, 0], cutoffs[1, 1]))
+    if second < limit:
+        raise NanotubeError(
+            f"at a {recipe.bond:.2f} A bond even the flat sheet puts "
+            f"second neighbours {second:.2f} A apart, within bonding "
+            f"distance ({limit:.2f} A)")
     if shortest < CRUSHED * recipe.bond:
         raise NanotubeError(
             f"{across}: rolled, a bond is compressed to "
             f"{shortest:.2f} A, {100 * shortest / recipe.bond:.0f}% "
             f"of {recipe.bond:.2f} A")
-    rules = BondRules()
-    cutoffs = np.array([[rules.cutoff(a, b)[1] for b in symbols]
-                        for a in symbols])
     clash = geometry.bonding_clash(c, rolled, cutoffs)
     if clash is not None:
         distance, limit = clash
