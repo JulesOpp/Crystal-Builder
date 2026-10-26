@@ -1673,6 +1673,14 @@
    "checkable": false
   },
   {
+   "key": "module.nanotube.build",
+   "section": "Modules",
+   "path": "Nanotube builder ▸ Build a nanotube...",
+   "shortcut": "",
+   "tip": "A single-walled tube from (n,m); the result opens in a new tab",
+   "checkable": false
+  },
+  {
    "key": "module.zeopp.diameters",
    "section": "Modules",
    "path": "Porosity ▸ Pore diameters and channels...",
@@ -2794,6 +2802,78 @@
        "accepts": "int, 100 to 1000000",
        "default": "20000",
        "help": "A recipe that would make more is refused before anything is grown."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "nanotube",
+   "label": "Nanotube builder",
+   "description": "Build a single-walled nanotube from its roll-up vector (n,m): periodic along c, or a finite piece with bare or hydrogen-capped ends, of carbon, boron nitride or any two elements on the honeycomb's two sites.  It opens in a new tab with its bonds stated.",
+   "actions": [
+    {
+     "name": "build",
+     "label": "Build a nanotube...",
+     "tip": "A single-walled tube from (n,m); the result opens in a new tab",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "n",
+       "label": "n",
+       "accepts": "int, 1 to 200",
+       "default": "10",
+       "help": "The roll-up vector's first index: the sheet is rolled so that n a1 + m a2 goes once round the tube.  (n,n) is armchair, (n,0) zigzag, anything else chiral."
+      },
+      {
+       "name": "m",
+       "label": "m",
+       "accepts": "int, 0 to 200",
+       "default": "10",
+       "help": "The roll-up vector's second index.  (m,n) is the mirror image of (n,m): the same tube in the other hand."
+      },
+      {
+       "name": "ends",
+       "label": "Ends",
+       "accepts": "one of Periodic (infinite along c), Finite, ends capped with H, Finite, bare ends",
+       "default": "periodic",
+       "help": "Periodic is an infinite tube along c, with no ends.  Finite is a piece of the length asked for in a vacuum box; capped puts a hydrogen on each edge atom at the force field's own X-H length, bare leaves the edge atoms two-coordinate."
+      },
+      {
+       "name": "length",
+       "label": "Length",
+       "accepts": "float, 1 to 2000 A",
+       "default": "20.0",
+       "help": "Finite: the tube's length.  Periodic: rounded to a whole number of the tube's translational periods, at least one -- the report says what it came to.  A chiral tube's period can be tens of angstroms."
+      },
+      {
+       "name": "element_a",
+       "label": "Element A",
+       "accepts": "text",
+       "default": "C",
+       "help": "The element on one of the honeycomb's two sites.  C and C is a carbon nanotube; B and N a boron nitride one."
+      },
+      {
+       "name": "element_b",
+       "label": "Element B",
+       "accepts": "text",
+       "default": "C",
+       "help": "The element on the other site; every bond joins an A to a B."
+      },
+      {
+       "name": "bond",
+       "label": "Bond length",
+       "accepts": "text",
+       "default": "",
+       "help": "The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest."
+      },
+      {
+       "name": "vacuum",
+       "label": "Vacuum",
+       "accepts": "float, 3 to 50 A",
+       "default": "12.0",
+       "help": "The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A."
       }
      ]
     }

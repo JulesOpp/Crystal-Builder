@@ -88,7 +88,7 @@ def test_the_builders_come_first_and_the_energy_modules_together():
         ("build", "MOF builder"), ("build", "Net builder"),
         ("build", "Molecule builder"),
         ("build", "Disordered carbon builder"),
-        ("build", "Polymer builder"),
+        ("build", "Polymer builder"), ("build", "Nanotube builder"),
         ("characterise", "Porosity"), ("characterise", "PXRD"),
         ("energy", "Force Field"), ("energy", "DFTB+"),
         ("energy", "Energy scan"), ("energy", "ORCA"),

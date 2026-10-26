@@ -34,6 +34,7 @@ from xtal.modules import (
     dftb,
     forcefield,
     mof,
+    nanotube,
     net,
     orca,
     polymer,
@@ -64,6 +65,7 @@ zeopp.register()
 mof.register()
 build.register()
 carbon.register()
+nanotube.register()
 net.register()
 orca.register()
 polymer.register()

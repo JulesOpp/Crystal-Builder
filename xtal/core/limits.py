@@ -51,6 +51,12 @@ BUDGETS = {
     "supercell": (50_000, 200_000),
     "grid": (1_500_000, 4_000_000),
     "carbon": (10_000, 30_000),
+    # What this budget guards is the window holding the tube, as the
+    # supercell's does: the atoms built.  It does not guard the
+    # rolling, which a finite tube does over whole periods -- a
+    # (200,199) piece of about 4,000 atoms rolls 477,604 a period and
+    # took 18.5 s and 0.8 GB, on a worker thread, under this budget.
+    "nanotube": (50_000, 200_000),
     # A phonopy supercell is evaluated once per displacement, so its
     # size is an engine's single point many times over: 2,000 atoms
     # is a few seconds a point under an ML engine on a laptop.
@@ -202,6 +208,23 @@ def carbon_atoms(recipe) -> int:
     return int(round(cells * solved.carbons * (1 + terminations)))
 
 
+def nanotube_atoms(recipe) -> int:
+    """Atoms a nanotube build of ``recipe`` comes out with, without
+    rolling it.  Exact for a periodic tube.  For a finite one: the
+    sheet's atoms over the length, an edge's worth more for the
+    atoms a cut leaves either side, and the caps.  That is an upper
+    bound, measured on tubes from (5,0) to (15,15) at 3 to 120 A, and
+    on long-period chiral tubes such as (40,39), whose 291 A period
+    is far longer than the piece cut from it."""
+    c = recipe.chirality
+    if recipe.periodic:
+        return c.atoms_per_period * recipe.periods
+    edge = 2 * (c.n + c.m)
+    caps = 2 * edge if recipe.ends == "capped" else 0
+    return math.ceil(c.atoms_per_period * recipe.length / c.t_length) \
+        + edge + caps
+
+
 # ======================================================================
 #  CHECKS
 # ======================================================================
@@ -236,6 +259,35 @@ def check_carbon(recipe, profile=None) -> Verdict:
     return _judge("carbon", estimate, profile,
                   "the build would have {} atoms",
                   lambda limit: _cube_that_fits(per_cell, limit))
+
+
+def check_nanotube(recipe, profile=None) -> Verdict:
+    c = recipe.chirality
+
+    def fits(limit):
+        if recipe.periodic:
+            # Whole periods: a length is rounded to the nearest one,
+            # so naming the continuous length that fits named one
+            # that rounds up past the limit.  k T rounds back to k.
+            k = int(limit // c.atoms_per_period)
+            if k < 1:
+                return (f"one period alone is "
+                        f"{count(c.atoms_per_period)} atoms")
+            periods = "period" if k == 1 else "periods"
+            return (f"{k} {periods}, {k * c.t_length:.0f} A, is the "
+                    f"longest that fits")
+        # A finite tube needs no whole period, and a chiral one's can
+        # be over a thousand angstroms.  Floor, not round: half an
+        # angstrom up is a ring's worth of atoms past the limit.
+        edges = 6 * (c.n + c.m)
+        longest = math.floor(
+            (limit - edges) * c.t_length / c.atoms_per_period)
+        if longest < recipe.bond_length:
+            return (f"at ({c.n},{c.m}) even a tube one bond long "
+                    f"would be over it")
+        return f"about {longest} A is the longest that fits"
+    return _judge("nanotube", nanotube_atoms(recipe), profile,
+                  "the tube would have {} atoms", fits)
 
 
 def check_phonons(n_atoms: int, p, profile=None) -> Verdict:

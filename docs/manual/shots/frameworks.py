@@ -11,7 +11,7 @@ read or written, in a neutral folder outside the repository
         --script docs/manual/shots/frameworks.py
 
 Each function writes ``docs/manual/figures/frameworks/<name>.png``.
-The two builds are run through the window's own module runner, as a
+The builds are run through the window's own module runner, as a
 person's Build button runs them, so the Results and Net panels show
 what a build really leaves behind; the dialogs are shown, never
 exec'd, and closed after the shot.
@@ -237,6 +237,47 @@ def polymer_builder() -> None:
     say(f"wrote {path.relative_to(ROOT)}")
 
 
+# ----------------------------------------------------------------------
+#  frameworks/nanotube.md
+# ----------------------------------------------------------------------
+
+def nanotube_form() -> None:
+    """The nanotube builder's form at its defaults."""
+    from xtalapp.dialogs.module_form import ModuleDialog
+
+    module, action = MODULES.find("nanotube.build")
+    dialog = ModuleDialog(module, action, win,             # noqa: F821
+                          action.coerce({}))
+    grab_dialog(dialog, "nanotube-form", 560, 340)
+
+
+def nanotube_tubes() -> None:
+    """A capped (10,10), as the viewport draws it, seen from the side
+    so both rows of hydrogens show."""
+    from xtalapp.dialogs.module_form import ModuleDialog
+
+    values = MODULES.find("nanotube.build")[1].coerce(
+        {"ends": "capped", "length": 25.0})
+    # The run asks the form through this classmethod; put it back
+    # whatever happens, so a figure added after this one still meets
+    # the real form.
+    ask = ModuleDialog.__dict__["ask"]
+    ModuleDialog.ask = classmethod(lambda cls, *a, **k: dict(values))
+    try:
+        win.run_module_action("nanotube", "build")          # noqa: F821
+        wait_until(lambda: win.module_worker is None, 120,  # noqa: F821
+                   "the nanotube build")
+    finally:
+        ModuleDialog.ask = ask
+    doc = win.current_document()                            # noqa: F821
+    say(f"built {doc.title}: {len(doc.structure.sites)} atoms")
+    win.reset_view()                                        # noqa: F821
+    # End on (the reset view) the tube is a ring and the caps hide
+    # behind it; along a it is a cylinder with H at both ends.
+    win.actions_["view_a"].trigger()                        # noqa: F821
+    viewport_shot("nanotube-tubes")
+
+
 build_report()
 net_panel()
 net_builder()
@@ -246,3 +287,5 @@ layer_built()
 molecule_builder()
 carbon_builder()
 polymer_builder()
+nanotube_form()
+nanotube_tubes()
