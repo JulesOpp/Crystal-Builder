@@ -48,3 +48,15 @@ def test_an_element_with_no_double_radius_takes_its_single_one():
     TypeError."""
     assert pyykko.aromatic_radius("H") == pytest.approx(0.32)
     assert pyykko.aromatic_bond("H", "C") == pytest.approx(1.03)
+
+
+def test_deuterium_takes_hydrogen_s_radii_without_a_row_of_its_own():
+    """An isotope's covalent radius is its element's, so D is looked
+    up as H; the published table stays 118 rows of elements.
+    Regressing, a D-C tube with no bond typed is a KeyError."""
+    assert "D" not in pyykko.SINGLE
+    assert pyykko.aromatic_radius("D") == pyykko.aromatic_radius("H")
+    assert pyykko.aromatic_bond("D", "C") == pyykko.aromatic_bond("H", "C")
+    assert pyykko.aromatic_bond("D", "D") == pyykko.aromatic_bond("H", "H")
+    assert not pyykko.has_double_radius("D")
+    assert pyykko.has_double_radius("C")

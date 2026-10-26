@@ -53,8 +53,8 @@ radii {cite}`pyykko2009single,pyykko2009double`, and the bond
 is the sum of the two atoms' radii.  That is 1.42 Å for C–C and
 1.47 Å for B–N.  Pyykkö gives no double-bond radius for H, He, Fm,
 Nh, Fl, Mc, Lv, Ts and Og; their single-bond radius is used, and the
-report's note says so.  A number typed in the box, 0.8 to 3.0 Å, is
-used instead.  Rolling shortens each bond to a chord, a little.
+report's note says so.  Deuterium takes hydrogen's radii.  A number
+typed in the box, 0.8 to 3.0 Å, is used instead.  Rolling shortens each bond to a chord, a little.
 
 :::{figure} /figures/frameworks/nanotube-form.png
 :name: fig-frameworks-nanotube-form
@@ -74,8 +74,6 @@ A (10,10) tube 25 Å long with its ends capped with H, seen along *a*.
 
 Set **Element A** to B and **Element B** to N.  With **Bond length**
 left empty the tube is rolled at 1.47 Å, from the covalent radii.
-h-BN's own B–N bond is 1.446 Å {cite}`paszkowicz2002lattice`, and the
-report's note says so; type 1.446 to build at that instead.
 
 ## Reading the report
 

@@ -5,6 +5,7 @@ from collections import Counter
 import numpy as np
 import pytest
 
+from xtal.core import elements
 from xtal.nanotube import build as tube
 from xtal.nanotube.build import NanotubeError, Recipe
 
@@ -166,10 +167,12 @@ def test_a_piece_too_short_to_be_a_tube_is_refused():
         tube.build(Recipe(10, 0, ends="bare", length=3.0))
 
 
-def test_a_bn_tube_alternates_and_says_its_own_bond_length():
+def test_a_bn_tube_alternates_at_the_radii_s_bond_with_no_note():
     """B on one sublattice and N on the other: every framework bond is
-    B-N, rolled from Pyykko's aromatic B-N, 1.47 A.  The note names
-    h-BN's own 1.446 A beside it, because the two differ."""
+    B-N, rolled from Pyykko's aromatic B-N, 1.47 A, and nothing in the
+    note sets h-BN's own bond beside it -- Julius dropped that note on
+    2026-10-26.  Regressing, the report would second-guess the radii
+    he chose."""
     built = tube.build(Recipe(10, 10, element_a="B", element_b="N"))
     sites = built.structure.sites
     for bond in built.structure.perceived.bonds:
@@ -177,8 +180,7 @@ def test_a_bn_tube_alternates_and_says_its_own_bond_length():
     assert built.recipe.title == "(10,10) BN nanotube"
     assert built.recipe.bond_length == pytest.approx(1.47)
     assert built.chirality.bond == pytest.approx(1.47)
-    assert ("h-BN's own B-N bond is 1.446 A; this tube was built at "
-            "1.47 A") in built.notes
+    assert not built.notes
 
 
 def test_the_bond_follows_the_elements_unless_one_is_typed():
@@ -369,13 +371,40 @@ def test_a_periodic_tube_s_closest_contact_reaches_across_the_cell():
         _closest_unbonded_by_brute_force(built.structure), abs=1e-6)
 
 
-def test_deuterium_with_no_bond_given_is_refused_asking_for_one():
-    """D is an element here but not in Pyykkö's table, so with the bond
-    left empty there is no radius to take it from: one sentence asking
-    for a bond, never a KeyError.  Typed, it builds."""
-    with pytest.raises(NanotubeError) as e:
-        tube.checked(Recipe(element_a="D", element_b="C"))
-    assert str(e.value) == ("Pyykkö gives no covalent radius for D; "
-                            "type a bond length")
-    assert tube.checked(Recipe(element_a="D", element_b="C",
-                               bond="1.1")).bond_length == 1.1
+def test_deuterium_takes_hydrogen_s_radius_and_hydrogen_s_note():
+    """D is hydrogen with a neutron, and an isotope's covalent radius
+    is its element's: with the bond left empty a D-C tube is rolled at
+    H-C's 1.03 A, and the note names D as it was given.  Regressing,
+    the form would refuse D and ask for a bond Julius said it has."""
+    assert tube.checked(Recipe(element_a="D", element_b="C")).bond is None
+    built = tube.build(Recipe(10, 10, element_a="D", element_b="C"))
+    assert built.recipe.bond_length \
+        == Recipe(element_a="H", element_b="C").bond_length
+    assert built.recipe.bond_length == pytest.approx(1.03)
+    assert ("Pyykkö gives no double-bond radius for D; its "
+            "single-bond radius was used") in built.notes
+
+
+def _accepted_symbols():
+    """Every symbol the element boxes accept, found by asking
+    canonical_symbol about every one- and two-letter word rather than
+    by reading the table it consults."""
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    words = [*letters,
+             *(a + b.lower() for a in letters for b in letters)]
+    return sorted({s for w in words
+                   if (s := elements.canonical_symbol(w)) is not None
+                   and not elements.is_dummy(s)})
+
+
+def test_every_element_the_form_accepts_has_a_bond_from_the_radii():
+    """There is no refusal for an element without a radius, because
+    none is left: every symbol the boxes accept, isotopes included,
+    has an aromatic bond to C.  A symbol added to the elements without
+    a radius (tritium, say) fails here rather than as a KeyError in
+    somebody's run."""
+    symbols = _accepted_symbols()
+    assert "D" in symbols and len(symbols) == 119
+    for symbol in symbols:
+        recipe = tube.checked(Recipe(element_a=symbol, element_b="C"))
+        assert 0.5 < recipe.bond_length < 6.0, symbol

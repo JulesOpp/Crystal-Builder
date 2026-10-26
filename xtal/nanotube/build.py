@@ -55,10 +55,6 @@ THIN_FOR_ZONE_FOLDING = 7.0
 #: range, kept now the box is text and nothing else holds it.
 BOND_RANGE = (0.8, 3.0)
 
-#: h-BN's own B-N bond, from a = 2.504 A (Paszkowicz et al., Appl.
-#: Phys. A 75, 431 (2002)).
-BN_BOND = 1.446
-
 
 class NanotubeError(ValueError):
     """A recipe that cannot be built, said in one sentence."""
@@ -85,7 +81,7 @@ class Recipe:
         elements' aromatic bond from Pyykkö's radii.
 
         With no bond given, the elements must be ones :func:`checked`
-        accepts: one Pyykkö has no radius for raises KeyError here,
+        accepts: a word that is no element raises KeyError here,
         where :func:`checked` refuses it by name."""
         given = _given_bond(self.bond)
         if given is not None:
@@ -142,14 +138,10 @@ def checked(recipe: Recipe) -> Recipe:
             raise NanotubeError(f"{str(text).strip()!r} is not an "
                                 f"element")
         symbols.append(symbol)
-    bond = _given_bond(recipe.bond)
-    if bond is None:
-        for symbol in symbols:
-            if symbol not in pyykko.SINGLE:
-                raise NanotubeError(f"Pyykkö gives no covalent radius "
-                                    f"for {symbol}; type a bond length")
+    # No element is refused for want of a radius: Pyykkö covers all
+    # 118 and the radii take D as H, which a test sweeps.
     return replace(recipe, element_a=symbols[0], element_b=symbols[1],
-                   bond=bond)
+                   bond=_given_bond(recipe.bond))
 
 
 def _given_bond(value) -> float | None:
@@ -449,12 +441,9 @@ def _notes(recipe, shortest) -> list[str]:
         notes.append(f"rolling compresses bonds by up to "
                      f"{squeeze:.0f}%; relax before trusting the "
                      f"geometry")
-    if recipe.is_bn and abs(bond - BN_BOND) > 0.005:
-        notes.append(f"h-BN's own B-N bond is {BN_BOND} A; this tube "
-                     f"was built at {bond:.3g} A")
     if recipe.from_radii:
         for symbol in dict.fromkeys(recipe.symbols):
-            if pyykko.DOUBLE[symbol] is None:
+            if not pyykko.has_double_radius(symbol):
                 notes.append(f"Pyykkö gives no double-bond radius for "
                              f"{symbol}; its single-bond radius was "
                              f"used")

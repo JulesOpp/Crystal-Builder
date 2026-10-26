@@ -17,7 +17,8 @@ Transcribed from KnowledgeDoor's table of them and checked against
 Wikipedia's: the 53 elements both give agree.  Written out as a
 literal table, not read from a data file, so nothing has to be shipped
 beside the code.  ``DOUBLE`` is None where the paper gives no
-double-bond radius: H, He, Fm, Nh, Fl, Mc, Lv, Ts and Og.
+double-bond radius: H, He, Fm, Nh, Fl, Mc, Lv, Ts and Og.  Deuterium
+is looked up as hydrogen.
 
 **The aromatic bond is Julius's rule** (2026-10-26): a honeycomb's
 bond is of order 1.5, so each atom's radius is the mean of its single-
@@ -30,7 +31,8 @@ Pure Python; no Qt.
 
 from __future__ import annotations
 
-__all__ = ["SINGLE", "DOUBLE", "aromatic_radius", "aromatic_bond"]
+__all__ = ["SINGLE", "DOUBLE", "has_double_radius", "aromatic_radius",
+           "aromatic_bond"]
 
 #: Single-bond covalent radii, pm, in atomic-number order.
 SINGLE = {
@@ -81,7 +83,25 @@ DOUBLE = {
 }
 
 
+#: Isotopes the app spells with a symbol of their own, and the element
+#: each is.  A neutron does not change a covalent radius, and Julius
+#: decided (2026-10-26) that D takes H's; mapping here keeps the
+#: tables as published rather than adding a row Pyykkö never wrote.
+#: Tritium is not here because the app has no symbol for it.
+_ISOTOPE_OF = {"D": "H"}
+
+
+def _element(symbol: str) -> str:
+    return _ISOTOPE_OF.get(symbol, symbol)
+
+
+def has_double_radius(symbol: str) -> bool:
+    """Whether Pyykkö gives ``symbol`` a double-bond radius."""
+    return DOUBLE[_element(symbol)] is not None
+
+
 def _aromatic_pm(symbol: str) -> float:
+    symbol = _element(symbol)
     double = DOUBLE[symbol]
     if double is None:
         return float(SINGLE[symbol])
