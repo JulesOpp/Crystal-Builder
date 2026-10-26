@@ -210,7 +210,9 @@ def nanotube_atoms(recipe) -> int:
     rolling it.  Exact for a periodic tube.  For a finite one: the
     sheet's atoms over the length, an edge's worth more for the
     atoms a cut leaves either side, and the caps.  That is an upper
-    bound, measured on tubes from (5,0) to (15,15) at 3 to 120 A."""
+    bound, measured on tubes from (5,0) to (15,15) at 3 to 120 A, and
+    on long-period chiral tubes such as (40,39), whose 291 A period
+    is far longer than the piece cut from it."""
     c = recipe.chirality
     if recipe.periodic:
         return c.atoms_per_period * recipe.periods
@@ -260,12 +262,27 @@ def check_nanotube(recipe, profile=None) -> Verdict:
     c = recipe.chirality
 
     def fits(limit):
-        edges = 0 if recipe.periodic else 6 * (c.n + c.m)
-        longest = (limit - edges) * c.t_length / c.atoms_per_period
-        if longest < c.t_length:
-            return (f"one period alone is "
-                    f"{count(c.atoms_per_period)} atoms")
-        return f"about {longest:.0f} A is the longest that fits"
+        if recipe.periodic:
+            # Whole periods: a length is rounded to the nearest one,
+            # so naming the continuous length that fits named one
+            # that rounds up past the limit.  k T rounds back to k.
+            k = int(limit // c.atoms_per_period)
+            if k < 1:
+                return (f"one period alone is "
+                        f"{count(c.atoms_per_period)} atoms")
+            periods = "period" if k == 1 else "periods"
+            return (f"{k} {periods}, {k * c.t_length:.0f} A, is the "
+                    f"longest that fits")
+        # A finite tube needs no whole period, and a chiral one's can
+        # be over a thousand angstroms.  Floor, not round: half an
+        # angstrom up is a ring's worth of atoms past the limit.
+        edges = 6 * (c.n + c.m)
+        longest = math.floor(
+            (limit - edges) * c.t_length / c.atoms_per_period)
+        if longest < recipe.bond:
+            return (f"at ({c.n},{c.m}) even a tube one bond long "
+                    f"would be over it")
+        return f"about {longest} A is the longest that fits"
     return _judge("nanotube", nanotube_atoms(recipe), profile,
                   "the tube would have {} atoms", fits)
 

@@ -26,7 +26,7 @@ from xtal.modules.report import Report, Row, Table
 from xtal.nanotube import build as tube
 
 __all__ = ["PARAMS", "NANOTUBE", "build_nanotube", "recipe_of",
-           "register"]
+           "register", "report"]
 
 _DEFAULT = tube.Recipe()
 
