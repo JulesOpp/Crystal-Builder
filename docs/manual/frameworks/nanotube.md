@@ -34,7 +34,10 @@ anything else **chiral**: with *m* ≤ *n* the chiral angle runs from
      chiral tube's period can be long: (6,5)'s is 40.6 Å.
    - **Finite, ends capped with H** is a molecule-like piece: each
      two-coordinate edge atom gets a hydrogen at UFF's own X–H
-     length.
+     length.  A ragged cut can leave two hydrogens pointing into the
+     same half-hexagon, about 1.75 Å apart, which the report's
+     *Closest contact* row shows; relax the tube before you trust
+     its ends.
    - **Finite, bare ends** leaves the edge atoms two-coordinate, for
      ends of your own.
 3. Press **Run**.  The tube opens in a new tab, in {term}`P1`, with
@@ -73,8 +76,8 @@ rolling made; over 3 % compression, a note asks you to relax first.
 built: armchair is metallic, (*n* − *m*) divisible by 3 small-gap
 {cite}`hamada1992new,saito1992electronic,kane1997size`, the rest
 semiconducting, and every BN tube a wide-gap semiconductor
-{cite}`rubio1994theory`.  Under 7 Å across, the row adds that the
-rule is unreliable {cite}`blase1994hybridization`.
+{cite}`rubio1994theory`.  Under 7 Å across, a carbon tube's row adds
+that the rule is unreliable {cite}`blase1994hybridization`.
 
 ```console
 $ xtal run nanotube.build -p n=6 -p m=5 -p length=40 -o tube.cif
