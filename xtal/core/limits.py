@@ -51,6 +51,9 @@ BUDGETS = {
     "supercell": (50_000, 200_000),
     "grid": (1_500_000, 4_000_000),
     "carbon": (10_000, 30_000),
+    # A nanotube costs nothing to roll; what it costs is the window
+    # holding it, which is what the supercell's budget is about.
+    "nanotube": (50_000, 200_000),
     # A phonopy supercell is evaluated once per displacement, so its
     # size is an engine's single point many times over: 2,000 atoms
     # is a few seconds a point under an ML engine on a laptop.
@@ -202,6 +205,21 @@ def carbon_atoms(recipe) -> int:
     return int(round(cells * solved.carbons * (1 + terminations)))
 
 
+def nanotube_atoms(recipe) -> int:
+    """Atoms a nanotube build of ``recipe`` comes out with, without
+    rolling it.  Exact for a periodic tube.  For a finite one: the
+    sheet's atoms over the length, an edge's worth more for the
+    atoms a cut leaves either side, and the caps.  That is an upper
+    bound, measured on tubes from (5,0) to (15,15) at 3 to 120 A."""
+    c = recipe.chirality
+    if recipe.periodic:
+        return c.atoms_per_period * recipe.periods
+    edge = 2 * (c.n + c.m)
+    caps = 2 * edge if recipe.ends == "capped" else 0
+    return math.ceil(c.atoms_per_period * recipe.length / c.t_length) \
+        + edge + caps
+
+
 # ======================================================================
 #  CHECKS
 # ======================================================================
@@ -236,6 +254,20 @@ def check_carbon(recipe, profile=None) -> Verdict:
     return _judge("carbon", estimate, profile,
                   "the build would have {} atoms",
                   lambda limit: _cube_that_fits(per_cell, limit))
+
+
+def check_nanotube(recipe, profile=None) -> Verdict:
+    c = recipe.chirality
+
+    def fits(limit):
+        edges = 0 if recipe.periodic else 6 * (c.n + c.m)
+        longest = (limit - edges) * c.t_length / c.atoms_per_period
+        if longest < c.t_length:
+            return (f"one period alone is "
+                    f"{count(c.atoms_per_period)} atoms")
+        return f"about {longest:.0f} A is the longest that fits"
+    return _judge("nanotube", nanotube_atoms(recipe), profile,
+                  "the tube would have {} atoms", fits)
 
 
 def check_phonons(n_atoms: int, p, profile=None) -> Verdict:
