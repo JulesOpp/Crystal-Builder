@@ -282,7 +282,7 @@ def check_nanotube(recipe, profile=None) -> Verdict:
         edges = 6 * (c.n + c.m)
         longest = math.floor(
             (limit - edges) * c.t_length / c.atoms_per_period)
-        if longest < recipe.bond:
+        if longest < recipe.bond_length:
             return (f"at ({c.n},{c.m}) even a tube one bond long "
                     f"would be over it")
         return f"about {longest} A is the longest that fits"

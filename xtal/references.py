@@ -100,6 +100,10 @@ NANOTUBE = (
         "10.1103/PhysRevB.49.5081"),
     doi("Paszkowicz et al., Appl. Phys. A 2002",
         "10.1007/s003390100999"),
+    doi("Pyykkö and Atsumi, Chem. Eur. J. 2009 (single-bond radii)",
+        "10.1002/chem.200800987"),
+    doi("Pyykkö and Atsumi, Chem. Eur. J. 2009 (double-bond radii)",
+        "10.1002/chem.200901472"),
 )
 
 

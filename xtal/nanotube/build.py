@@ -19,6 +19,11 @@ build is refused when a bond is crushed below 90% of its length, or
 when two unbonded atoms come within the application's own bonding
 distance -- Recalculate bonds would then bond them, and the tube would
 not be the one asked for.
+
+**The bond follows the elements unless one is typed** (Julius,
+2026-10-26): the two elements' aromatic bond from Pyykkö's covalent
+radii, :func:`xtal.core.pyykko.aromatic_bond` -- 1.42 A for C-C, 1.47
+A for B-N.
 """
 
 from __future__ import annotations
@@ -28,7 +33,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
-from xtal.core import elements
+from xtal.core import elements, pyykko
 from xtal.nanotube import geometry
 
 __all__ = ["ENDS", "Recipe", "Built", "NanotubeError", "checked",
@@ -45,6 +50,10 @@ COMPRESSED = 0.97
 #: Below this diameter the (n - m) mod 3 rule is unreliable: sigma-pi
 #: hybridisation (Blase et al., PRL 72, 1878 (1994)).
 THIN_FOR_ZONE_FOLDING = 7.0
+
+#: The bond lengths a recipe may give, A: the form's old spinbox
+#: range, kept now the box is text and nothing else holds it.
+BOND_RANGE = (0.8, 3.0)
 
 #: h-BN's own B-N bond, from a = 2.504 A (Paszkowicz et al., Appl.
 #: Phys. A 75, 431 (2002)).
@@ -65,12 +74,34 @@ class Recipe:
     length: float = 20.0
     element_a: str = "C"
     element_b: str = "C"
-    bond: float = 1.42
+    #: None is the elements' own bond, from Pyykkö's radii; the form
+    #: hands text, "" for none, which :func:`checked` reads.
+    bond: float | str | None = None
     vacuum: float = 12.0
 
     @property
+    def bond_length(self) -> float:
+        """The bond the tube is rolled from: the one given, or the two
+        elements' aromatic bond from Pyykkö's radii."""
+        given = _given_bond(self.bond)
+        if given is not None:
+            return given
+        return pyykko.aromatic_bond(*self.symbols)
+
+    @property
+    def from_radii(self) -> bool:
+        """Whether the bond is the radii's rather than one given."""
+        return _given_bond(self.bond) is None
+
+    @property
+    def symbols(self) -> tuple[str, str]:
+        """The two elements, spelled properly where they can be."""
+        return tuple(elements.canonical_symbol(str(s)) or str(s)
+                     for s in (self.element_a, self.element_b))
+
+    @property
     def chirality(self) -> geometry.Chirality:
-        return geometry.Chirality(self.n, self.m, self.bond)
+        return geometry.Chirality(self.n, self.m, self.bond_length)
 
     @property
     def periodic(self) -> bool:
@@ -107,7 +138,37 @@ def checked(recipe: Recipe) -> Recipe:
             raise NanotubeError(f"{str(text).strip()!r} is not an "
                                 f"element")
         symbols.append(symbol)
-    return replace(recipe, element_a=symbols[0], element_b=symbols[1])
+    bond = _given_bond(recipe.bond)
+    if bond is None:
+        for symbol in symbols:
+            if symbol not in pyykko.SINGLE:
+                raise NanotubeError(f"Pyykkö gives no covalent radius "
+                                    f"for {symbol}; type a bond length")
+    return replace(recipe, element_a=symbols[0], element_b=symbols[1],
+                   bond=bond)
+
+
+def _given_bond(value) -> float | None:
+    """A bond given as a number or the form's text, in A; None when
+    none was given."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            bond = float(text)
+        except ValueError:
+            raise NanotubeError(f"the bond length must be a number, "
+                                f"not {text!r}") from None
+    else:
+        bond, text = float(value), f"{float(value):g}"
+    low, high = BOND_RANGE
+    if not low <= bond <= high:
+        raise NanotubeError(f"the bond length must be {low} to {high} "
+                            f"A, not {text}")
+    return bond
 
 
 @dataclass
@@ -354,18 +415,19 @@ def _refuse_if_too_thin(recipe, rolled, symbols, shortest) -> None:
     # sublattice, are within bonding distance, so every tube would be
     # refused, and saying that one is too thin sends a person to make
     # it wider, which cannot help.
-    second = math.sqrt(3.0) * recipe.bond
+    bond = recipe.bond_length
+    second = math.sqrt(3.0) * bond
     limit = float(max(cutoffs[0, 0], cutoffs[1, 1]))
     if second < limit:
         raise NanotubeError(
-            f"at a {recipe.bond:.2f} A bond even the flat sheet puts "
+            f"at a {bond:.2f} A bond even the flat sheet puts "
             f"second neighbours {second:.2f} A apart, within bonding "
             f"distance ({limit:.2f} A)")
-    if shortest < CRUSHED * recipe.bond:
+    if shortest < CRUSHED * bond:
         raise NanotubeError(
             f"{across}: rolled, a bond is compressed to "
-            f"{shortest:.2f} A, {100 * shortest / recipe.bond:.0f}% "
-            f"of {recipe.bond:.2f} A")
+            f"{shortest:.2f} A, {100 * shortest / bond:.0f}% "
+            f"of {bond:.2f} A")
     clash = geometry.bonding_clash(c, rolled, cutoffs)
     if clash is not None:
         distance, limit = clash
@@ -377,14 +439,21 @@ def _refuse_if_too_thin(recipe, rolled, symbols, shortest) -> None:
 
 def _notes(recipe, shortest) -> list[str]:
     notes = []
-    if shortest < COMPRESSED * recipe.bond:
-        squeeze = 100 * (1 - shortest / recipe.bond)
+    bond = recipe.bond_length
+    if shortest < COMPRESSED * bond:
+        squeeze = 100 * (1 - shortest / bond)
         notes.append(f"rolling compresses bonds by up to "
                      f"{squeeze:.0f}%; relax before trusting the "
                      f"geometry")
-    if recipe.is_bn and abs(recipe.bond - BN_BOND) > 0.005:
+    if recipe.is_bn and abs(bond - BN_BOND) > 0.005:
         notes.append(f"h-BN's own B-N bond is {BN_BOND} A; this tube "
-                     f"was built at {recipe.bond:.3g} A")
+                     f"was built at {bond:.3g} A")
+    if recipe.from_radii:
+        for symbol in dict.fromkeys(recipe.symbols):
+            if pyykko.DOUBLE[symbol] is None:
+                notes.append(f"Pyykkö gives no double-bond radius for "
+                             f"{symbol}; its single-bond radius was "
+                             f"used")
     return notes
 
 

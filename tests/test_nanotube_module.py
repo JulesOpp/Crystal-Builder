@@ -33,12 +33,48 @@ def test_the_nanotube_builder_needs_no_structure():
 
 
 def test_the_defaults_are_julius_s():
-    """C on both sites at 1.42 A: Julius's own defaults.  Changing one
-    is his decision, so a change here should be deliberate."""
+    """C on both sites, the bond left empty so it follows the
+    elements, and C-C then exactly 1.42 A: Julius's own defaults, the
+    bond from Pyykko's radii since 2026-10-26.  Changing one is his
+    decision, so a change here should be deliberate."""
+    from xtal.modules.nanotube import recipe_of
+
     _module, action = MODULES.find("nanotube.build")
     values = action.coerce({})
     assert (values["element_a"], values["element_b"],
-            values["bond"]) == ("C", "C", 1.42)
+            values["bond"]) == ("C", "C", "")
+    recipe = recipe_of(Job(params=values))
+    assert recipe.bond is None
+    assert recipe.bond_length == 1.42
+
+
+def test_the_report_says_which_bond_length_was_used_and_whence():
+    """The bond the tube was rolled from is a row of its own, saying
+    whether it came from the radii or was typed.  Without it a BN
+    tube's 1.47 A is stated nowhere but a note."""
+    rows = {row.label: row
+            for row in _run(element_a="B", element_b="N")
+            .report.tables[0].rows}
+    assert rows["Bond length"].value == "1.470"
+    assert rows["Bond length"].note == "from Pyykkö's covalent radii"
+    assert rows["Shortest bond"].note == "rolled from 1.470"
+    rows = {row.label: row
+            for row in _run(bond="1.5").report.tables[0].rows}
+    assert rows["Bond length"].value == "1.500"
+    assert rows["Bond length"].note == "as given"
+
+
+@pytest.mark.parametrize("text, wanted", [
+    ("abc", "'abc'"), ("5", "5"), ("0.5", "0.5")])
+def test_a_bond_that_is_not_a_length_is_a_failed_run_naming_it(
+        text, wanted):
+    """The bond box is text now, so nothing stops a word or a number
+    outside 0.8-3.0 A arriving in it; the run fails in one sentence
+    naming what was typed, never a traceback from float()."""
+    result = _run(bond=text)
+    assert not result.ok
+    assert wanted in result.message
+    assert "bond" in result.message
 
 
 def test_the_report_says_size_period_and_character():

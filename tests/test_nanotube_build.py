@@ -168,14 +168,63 @@ def test_a_piece_too_short_to_be_a_tube_is_refused():
 
 def test_a_bn_tube_alternates_and_says_its_own_bond_length():
     """B on one sublattice and N on the other: every framework bond is
-    B-N.  The note names h-BN's own 1.446 A, because 1.42 is
-    carbon's."""
+    B-N, rolled from Pyykko's aromatic B-N, 1.47 A.  The note names
+    h-BN's own 1.446 A beside it, because the two differ."""
     built = tube.build(Recipe(10, 10, element_a="B", element_b="N"))
     sites = built.structure.sites
     for bond in built.structure.perceived.bonds:
         assert {sites[bond.i].element, sites[bond.j].element} == {"B", "N"}
     assert built.recipe.title == "(10,10) BN nanotube"
-    assert any("1.446 A" in n for n in built.notes)
+    assert built.recipe.bond_length == pytest.approx(1.47)
+    assert built.chirality.bond == pytest.approx(1.47)
+    assert ("h-BN's own B-N bond is 1.446 A; this tube was built at "
+            "1.47 A") in built.notes
+
+
+def test_the_bond_follows_the_elements_unless_one_is_typed():
+    """Left empty the bond is the two elements' aromatic one from
+    Pyykko's radii; a number given is used instead, as text from the
+    form or a float from a script.  Regressing, a typed bond would be
+    ignored or an empty one refused."""
+    assert Recipe().bond_length == 1.42
+    assert Recipe(element_a="Si", element_b="Si").bond_length \
+        == pytest.approx(2.23)
+    assert tube.checked(Recipe(bond="")).bond is None
+    assert tube.checked(Recipe(bond=" 1.5 ")).bond_length == 1.5
+    assert tube.checked(Recipe(bond=1.6)).bond_length == 1.6
+    built = tube.build(Recipe(10, 10, element_a="B", element_b="N",
+                              bond="1.446"))
+    assert built.chirality.bond == 1.446
+    assert not built.notes
+
+
+@pytest.mark.parametrize("bond, wanted", [
+    ("one", "the bond length must be a number, not 'one'"),
+    ("0.5", "the bond length must be 0.8 to 3.0 A, not 0.5"),
+    ("3.5", "the bond length must be 0.8 to 3.0 A, not 3.5"),
+    (4.0, "the bond length must be 0.8 to 3.0 A, not 4"),
+])
+def test_a_bond_that_is_no_length_is_refused_by_name(bond, wanted):
+    """A word, or a number outside 0.8-3.0 A, typed in the bond box is
+    refused in one sentence naming it.  The box is text, so nothing
+    else stops it: float() would raise a bare ValueError, and an
+    out-of-range bond would roll a tube nobody can mean."""
+    with pytest.raises(NanotubeError) as e:
+        tube.checked(Recipe(bond=bond))
+    assert str(e.value) == wanted
+
+
+def test_an_element_with_no_double_bond_radius_is_noted():
+    """Pyykko gives hydrogen no double-bond radius, so its single one
+    stands in, and the note says so -- once a bond is typed it is not
+    the radii's and the note goes."""
+    built = tube.build(Recipe(10, 10, element_a="H", element_b="C"))
+    assert built.recipe.bond_length == pytest.approx(1.03)
+    assert ("Pyykkö gives no double-bond radius for H; its "
+            "single-bond radius was used") in built.notes
+    typed = tube.build(Recipe(10, 10, element_a="H", element_b="C",
+                              bond="1.1"))
+    assert not any("double-bond" in n for n in typed.notes)
 
 
 @pytest.mark.parametrize("element_a, element_b, wanted", [
@@ -318,3 +367,15 @@ def test_a_periodic_tube_s_closest_contact_reaches_across_the_cell():
     assert built.closest_contact == pytest.approx(2.45, abs=0.01)
     assert built.closest_contact == pytest.approx(
         _closest_unbonded_by_brute_force(built.structure), abs=1e-6)
+
+
+def test_deuterium_with_no_bond_given_is_refused_asking_for_one():
+    """D is an element here but not in Pyykkö's table, so with the bond
+    left empty there is no radius to take it from: one sentence asking
+    for a bond, never a KeyError.  Typed, it builds."""
+    with pytest.raises(NanotubeError) as e:
+        tube.checked(Recipe(element_a="D", element_b="C"))
+    assert str(e.value) == ("Pyykkö gives no covalent radius for D; "
+                            "type a bond length")
+    assert tube.checked(Recipe(element_a="D", element_b="C",
+                               bond="1.1")).bond_length == 1.1

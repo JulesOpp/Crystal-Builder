@@ -46,6 +46,16 @@ anything else **chiral**: with *m* ≤ *n* the chiral angle runs from
 **Vacuum** is the gap to the tube's periodic image, atom to atom:
 across, and along a finite tube, caps included.
 
+**Bond length** is the flat sheet's bond.  Left empty, it follows the
+elements: the honeycomb's bond is aromatic, of order 1.5, so each
+atom's radius is the mean of its single- and double-bond covalent
+radii {cite}`pyykko2008molecular,pyykko2009molecular`, and the bond
+is the sum of the two atoms' radii.  That is 1.42 Å for C–C and
+1.47 Å for B–N.  Pyykkö gives no double-bond radius for H, He and some
+superheavy elements; their single-bond radius is used, and the
+report's note says so.  A number typed in the box, 0.8 to 3.0 Å, is
+used instead.  Rolling shortens each bond to a chord, a little.
+
 :::{figure} /figures/frameworks/nanotube-form.png
 :name: fig-frameworks-nanotube-form
 :width: 60%
@@ -62,15 +72,18 @@ A (10,10) tube 25 Å long with its ends capped with H, seen along *a*.
 
 ## Boron nitride
 
-Set **Element A** to B and **Element B** to N.  The bond stays
-1.42 Å unless you change it; h-BN's own is 1.446 Å
-{cite}`paszkowicz2002lattice`, and the report's note says so.
+Set **Element A** to B and **Element B** to N.  With **Bond length**
+left empty the tube is rolled at 1.47 Å, from the covalent radii.
+h-BN's own B–N bond is 1.446 Å {cite}`paszkowicz2002lattice`, and the
+report's note says so; type 1.446 to build at that instead.
 
 ## Reading the report
 
 The table gives the diameter, chiral angle, period |T|, length,
-composition and hydrogens.  *Shortest bond* is the shortest chord
-rolling made; over 3 % compression, a note asks you to relax first.
+composition and hydrogens.  *Bond length* is the bond the sheet was
+rolled from, and says whether it came from the covalent radii or was
+typed.  *Shortest bond* is the shortest chord rolling made; over 3 %
+compression, a note asks you to relax first.
 
 *Electronic character* is the textbook rule and changes nothing
 built: armchair is metallic, (*n* − *m*) divisible by 3 small-gap

@@ -67,11 +67,16 @@ PARAMS = (
           default=_DEFAULT.element_b,
           help="The element on the other site; every bond joins an A "
                "to a B."),
-    Param("bond", "Bond length", kind="float", default=_DEFAULT.bond,
-          minimum=0.8, maximum=3.0, decimals=3, suffix=" A",
-          help="The flat sheet's bond: graphite's is 1.421 A, "
-               "h-BN's 1.446 A.  Rolling shortens each bond to a "
-               "chord, a little; the report gives the shortest."),
+    # Text, not a number, so that empty can mean "the elements' own":
+    # the MOF builder's Interlayer spacing is the precedent.
+    Param("bond", "Bond length", kind="text", default="",
+          help="The flat sheet's bond, in Angstrom.  Left empty it is "
+               "the two elements' aromatic bond from Pyykkö's "
+               "covalent radii (each atom's radius the mean of its "
+               "single- and double-bond radii): 1.42 A for C-C, 1.47 "
+               "A for B-N.  A number typed here is used instead, 0.8 "
+               "to 3.0 A.  Rolling shortens each bond to a chord, a "
+               "little; the report gives the shortest."),
     # Not 0: at 0 a tube overlaps its own image.
     Param("vacuum", "Vacuum", kind="float", default=_DEFAULT.vacuum,
           minimum=3.0, maximum=50.0, decimals=1, suffix=" A",
@@ -144,9 +149,13 @@ def report(built) -> Report:
     if recipe.ends == "capped":
         rows.append(Row("Hydrogens", str(built.hydrogens), "",
                         "one on each two-coordinate edge atom"))
+    bond = recipe.bond_length
     rows += [
+        Row.number("Bond length", bond, "A",
+                   "from Pyykkö's covalent radii"
+                   if recipe.from_radii else "as given"),
         Row.number("Shortest bond", built.shortest_bond, "A",
-                   f"rolled from {recipe.bond:.3f}"),
+                   f"rolled from {bond:.3f}"),
         Row.number("Closest contact", built.closest_contact, "A",
                    "between atoms not bonded", decimals=2),
         Row("Electronic character", built.electronic),

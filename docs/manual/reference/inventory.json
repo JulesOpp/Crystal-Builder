@@ -2864,9 +2864,9 @@
       {
        "name": "bond",
        "label": "Bond length",
-       "accepts": "float, 0.8 to 3 A",
-       "default": "1.42",
-       "help": "The flat sheet's bond: graphite's is 1.421 A, h-BN's 1.446 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest."
+       "accepts": "text",
+       "default": "",
+       "help": "The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest."
       },
       {
        "name": "vacuum",
