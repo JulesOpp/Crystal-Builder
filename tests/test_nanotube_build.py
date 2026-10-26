@@ -86,7 +86,60 @@ def test_a_capped_tube_has_one_hydrogen_on_each_edge_atom_at_uff_length():
     assert np.isfinite(cart).all()
 
 
+def _bond_lengths(built):
+    """Each stated bond's length, and whether it carries a hydrogen."""
+    sites = built.structure.sites
+    return [(b.distance, "H" in (sites[b.i].element, sites[b.j].element))
+            for b in built.structure.perceived.bonds]
+
+
+@pytest.mark.parametrize("n, m", [(10, 0), (6, 5)])
+def test_a_capped_tube_in_a_small_vacuum_keeps_its_bonds_short(n, m):
+    """At 0.5 A of vacuum the bottom hydrogens start below z = 0 and
+    are wrapped into the cell.  Unless each bond's image follows its
+    atoms, every one of those bonds is stated across the cell, 17 A
+    or more long, and a force field pulls the tube apart."""
+    built = tube.build(Recipe(n, m, ends="capped", vacuum=0.5))
+    for distance, to_h in _bond_lengths(built):
+        if to_h:
+            assert distance == pytest.approx(1.081, abs=0.002)
+        else:
+            assert 0.9 * 1.42 <= distance <= 1.42 + 1e-6
+
+
+@pytest.mark.parametrize("ends", ["periodic", "bare"])
+def test_a_tube_with_no_vacuum_keeps_its_bonds_short(ends):
+    """With no vacuum the atom at angle zero sits exactly on the cell's
+    far face and is wrapped to the near one.  Its bonds must follow it,
+    or one is stated 13-23 A long."""
+    built = tube.build(Recipe(10, 10, ends=ends, vacuum=0.0))
+    for distance, _ in _bond_lengths(built):
+        assert 0.9 * 1.42 <= distance <= 1.42 + 1e-6
+
+
+@pytest.mark.parametrize("ends", ["capped", "bare"])
+def test_a_finite_tube_leaves_the_vacuum_asked_for_between_its_ends(ends):
+    """Along c, as across, the gap between the tube and its image is
+    the vacuum, atom centre to atom centre, hydrogens included.
+    Counting only the carbon span let the caps reach 1.08 A into the
+    gap at each end, so 12 A of vacuum left under 10 A between
+    images."""
+    built = tube.build(Recipe(10, 10, ends=ends, vacuum=12.0))
+    c = built.structure.lattice.parameters[2]
+    z = built.structure.cart[:, 2]
+    assert c - (z.max() - z.min()) == pytest.approx(12.0, abs=1e-6)
+
+
+def test_a_left_handed_tube_says_nothing_of_its_mirror_image():
+    """(5,6) is (6,5)'s mirror image, which the report's Chirality row
+    says.  A note saying it too would print it twice."""
+    assert not tube.build(Recipe(5, 6)).notes
+
+
 def test_a_bare_tube_has_no_hydrogen():
+    """Bare means the cut edge is left as it is.  A hydrogen here would
+    be chemistry the person did not ask for, and its count would be
+    wrong in the report."""
     built = tube.build(Recipe(10, 10, ends="bare", length=20.0))
     assert built.hydrogens == 0
     assert "H" not in {s.element for s in built.structure.sites}
@@ -117,16 +170,25 @@ def test_a_bn_tube_alternates_and_says_its_own_bond_length():
 ])
 def test_an_unknown_element_is_refused_by_name(element_a, element_b,
                                                wanted):
+    """A misspelt element is named back in the refusal.  Without it the
+    build would fail somewhere deeper, or build with a symbol nothing
+    else in the application knows, and the person would not learn
+    which box was wrong."""
     with pytest.raises(NanotubeError, match=wanted):
         tube.checked(Recipe(element_a=element_a, element_b=element_b))
 
 
 def test_elements_are_read_whatever_their_case():
+    """"b" is boron.  Refusing it, or keeping it lower case, would fail
+    a person who typed the symbol in a hurry or give the structure
+    sites no element table recognises."""
     assert tube.checked(Recipe(element_a="b", element_b="N")).element_a \
         == "B"
 
 
 def test_n_below_one_is_refused():
+    """(0,0) has no circumference.  Let through, the roll divides by
+    zero or builds an empty cell instead of saying what is wrong."""
     with pytest.raises(NanotubeError, match=r"n >= 1 and m >= 0"):
         tube.checked(Recipe(0, 0))
 
@@ -137,6 +199,25 @@ def test_hydrogen_lengths_are_uff_s_natural_ones(symbol, length):
     """The same X-H as Add Hydrogens (xtal/ff/hydrogens.py), which
     match experiment within 0.02 A (spec, Science)."""
     assert tube.hydrogen_length(symbol) == pytest.approx(length, abs=1e-3)
+
+
+def test_an_element_with_no_sp2_type_takes_its_first_uff_type():
+    """Silicon has no Si_R or Si_2, only Si3.  Without the fallback a
+    capped Si tube would raise instead of building; its X-H is then
+    UFF's Si3-H, 1.471 A."""
+    assert tube.hydrogen_length("Si") == pytest.approx(1.471, abs=1e-3)
+
+
+def test_an_element_uff_does_not_know_takes_its_covalent_radii():
+    """Oganesson has no UFF type at all.  The covalent radii are the
+    last answer, so a capped tube of anything the element table holds
+    still builds."""
+    from xtal.core import elements
+    from xtal.ff.uff import params
+
+    assert params.types_for("Og") == []
+    assert tube.hydrogen_length("Og") == pytest.approx(
+        elements.covalent_radius("Og") + elements.covalent_radius("H"))
 
 
 @pytest.mark.parametrize("n, m, wanted", [
@@ -152,6 +233,9 @@ def test_the_electronic_character_follows_n_minus_m_mod_3(n, m, wanted):
 
 
 def test_a_bn_tube_is_semiconducting_and_another_pair_unclassified():
+    """The (n - m) mod 3 rule is carbon's.  Applied to BN, it would call
+    an armchair BN tube a metal; applied to Si and C, it would claim a
+    classification nobody has made."""
     bn = Recipe(element_a="N", element_b="B")
     assert "wide gap" in tube.electronic_character(bn)
     assert tube.electronic_character(

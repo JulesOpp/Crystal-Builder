@@ -157,7 +157,8 @@ def build(recipe: Recipe, say=None) -> Built:
     c = recipe.chirality
     rolled = geometry.roll(c)
     symbols = (recipe.element_a, recipe.element_b)
-    _refuse_if_too_thin(recipe, rolled, symbols)
+    shortest = geometry.shortest_bond(c, rolled)
+    _refuse_if_too_thin(recipe, rolled, symbols, shortest)
     say(f"rolled one period: {len(rolled.cart)} atoms, "
         f"{c.t_length:.3f} A")
     if recipe.periodic:
@@ -172,12 +173,20 @@ def build(recipe: Recipe, say=None) -> Built:
         periods = 0
         z = cart[:, 2]
         length = float(z.max() - z.min())
-        cart = cart - [0.0, 0.0, z.min() - recipe.vacuum / 2]
         if recipe.ends == "capped":
             extra_h, carriers = _caps(cart, cut, symbols, sub)
         else:
             extra_h, carriers = np.zeros((0, 3)), np.zeros(0, int)
-        height = length + recipe.vacuum
+        # The box is measured over every atom, the caps included, so the
+        # gap between images along c is the vacuum asked for, atom
+        # centre to atom centre, as it is across (a = d + vacuum).
+        # Measured over the framework alone, each end's hydrogens
+        # reached 1.08 A into the gap.
+        every_z = np.concatenate([z, extra_h[:, 2]])
+        bottom = every_z.min() - recipe.vacuum / 2
+        cart = cart - [0.0, 0.0, bottom]
+        extra_h = extra_h - [0.0, 0.0, bottom]
+        height = float(every_z.max() - every_z.min()) + recipe.vacuum
     side = c.diameter + recipe.vacuum
     matrix = np.diag([side, side, height])
     names = [symbols[s] for s in sub] + ["H"] * len(extra_h)
@@ -187,23 +196,47 @@ def build(recipe: Recipe, say=None) -> Built:
                                n_frame + np.arange(len(carriers))])
     all_bonds = np.vstack([bonds, h_bonds]) if len(h_bonds) else bonds
     all_images = np.vstack([images, np.zeros((len(h_bonds), 3), int)])
+    frac, all_images = _in_cell(everything @ np.linalg.inv(matrix),
+                                all_bonds, all_images)
     structure = structure_of(
-        _Atoms(matrix=matrix, elements=names,
-               frac=everything @ np.linalg.inv(matrix),
+        _Atoms(matrix=matrix, elements=names, frac=frac,
                bonds=all_bonds, images=all_images),
         title=recipe.title)
-    notes = _notes(recipe, rolled)
+    notes = _notes(recipe, shortest)
     return Built(recipe=recipe, structure=structure, periods=periods,
                  length=length, hydrogens=len(extra_h),
-                 shortest_bond=geometry.shortest_bond(c, rolled),
+                 shortest_bond=shortest,
                  closest_contact=geometry.closest_contact(c, rolled),
                  electronic=electronic_character(recipe),
                  notes=tuple(notes))
 
 
+def _in_cell(frac, bonds, images):
+    """``frac`` wrapped into [0, 1), and each bond's image moved with
+    its two atoms.
+
+    :func:`xtal.carbon.lattice.structure_of` wraps the positions it is
+    given but re-reads the images only against its own expansion's
+    re-wrap, so a bond to an atom that started outside the cell -- a
+    bottom hydrogen below z = 0 in a small vacuum, or, with no vacuum,
+    the atom at angle zero on the far face -- was stated across the
+    cell, 13 to 23 A long.  Wrapping here leaves it nothing to move.
+    """
+    wrapped = np.mod(frac, 1.0)
+    # np.mod of a tiny negative number is 1.0, which structure_of
+    # would send to 0.0 behind the image's back.
+    wrapped[wrapped >= 1.0] = 0.0
+    offset = np.round(frac - wrapped).astype(int)
+    if len(bonds):
+        images = images + offset[bonds[:, 1]] - offset[bonds[:, 0]]
+    return wrapped, images
+
+
 def hydrogen_length(symbol: str) -> float:
     """UFF's natural X-H single bond for an sp2 ``symbol`` -- what
-    Add Hydrogens would put the hydrogen at."""
+    Add Hydrogens would put the hydrogen at.  An element with no
+    resonant or sp2 type takes its first UFF type, and one with no UFF
+    type at all the sum of the two covalent radii."""
     from xtal.ff.uff import params, terms
 
     types = params.types_for(symbol)
@@ -237,12 +270,11 @@ def electronic_character(recipe: Recipe) -> str:
     return text
 
 
-def _refuse_if_too_thin(recipe, rolled, symbols) -> None:
+def _refuse_if_too_thin(recipe, rolled, symbols, shortest) -> None:
     from xtal.core.bonding import BondRules
 
     c = recipe.chirality
     across = f"a ({c.n},{c.m}) tube is {c.diameter:.1f} A across"
-    shortest = geometry.shortest_bond(c, rolled)
     if shortest < CRUSHED * recipe.bond:
         raise NanotubeError(
             f"{across}: rolled, a bond is compressed to "
@@ -260,10 +292,8 @@ def _refuse_if_too_thin(recipe, rolled, symbols) -> None:
             f"({limit:.2f} A)")
 
 
-def _notes(recipe, rolled) -> list[str]:
-    c = recipe.chirality
+def _notes(recipe, shortest) -> list[str]:
     notes = []
-    shortest = geometry.shortest_bond(c, rolled)
     if shortest < COMPRESSED * recipe.bond:
         squeeze = 100 * (1 - shortest / recipe.bond)
         notes.append(f"rolling compresses bonds by up to "
@@ -272,9 +302,6 @@ def _notes(recipe, rolled) -> list[str]:
     if recipe.is_bn and abs(recipe.bond - BN_BOND) > 0.005:
         notes.append(f"h-BN's own B-N bond is {BN_BOND} A; this tube "
                      f"was built at {recipe.bond:.3g} A")
-    if c.m > c.n:
-        notes.append(f"({c.n},{c.m}) is the mirror image of "
-                     f"({c.m},{c.n})")
     return notes
 
 
