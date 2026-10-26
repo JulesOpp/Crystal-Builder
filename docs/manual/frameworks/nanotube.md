@@ -49,10 +49,10 @@ across, and along a finite tube, caps included.
 **Bond length** is the flat sheet's bond.  Left empty, it follows the
 elements: the honeycomb's bond is aromatic, of order 1.5, so each
 atom's radius is the mean of its single- and double-bond covalent
-radii {cite}`pyykko2008molecular,pyykko2009molecular`, and the bond
+radii {cite}`pyykko2009single,pyykko2009double`, and the bond
 is the sum of the two atoms' radii.  That is 1.42 Å for C–C and
-1.47 Å for B–N.  Pyykkö gives no double-bond radius for H, He and some
-superheavy elements; their single-bond radius is used, and the
+1.47 Å for B–N.  Pyykkö gives no double-bond radius for H, He, Fm,
+Nh, Fl, Mc, Lv, Ts and Og; their single-bond radius is used, and the
 report's note says so.  A number typed in the box, 0.8 to 3.0 Å, is
 used instead.  Rolling shortens each bond to a chord, a little.
 

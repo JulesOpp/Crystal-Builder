@@ -17,7 +17,7 @@ Transcribed from KnowledgeDoor's table of them and checked against
 Wikipedia's: the 53 elements both give agree.  Written out as a
 literal table, not read from a data file, so nothing has to be shipped
 beside the code.  ``DOUBLE`` is None where the paper gives no
-double-bond radius (H, He and some superheavies).
+double-bond radius: H, He, Fm, Nh, Fl, Mc, Lv, Ts and Og.
 
 **The aromatic bond is Julius's rule** (2026-10-26): a honeycomb's
 bond is of order 1.5, so each atom's radius is the mean of its single-

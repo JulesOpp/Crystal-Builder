@@ -82,7 +82,11 @@ class Recipe:
     @property
     def bond_length(self) -> float:
         """The bond the tube is rolled from: the one given, or the two
-        elements' aromatic bond from Pyykkö's radii."""
+        elements' aromatic bond from Pyykkö's radii.
+
+        With no bond given, the elements must be ones :func:`checked`
+        accepts: one Pyykkö has no radius for raises KeyError here,
+        where :func:`checked` refuses it by name."""
         given = _given_bond(self.bond)
         if given is not None:
             return given
