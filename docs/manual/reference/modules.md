@@ -243,6 +243,33 @@ Chains grown into a box at a density; the result opens in a new tab
 | **Seed** | int, 0 to 2147483647 | `0` | The same seed and recipe build the same model, atom for atom. |
 | **Most atoms** | int, 100 to 1000000 | `20000` | A recipe that would make more is refused before anything is grown. |
 
+(mod-nanotube)=
+## Nanotube builder
+
+Build a single-walled nanotube from its roll-up vector (n,m): periodic along c, or a finite piece with bare or hydrogen-capped ends, of carbon, boron nitride or any two elements on the honeycomb's two sites.  It opens in a new tab with its bonds stated.
+
+```{index} Nanotube builder
+```
+
+(mod-nanotube-build)=
+### Build a nanotube...
+
+A single-walled tube from (n,m); the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **n** | int, 1 to 200 | `10` | The roll-up vector's first index: the sheet is rolled so that n a1 + m a2 goes once round the tube.  (n,n) is armchair, (n,0) zigzag, anything else chiral. |
+| **m** | int, 0 to 200 | `10` | The roll-up vector's second index.  (m,n) is the mirror image of (n,m): the same tube in the other hand. |
+| **Ends** | one of Periodic (infinite along c), Finite, ends capped with H, Finite, bare ends | `periodic` | Periodic is an infinite tube along c, with no ends.  Finite is a piece of the length asked for in a vacuum box; capped puts a hydrogen on each edge atom at the force field's own X-H length, bare leaves the edge atoms two-coordinate. |
+| **Length** | float, 1 to 2000 A | `20.0` | Finite: the tube's length.  Periodic: rounded to a whole number of the tube's translational periods, at least one -- the report says what it came to.  A chiral tube's period can be tens of angstroms. |
+| **Element A** | text | `C` | The element on one of the honeycomb's two sites.  C and C is a carbon nanotube; B and N a boron nitride one. |
+| **Element B** | text | `C` | The element on the other site; every bond joins an A to a B. |
+| **Bond length** | float, 0.8 to 3 A | `1.42` | The flat sheet's bond: graphite's is 1.421 A, h-BN's 1.446 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest. |
+| **Vacuum** | float, 3 to 50 A | `12.0` | The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A. |
+
 (mod-zeopp)=
 ## Porosity
 

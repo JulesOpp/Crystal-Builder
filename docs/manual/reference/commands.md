@@ -2110,6 +2110,16 @@ Chains grown into a box at a density; the result opens in a new tab
 ```{index} Build an amorphous polymer...
 ```
 
+(cmd-module.nanotube.build)=
+### Nanotube builder ▸ Build a nanotube...
+
+`module.nanotube.build`
+
+A single-walled tube from (n,m); the result opens in a new tab
+
+```{index} Build a nanotube...
+```
+
 (cmd-module.zeopp.diameters)=
 ### Porosity ▸ Pore diameters and channels...
 
