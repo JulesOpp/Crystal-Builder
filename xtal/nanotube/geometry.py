@@ -79,7 +79,7 @@ class Chirality:
     @property
     def theta(self) -> float:
         """Degrees from the zigzag direction: 0 for (n,0), 30 for
-        (n,n), over 30 for the mirror image of a tube with m < n."""
+        (n,n), over 30 when m > n -- the mirror image of (m,n)."""
         return math.degrees(math.atan2(math.sqrt(3.0) * self.m,
                                        2 * self.n + self.m))
 
@@ -140,16 +140,26 @@ def roll(chirality: Chirality) -> Rolled:
     uv = np.vstack(uvs)
     sublattice = np.concatenate(subs)
     if len(uv) != c.atoms_per_period:           # pragma: no cover
-        raise AssertionError(f"({c.n},{c.m}): {len(uv)} sites a "
-                             f"period, not {c.atoms_per_period}")
-    where = {(int(s),) + _key(p): k
+        raise RuntimeError(f"({c.n},{c.m}): {len(uv)} sites a "
+                           f"period, not {c.atoms_per_period}")
+    grid = 6 * (c.n ** 2 + c.n * c.m + c.m ** 2)
+    where = {(int(s),) + _key(p, grid): k
              for k, (s, p) in enumerate(zip(sublattice, uv, strict=True))}
+    # A dict overwrites silently, so two sites on one key would leave a
+    # site unreachable and its bonds pointing at another.
+    if len(where) != len(uv):                   # pragma: no cover
+        raise RuntimeError(f"({c.n},{c.m}): {len(uv) - len(where)} "
+                           f"sites share a key")
     bonds, images = [], []
     for k in np.flatnonzero(sublattice == 0):
+        # For (1,0), Ch = a1, so two offsets reach the same B and give
+        # a duplicate bond; harmless, as the build refuses (1,0) on its
+        # crushed bonds before it uses them.
         for du, dv in _NEIGHBOURS:
             target = uv[k] + (du * c.a1 + dv * c.a2) @ inverse.T
             images.append(int(math.floor(target[1] + _EPS)))
-            bonds.append((int(k), where[(1,) + _key(_wrap(target))]))
+            bonds.append((int(k),
+                          where[(1,) + _key(_wrap(target), grid)]))
     return Rolled(cart=cylinder(c, uv), sublattice=sublattice, uv=uv,
                   bonds=np.array(bonds, int),
                   images=np.array(images, int))
@@ -172,8 +182,11 @@ def shortest_bond(chirality: Chirality, rolled: Rolled) -> float:
 def closest_contact(chirality: Chirality, rolled: Rolled) -> float:
     """The closest two atoms come that are not bonded, the periods
     either side included."""
+    # The answer is at most a, a second neighbour that rolling only
+    # shortens, so a reach just over a finds it without the 4x pairs
+    # that 2a would.
     distance, _i, _j = _unbonded(chirality, rolled,
-                                 2.0 * chirality.a)
+                                 1.1 * chirality.a)
     return float(distance.min()) if len(distance) else math.inf
 
 
@@ -243,7 +256,15 @@ def _wrap(uv: np.ndarray) -> np.ndarray:
     return wrapped
 
 
-def _key(uv) -> tuple[int, int]:
-    """A site's place in the period, rounded so that two routes to the
-    same site agree."""
-    return tuple(int(round(x * 1e6)) % 1_000_000 for x in uv)
+def _key(uv, grid: int) -> tuple[int, int]:
+    """A site's place in the period on its exact grid, so that two
+    routes to the same site agree.
+
+    Every A and B site's u and v is a multiple of 1/``grid``, with
+    ``grid`` = 6(n^2 + nm + m^2): u = (i(2n+m) + j(n+2m)) / 2L and v
+    = d_R^2 (i(2t1+t2) + j(t1+2t2)) / 6L for L = n^2 + nm + m^2, and
+    B's third of a cell adds integers to both numerators.  A decimal
+    grid instead puts some sites exactly half-way between two keys,
+    (64,0)'s odd multiples of 1/128 among them.
+    """
+    return tuple(int(round(x * grid)) % grid for x in uv)

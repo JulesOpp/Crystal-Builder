@@ -47,6 +47,24 @@ def test_a_rolled_period_has_every_site_once_with_three_bonds(n, m):
     radius = np.hypot(rolled.cart[:, 0], rolled.cart[:, 1])
     assert np.allclose(radius, c.diameter / 2)
     assert 0.98 * c.bond < shortest_bond(c, rolled) <= c.bond + 1e-9
+    shift = np.outer(rolled.images, [0.0, 0.0, c.t_length])
+    lengths = np.linalg.norm(rolled.cart[rolled.bonds[:, 1]] + shift
+                             - rolled.cart[rolled.bonds[:, 0]], axis=1)
+    assert (lengths > 0.98 * c.bond).all()
+    assert (lengths <= c.bond + 1e-9).all()
+
+
+@pytest.mark.parametrize("n", [64, 128])
+def test_a_wide_zigzag_tube_rolls(n):
+    """(64,0) and (128,0) have sites at odd multiples of 1/128 of the
+    period, which a decimal key rounds two ways, so roll could not find
+    a neighbour and raised KeyError on a tube a user can ask for."""
+    c = Chirality(n, 0)
+    rolled = roll(c)
+    assert len(rolled.cart) == c.atoms_per_period
+    degree = np.bincount(rolled.bonds.ravel(),
+                         minlength=len(rolled.cart))
+    assert set(degree.tolist()) == {3}
 
 
 def test_m_n_is_the_mirror_image_of_n_m():
