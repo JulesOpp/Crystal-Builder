@@ -256,3 +256,50 @@ def test_the_stated_bonds_survive_a_project_round_trip(tmp_path):
     after = sorted((b.i, b.j, tuple(b.image))
                    for b in again.perceived.bonds)
     assert after == before
+
+
+def _closest_unbonded_by_brute_force(structure):
+    """Every pair of atoms in the cell and its 26 neighbours, less the
+    stated bonds and each atom with itself: the slow, plain answer."""
+    from xtal.core import p1
+
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    bonded = set()
+    for b in structure.perceived.bonds:
+        bonded.add((b.i, b.j, tuple(b.image)))
+        bonded.add((b.j, b.i, tuple(-np.asarray(b.image))))
+    home = cell.frac @ matrix
+    best = np.inf
+    for shift in np.ndindex(3, 3, 3):
+        image = tuple(int(s) - 1 for s in shift)
+        there = (cell.frac + image) @ matrix
+        d = np.linalg.norm(home[:, None] - there[None], axis=2)
+        for i, j in zip(*np.nonzero(d < 3.0), strict=True):
+            if (i, j, image) in bonded or (i == j and image == (0, 0, 0)):
+                continue
+            best = min(best, float(d[i, j]))
+    return best
+
+
+def test_a_capped_tube_s_closest_contact_counts_its_hydrogens():
+    """The report's row says "between atoms not bonded", so it is
+    measured over the structure built, caps included.  A ragged cut on
+    (6,5) leaves a cove whose two hydrogens point into the same
+    half-hexagon, 1.74 A apart; measured over the rolled wall alone,
+    the row said 2.43 A, a contact the structure does not have."""
+    built = tube.build(Recipe(6, 5, ends="capped", length=20.0))
+    assert built.closest_contact == pytest.approx(1.74, abs=0.02)
+    assert built.closest_contact == pytest.approx(
+        _closest_unbonded_by_brute_force(built.structure), abs=1e-6)
+
+
+def test_a_periodic_tube_s_closest_contact_reaches_across_the_cell():
+    """A periodic (10,10) has no caps: its closest contact is the
+    wall's second neighbour, 2.45 A, found across the top of the cell
+    as well as inside it.  A bond across the top not recognised as one
+    would make the row 1.42 A."""
+    built = tube.build(Recipe(10, 10, length=20.0))
+    assert built.closest_contact == pytest.approx(2.45, abs=0.01)
+    assert built.closest_contact == pytest.approx(
+        _closest_unbonded_by_brute_force(built.structure), abs=1e-6)

@@ -206,7 +206,8 @@ def build(recipe: Recipe, say=None) -> Built:
     return Built(recipe=recipe, structure=structure, periods=periods,
                  length=length, hydrogens=len(extra_h),
                  shortest_bond=shortest,
-                 closest_contact=geometry.closest_contact(c, rolled),
+                 closest_contact=_closest_unbonded(structure,
+                                                   1.1 * c.a),
                  electronic=electronic_character(recipe),
                  notes=tuple(notes))
 
@@ -230,6 +231,76 @@ def _in_cell(frac, bonds, images):
     if len(bonds):
         images = images + offset[bonds[:, 1]] - offset[bonds[:, 0]]
     return wrapped, images
+
+
+def _closest_unbonded(structure, reach: float) -> float:
+    """The closest two atoms of the built structure come that no
+    stated bond joins, periodic images included; ``inf`` when no pair
+    is within ``reach``.
+
+    Measured over everything built, not the rolled wall: a ragged cut
+    leaves coves whose two caps point into the same half-hexagon, about
+    1.24 bonds apart, and the wall alone reported a second neighbour
+    nearly half as far again.  ``reach`` need only be the wall's second
+    neighbour, which every tube has and rolling only shortens.
+    """
+    from scipy.spatial import cKDTree
+
+    from xtal.core import p1
+
+    cell = p1.expand(structure)
+    matrix = structure.lattice.matrix
+    # Images are made only as far as ``reach`` from the cell, per axis
+    # by the cell's own height, so a periodic tube is checked across
+    # the top of its cell and a finite one, isolated by the vacuum,
+    # costs nothing more; a cell thinner than ``reach`` still gets
+    # every image that can matter.
+    volume = abs(np.linalg.det(matrix))
+    heights = [volume / np.linalg.norm(np.cross(matrix[(k + 1) % 3],
+                                                matrix[(k + 2) % 3]))
+               for k in range(3)]
+    margin = np.array([reach / h for h in heights])
+    counts = np.ceil(margin).astype(int)
+    points, owners, shifts = [], [], []
+    for shift in np.ndindex(*(2 * counts + 1)):
+        shift = np.array(shift) - counts
+        frac = cell.frac + shift
+        near = np.all((frac > -margin) & (frac < 1 + margin), axis=1)
+        points.append(frac[near] @ matrix)
+        owners.append(np.nonzero(near)[0])
+        shifts.append(np.tile(shift, (int(near.sum()), 1)))
+    points = np.vstack(points)
+    owners = np.concatenate(owners)
+    shifts = np.vstack(shifts)
+    found = cKDTree(cell.frac @ matrix).sparse_distance_matrix(
+        cKDTree(points), reach, output_type="ndarray")
+    i = found["i"].astype(np.int64)
+    j = owners[found["j"]].astype(np.int64)
+    image = shifts[found["j"]]
+    bonds = structure.perceived.bonds
+    first = np.array([b.i for b in bonds], dtype=np.int64)
+    second = np.array([b.j for b in bonds], dtype=np.int64)
+    across = np.array([b.image for b in bonds], dtype=np.int64)
+    across = across.reshape(-1, 3)
+    # One integer per (atom, atom, image), so every pair is looked up
+    # among the bonds at once: a Python loop over the pairs was most of
+    # the time on a big tube.  The base is the widest image either side
+    # holds, so the key cannot overflow below about 10^8 atoms.
+    base = 2 * int(max(np.abs(image).max(initial=0),
+                       np.abs(across).max(initial=0))) + 1
+    n = cell.n_atoms
+
+    def key(a, b, img):
+        cells = ((img[:, 0] * base + img[:, 1]) * base + img[:, 2]
+                 + (base ** 3) // 2)
+        return (a * n + b) * base ** 3 + cells
+
+    bonded = np.concatenate([key(first, second, across),
+                             key(second, first, -across)])
+    unbonded = ~np.isin(key(i, j, image), bonded)
+    unbonded &= (i != j) | np.any(image != 0, axis=1)
+    distances = found["v"][unbonded]
+    return float(distances.min()) if len(distances) else math.inf
 
 
 def hydrogen_length(symbol: str) -> float:
