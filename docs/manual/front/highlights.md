@@ -47,6 +47,8 @@ by release, is the {doc}`change log </back/changelog>`.
   deposited.
 - **MACE-MP-MOF0** as a model for the MACE engine
   {cite}`elena2025macemof0`.
+- **uMOF-MH**, a MACE model fine-tuned on twenty thousand frameworks
+  with gases in them {cite}`jaffrelot2026umof`.
 - **Porosity from a grid** without the Zeo++ binary, beside the Zeo++
   entries, and the pore surface drawn over channels only.
 - **Net transitivity from the RCSR** {cite}`okeeffe2008rcsr`, and the

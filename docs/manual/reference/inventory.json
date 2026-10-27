@@ -6087,7 +6087,7 @@
     {
      "name": "model",
      "label": "Model",
-     "accepts": "one of MACE-MPA-0 -- MPtrj + sAlex, PBE+U (recommended), MACE-MP-0b3 -- MPtrj, PBE+U, steadier under pressure, MACE-OMAT-0 -- OMat, PBE+U [ASL licence], MACE-MATPES-r2SCAN-0 -- r2SCAN, no +U [ASL licence], MACE-MH-1 -- crystals, molecules and surfaces [ASL licence], MACE-MP-MOF0 -- 127 MOFs, PBE-D3(BJ), for phonons; 26 elements [CC BY 4.0, cite], MACE-MP-0a medium -- the default before mace 0.3.10, MACE-MP-0a small -- fastest, MACE-MP-0a large, A model file of my own",
+     "accepts": "one of MACE-MPA-0 -- MPtrj + sAlex, PBE+U (recommended), MACE-MP-0b3 -- MPtrj, PBE+U, steadier under pressure, MACE-OMAT-0 -- OMat, PBE+U [ASL licence], MACE-MATPES-r2SCAN-0 -- r2SCAN, no +U [ASL licence], MACE-MH-1 -- crystals, molecules and surfaces [ASL licence], MACE-MP-MOF0 -- 127 MOFs, PBE-D3(BJ), for phonons; 26 elements [CC BY 4.0, cite], uMOF-MH -- 19 950 MOFs, r2SCAN-D4, gas loading and MD [ASL licence, cite], MACE-MP-0a medium -- the default before mace 0.3.10, MACE-MP-0a small -- fastest, MACE-MP-0a large, A model file of my own",
      "default": "medium-mpa-0",
      "help": "The MACE-MP foundation models are fitted over the Materials Project and need nothing assigning -- they answer for a framework whose metal node UFF has no parameters for.  Each is downloaded once, to MACE's own cache.  Choose 'a model file of my own' for one you have fitted."
     },

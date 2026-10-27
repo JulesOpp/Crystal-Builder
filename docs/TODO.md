@@ -618,7 +618,7 @@ MOF-5 +2.80 % to +2.17 %) -- not always towards experiment.  Wanted:
 a decision on D3 as an option of the ASE engines, and on whether it is
 on by default.  `torch-dftd` is what the benchmark used and pulls in
 pymatgen; `tad-dftd3` is torch-only.  **MACE-MP-MOF0 already has D3
-inside and must never get it twice.**
+inside, and uMOF-MH D4; neither must ever get it twice.**
 
 ### UFF4MOF-II redefines Pt4+2 and the table does not
 
