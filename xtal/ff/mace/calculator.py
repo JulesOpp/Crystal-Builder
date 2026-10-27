@@ -56,6 +56,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import shutil
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -333,32 +334,47 @@ def _cache_dir() -> Path:
 
 
 def _fetch_mof0() -> Path:
-    """MACE-MP-MOF0's file, downloaded once and checked every time.
+    """MACE-MP-MOF0's file, downloaded once and checked every time."""
+    return _fetch_checked("MACE-MP-MOF0", MOF0_URL, MOF0_FILE, MOF0_SHA256)
+
+
+def _fetch_checked(name: str, url: str, file: str, sha256: str) -> Path:
+    """A model file of our own choosing, fetched into MACE's cache and
+    loaded only as the file its authors published.
 
     Checked on every load and not only after the download: a cached
     file somebody has replaced is exactly as much someone else's code
     as a download that came back wrong.
     """
-    path = _cache_dir() / MOF0_FILE
+    path = _cache_dir() / file
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
         partial = path.with_suffix(".part")
         try:
-            with urllib.request.urlopen(MOF0_URL, timeout=300) as got:
-                partial.write_bytes(got.read())
+            with urllib.request.urlopen(url, timeout=300) as got, \
+                    open(partial, "wb") as out:
+                shutil.copyfileobj(got, out)
         except OSError as exc:
             partial.unlink(missing_ok=True)
             raise CalculatorError(
-                f"MACE-MP-MOF0 could not be downloaded ({exc})") from None
+                f"{name} could not be downloaded ({exc})") from None
         partial.replace(path)
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    if digest != MOF0_SHA256:
+    if _sha256(path) != sha256:
         path.unlink(missing_ok=True)
         raise CalculatorError(
-            "the MACE-MP-MOF0 file is not the file its authors "
-            "published (its SHA-256 differs), so it was deleted rather "
-            "than loaded; the next run downloads it again")
+            f"the {name} file is not the file its authors "
+            f"published (its SHA-256 differs), so it was deleted rather "
+            f"than loaded; the next run downloads it again")
     return path
+
+
+def _sha256(path: Path) -> str:
+    """A file's digest, read in blocks: a model is tens of megabytes."""
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for block in iter(lambda: source.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def references(model: str = DEFAULT_MODEL, **_rest) -> tuple:
