@@ -99,7 +99,7 @@ class Isomer:
 def _table() -> dict:
     data = resources.files("xtal.fullerene").joinpath(
         "data/spirals.json")
-    return json.loads(data.read_text())
+    return json.loads(data.read_text(encoding="utf-8"))
 
 
 def sizes() -> tuple[int, ...]:

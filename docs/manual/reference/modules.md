@@ -270,6 +270,34 @@ A single-walled tube from (n,m); the result opens in a new tab
 | **Bond length** | text |  | The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest. |
 | **Vacuum** | float, 3 to 50 A | `12.0` | The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A. |
 
+(mod-fullerene)=
+## Fullerene builder
+
+Build a fullerene cage: any of the isomers from C20 to C40, the isolated-pentagon ones from C60 to C100, or any cage typed as its face spiral, of one element, optionally with a hydrogen on every atom.  It opens in a new tab with its bonds stated.
+
+```{index} Fullerene builder
+```
+
+(mod-fullerene-build)=
+### Build a fullerene...
+
+A closed cage from the table of isomers or a typed spiral; the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Size** | int, 20 to 500 atoms | `60` | How many atoms the cage has: an even number from 20, and not 22.  The table holds every isomer from C20 to C40 and every isolated-pentagon one from C60 to C100; any other size needs its spiral typed. |
+| **Isomer** | int, 0 to 10000 | `0` | Which of the size's isomers, counted from 1 in the Atlas of Fullerenes' order (from C60, among the IPR ones).  0 is the one the formula usually means: C60-Ih, C70-D5h, C80-Ih, C84-D2. |
+| **Spiral** | text |  | The twelve faces, counted from 1, where the pentagons fall in a face spiral -- C60-Ih is 1 7 9 11 13 15 18 20 22 24 26 32.  Builds any cage that has one, in place of the isomer; left empty, the isomer is built. |
+| **Element** | text | `C` | One element for every atom.  A cage's twelve pentagons are odd rings, so two elements cannot alternate round it as B and N do on a sheet. |
+| **Bond length** | text |  | The cage's bond, in Angstrom, before relaxing.  Left empty it is the element's from Pyykkö's covalent radii: aromatic (1.42 A for C) for a bare cage, single (1.50 A) for a hydrogenated one.  0.8 to 3.0 A. |
+| **Hydrogen on every atom** | bool | `False` | One hydrogen on every atom, pointing out of the cage, at UFF's sp3 X-H length: C60H60. |
+| **Relax** | one of UFF in a fixed box, No, as placed | `uff` | UFF on the stated bonds, positions only.  As placed is the springs' shape, every bond within about 10 % of the one asked for.  UFF types a bare carbon cage C_R, so its bonds come out nearly equal; C60's alternate 1.40 and 1.45 A. |
+| **Relax steps** | int, 0 to 5000 | `500` | The most UFF steps; C60 converges in a handful. |
+| **Vacuum** | float, 3 to 50 A | `12.0` | The gap between the cage and its periodic image, atom to atom.  12 A clears the force field's 12 A cutoff, so a relaxation sees one cage alone. |
+
 (mod-zeopp)=
 ## Porosity
 

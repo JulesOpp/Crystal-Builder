@@ -45,6 +45,8 @@ _BY_NAME = {
                      "CarbonBuildDialog"),
     "polymer-build": ("xtalapp.dialogs.polymer_build",
                       "PolymerBuildDialog"),
+    "fullerene-build": ("xtalapp.dialogs.fullerene_build",
+                        "FullereneBuildDialog"),
     "stl-export": ("xtalapp.dialogs.stl_export", "StlExportDialog"),
     "blender-render": ("xtalapp.dialogs.stl_export", "RenderDialog"),
     "band-structure": ("xtalapp.dialogs.dftb_run",

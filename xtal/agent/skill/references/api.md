@@ -46,14 +46,19 @@ named `name` of its own.
 ### `build(action, workspace, **params)`
 
 A classmethod. Runs a builder module (`mof.build`, `net.draw`,
-`build.molecule`, `carbon.build`, `polymer.build`, `nanotube.build`)
+`build.molecule`, `carbon.build`, `polymer.build`, `nanotube.build`,
+`fullerene.build`)
 and opens what it built, filed in `workspace` as the window files it:
 one entry, one CIF, the run underneath.
 `session.built` is the builder's `VerbResult`, with its report tables
 in `data["tables"]`. Raises `BuildFailed` (whose `.result` is the
 `VerbResult`) when nothing was built. See `mof.md`, `carbon.md` and
-`polymer.md`; a nanotube has no page of its own, and
-`help_for("nanotube.build")` lists its parameters.
+`polymer.md`; a nanotube and a fullerene have no page of their own,
+and `help_for("nanotube.build")` and `help_for("fullerene.build")`
+list their parameters.  A fullerene is `n` and `isomer` (0 is the
+cage the formula means: C60-Ih, C80-Ih) from the shipped table --
+every isomer to C40, the IPR ones from C60 to C100 -- or `spiral`,
+its twelve pentagon places, for any other cage.
 
 ## Reading
 

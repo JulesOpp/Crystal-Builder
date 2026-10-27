@@ -2120,6 +2120,16 @@ A single-walled tube from (n,m); the result opens in a new tab
 ```{index} Build a nanotube...
 ```
 
+(cmd-module.fullerene.build)=
+### Fullerene builder ▸ Build a fullerene...
+
+`module.fullerene.build`
+
+A closed cage from the table of isomers or a typed spiral; the result opens in a new tab
+
+```{index} Build a fullerene...
+```
+
 (cmd-module.zeopp.diameters)=
 ### Porosity ▸ Pore diameters and channels...
 

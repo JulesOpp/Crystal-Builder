@@ -374,20 +374,13 @@ builders under Modules ▸ Carbon builder.  Branch
 
 | Phase | Deliverable | Size |
 |---|---|---|
-| 2 | Fullerene module (`fullerene.build`) | S-M |
 | 5 | `Module.menu`: the Carbon builder submenu and dock row | S-M |
 | 3 | Graphene core and module (`graphene.build`) | M |
 | 4 | Twisted bilayer at commensurate (m, r) | M |
 
-In that order, one commit each.  Phase 1, the core in
-`xtal/fullerene/` with its table to IPR C100, shipped 2026-10-27.
-
-### Phase 2 — Fullerene module (`xtal/modules/fullerene.py`)
-
-Size, isomer (dependent on size: a `dialog` if `Param` cannot),
-spiral, element, bond, hydrogenate, relax, vacuum; a report with
-formula, isomer and group, IPR, diameter, bond range.
-`xtal run fullerene.build`, `Session.build`, the agent skill's rows.
+In that order, one commit each.  Phases 1 and 2, the core in
+`xtal/fullerene/` with its table to IPR C100 and `fullerene.build`
+with its form, shipped 2026-10-27.
 
 ### Phase 5 — The Carbon builder submenu
 
