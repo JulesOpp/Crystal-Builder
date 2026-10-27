@@ -58,6 +58,7 @@ import hashlib
 import importlib.util
 import shutil
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -108,6 +109,9 @@ MODEL_CHOICES = (
     (MOF0 := "mace-mp-mof0",
      "MACE-MP-MOF0 -- 127 MOFs, PBE-D3(BJ), for phonons; 26 elements "
      "[CC BY 4.0, cite]"),
+    (UMOF := "umof-mh",
+     "uMOF-MH -- 19 950 MOFs, r2SCAN-D4, gas loading and MD "
+     "[ASL licence, cite]"),
     ("medium", "MACE-MP-0a medium -- the default before mace 0.3.10"),
     ("small", "MACE-MP-0a small -- fastest"),
     ("large", "MACE-MP-0a large"),
@@ -134,7 +138,7 @@ DEFAULT_MODEL = "medium-mpa-0"
 #: these; its table marks all six.)
 ASL_MODELS = frozenset({
     "small-omat-0", "medium-omat-0", "mace-matpes-pbe-0",
-    "mace-matpes-r2scan-0", "mh-0", "mh-1",
+    "mace-matpes-r2scan-0", "mh-0", "mh-1", UMOF,
 })
 
 #: MACE-MP-MOF0 (Elena et al., npj Comput. Mater. 11, 125, 2025):
@@ -161,6 +165,32 @@ MOF0_SHA256 = ("04113c54cb5f8e1f30babbbda12cd97df401a65c"
 MOF0_HEAD = "pbe_d3"
 MOF0_CITATION = ("Elena, Kamath, Jaffrelot Inizan et al., npj Comput. "
                  "Mater. 11, 125 (2025)")
+
+#: uMOF-MH (Jaffrelot Inizan, Kamath, Elena and Persson, 2026):
+#: MACE-MH-1's r2SCAN-D4 head fine-tuned on 85 524 configurations of
+#: 19 950 frameworks over 79 elements, gas-loaded cells and MD among
+#: them -- the MD is what keeps a long run stable.  Level with MH-1 on
+#: bulk modulus and heat capacity; far closer on adsorption enthalpy.
+#:
+#: * **Only in a zip**: figshare serves it beside uMOF-POLAR, 106 MB in
+#:   all.  The archive is checked before it is opened, the one member
+#:   is kept, and the member is checked on every load as MOF0's file is.
+#: * **Dispersion is in it**: r2SCAN-D4 reference data, so no D3 on top.
+#: * **Two heads**: ``pt_head``, MH-1's own, and ``r2scan+d4``, the MOF
+#:   one -- the pickle names only mace, e3nn and torch classes.
+#: * **Licence**: the deposit is CC BY 4.0, which makes the citation a
+#:   condition; the model it was fine-tuned from is under the ASL, so it
+#:   is labelled with both rather than the laxer one.
+UMOF_URL = "https://ndownloader.figshare.com/files/67738656"
+UMOF_ZIP_SHA256 = ("81793409e42e11fc5e4f08546af88e15"
+                   "5dc356ef76aa4b25e66308e8e428a14b")
+UMOF_MEMBER = "umof_models/uMOF-MH.model"
+UMOF_FILE = "uMOF-MH.model"
+UMOF_SHA256 = ("af6491a88c25740e5641633a54db64f9"
+               "c8cfae320b8983be3a52c4958b29bcab")
+UMOF_HEAD = "r2scan+d4"
+UMOF_CITATION = ("Jaffrelot Inizan, Kamath, Elena and Persson, "
+                 "arXiv:2608.28100 (2026)")
 
 DEVICE_CHOICES = (
     ("auto", "Whatever is fastest here"),
@@ -210,6 +240,14 @@ def available(model: str = DEFAULT_MODEL, model_path: str = "",
                   f"the first time it is used, under CC BY 4.0, which "
                   f"requires you to cite {MOF0_CITATION}.  Its data "
                   f"were PBE-D3(BJ), so dispersion is already in it")
+    if model == UMOF:
+        return Availability(
+            True, f"uMOF-MH -- a 106 MB download (59 MB kept) to the "
+                  f"MACE cache the first time it is used, under the "
+                  f"Academic Software License, which using it accepts "
+                  f"(https://github.com/gabor1/ASL), and you must cite "
+                  f"{UMOF_CITATION}.  Its data were r2SCAN-D4, so "
+                  f"dispersion is already in it")
     licence = (" -- under the Academic Software License, which "
                "using it accepts (https://github.com/gabor1/ASL)"
                if model in ASL_MODELS else "")
@@ -299,11 +337,12 @@ def _build_model(options: MACEOptions):
                 model_paths=str(Path(options.model_path)
                                 .expanduser()),
                 device=device, default_dtype=dtype)
-        elif options.model == MOF0:
+        elif options.model in _FETCHED:
             from mace.calculators import MACECalculator as _Model
 
-            model = _Model(model_paths=str(_fetch_mof0()), device=device,
-                           default_dtype=dtype, head=MOF0_HEAD)
+            fetch, head = _FETCHED[options.model]
+            model = _Model(model_paths=str(fetch()), device=device,
+                           default_dtype=dtype, head=head)
         else:
             from mace.calculators import mace_mp
 
@@ -338,27 +377,56 @@ def _fetch_mof0() -> Path:
     return _fetch_checked("MACE-MP-MOF0", MOF0_URL, MOF0_FILE, MOF0_SHA256)
 
 
-def _fetch_checked(name: str, url: str, file: str, sha256: str) -> Path:
+def _fetch_umof() -> Path:
+    """uMOF-MH's file, taken out of its archive once and checked every
+    time."""
+    return _fetch_checked("uMOF-MH", UMOF_URL, UMOF_FILE, UMOF_SHA256,
+                          member=UMOF_MEMBER,
+                          archive_sha256=UMOF_ZIP_SHA256)
+
+
+def _fetch_checked(name: str, url: str, file: str, sha256: str, *,
+                   member: str | None = None,
+                   archive_sha256: str | None = None) -> Path:
     """A model file of our own choosing, fetched into MACE's cache and
     loaded only as the file its authors published.
 
     Checked on every load and not only after the download: a cached
     file somebody has replaced is exactly as much someone else's code
-    as a download that came back wrong.
+    as a download that came back wrong.  With a ``member`` the URL is
+    a zip, checked against ``archive_sha256`` before it is opened --
+    what is unzipped is then the authors' archive, not whatever came
+    back -- and deleted once the member is out.
     """
     path = _cache_dir() / file
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
         partial = path.with_suffix(".part")
+        archive = path.with_suffix(".zip.part")
+        got_into = archive if member else partial
         try:
-            with urllib.request.urlopen(url, timeout=300) as got, \
-                    open(partial, "wb") as out:
-                shutil.copyfileobj(got, out)
-        except OSError as exc:
+            try:
+                with urllib.request.urlopen(url, timeout=300) as got, \
+                        open(got_into, "wb") as out:
+                    shutil.copyfileobj(got, out)
+            except OSError as exc:
+                raise CalculatorError(
+                    f"{name} could not be downloaded ({exc})") from None
+            if member:
+                if _sha256(archive) != archive_sha256:
+                    raise CalculatorError(
+                        f"the {name} archive is not the file its authors "
+                        f"published (its SHA-256 differs), so it was "
+                        f"deleted unopened; the next run downloads it "
+                        f"again")
+                with zipfile.ZipFile(archive) as zipped, \
+                        zipped.open(member) as source, \
+                        open(partial, "wb") as out:
+                    shutil.copyfileobj(source, out)
+            partial.replace(path)
+        finally:
             partial.unlink(missing_ok=True)
-            raise CalculatorError(
-                f"{name} could not be downloaded ({exc})") from None
-        partial.replace(path)
+            archive.unlink(missing_ok=True)
     if _sha256(path) != sha256:
         path.unlink(missing_ok=True)
         raise CalculatorError(
@@ -377,9 +445,18 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+#: The models fetched here rather than by ``mace_mp``: how, and the
+#: head to load, since MACE will not guess one.  The fetchers are
+#: looked up when called, so a test that replaces one is obeyed.
+_FETCHED = {
+    MOF0: (lambda: _fetch_mof0(), MOF0_HEAD),
+    UMOF: (lambda: _fetch_umof(), UMOF_HEAD),
+}
+
+
 def references(model: str = DEFAULT_MODEL, **_rest) -> tuple:
-    """The method's papers, and MACE-MP-MOF0's when it is the model --
-    which its licence requires."""
+    """The method's papers, and MACE-MP-MOF0's or uMOF-MH's when it is
+    the model -- which their licence requires."""
     found = [
         arxiv("MACE: Batatia et al., NeurIPS 2022", "2206.07697"),
         arxiv("MACE-MP foundation models: Batatia et al., 2023",
@@ -388,6 +465,10 @@ def references(model: str = DEFAULT_MODEL, **_rest) -> tuple:
     if model == MOF0:
         found.append(doi(f"MACE-MP-MOF0: {MOF0_CITATION}",
                          "10.1038/s41524-025-01611-8"))
+    if model == UMOF:
+        found.append(arxiv(f"uMOF-MH: {UMOF_CITATION}", "2608.28100"))
+        found.append(doi("uMOF models and data (figshare)",
+                         "10.6084/m9.figshare.33311829"))
     found.append(github("ACEsuit/mace"))
     return tuple(found)
 
@@ -513,6 +594,7 @@ def _refuse_unfitted(model, symbols, options) -> None:
                      key=el.atomic_number)
     if missing:
         name = ("MACE-MP-MOF0" if options.model == MOF0
+                else "uMOF-MH" if options.model == UMOF
                 else Path(options.model_path).name
                 if options.model == CUSTOM else f"MACE {options.model}")
         raise CalculatorError(
