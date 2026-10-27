@@ -95,7 +95,7 @@ rather than something two files happen to produce.
 | 5 | Measure | measure selection, planes |
 | 6 | Symmetry | find, set group, subgroup, standardise, primitive, Wyckoff, merge, invert, P1 |
 | 7 | Cell | edit cell, supercell, slab, Niggli, Delaunay, wrap |
-| 8 | Modules | one submenu per registered module -- or per `Module.menu`, which several share (Carbon builder: fullerene, nanotube, disordered carbon) -- a separator between `Module.group`s (energy · build · characterise · export) |
+| 8 | Modules | one submenu per registered module -- or per `Module.menu`, which several share (Carbon builder: fullerene, nanotube, graphene, disordered carbon) -- a separator between `Module.group`s (energy · build · characterise · export) |
 | 9 | View | style, show, clear charges and orbital, background, display range, boundary, projection, axis views |
 | 10 | Help | log, feedback, check for updates, about |
 | 11 | Window | one toggle per dock, reset layout |

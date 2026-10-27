@@ -222,6 +222,36 @@ A single-walled tube from (n,m); the result opens in a new tab
 | **Bond length** | text |  | The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest. |
 | **Vacuum** | float, 3 to 50 A | `12.0` | The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A. |
 
+(mod-graphene)=
+## Graphene builder
+
+Build honeycomb sheets -- graphene, h-BN or any two elements -- one layer or stacked AA, AB, ABC or AA', as bulk graphite or a slab in vacuum, in the hexagonal or the rectangular cell, repeated.  It opens in a new tab with its bonds stated.
+
+```{index} Graphene builder
+```
+
+(mod-graphene-build)=
+### Graphene...
+
+Honeycomb sheets, alone or stacked; the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Element A** | text | `C` | The element on one of the honeycomb's two sites.  C and C is graphene; B and N hexagonal boron nitride. |
+| **Element B** | text | `C` | The element on the other site; every bond joins an A to a B. |
+| **Bond length** | text |  | The sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii: 1.42 A for C-C, 1.47 A for B-N.  0.8 to 3.0 A. |
+| **Layers** | int, 1 to 100 | `1` | How many sheets.  Bulk repeats the stacking along c, so its layers must be a whole number of the stacking's period: 2 for AB and AA', 3 for ABC. |
+| **Stacking** | one of AA (eclipsed), AB (Bernal, graphite's), ABC (rhombohedral), AA' (h-BN's, elements alternating) | `AB` | How each layer sits over the last.  AA puts every atom over one; AB (Bernal) shifts every other layer by one bond, graphite's; ABC shifts each by one more, rhombohedral graphite's; AA' is AA with the elements alternating, B over N, h-BN's own. |
+| **Layer spacing** | text |  | The distance between layers, in Angstrom.  Left empty it is graphite's 3.35 A, or h-BN's 3.33 A for B and N.  1 to 20 A. |
+| **Stack** | one of Slab, vacuum above, Bulk, periodic along c | `slab` | Bulk is periodic along c with no gap but the layer spacing: graphite.  A slab is the layers with vacuum above the top one, for a surface or a sheet alone. |
+| **Vacuum** | float, 3 to 100 A | `15.0` | A slab's gap between its top layer and its image's bottom one.  15 A clears the force field's 12 A cutoff.  Bulk has none. |
+| **Repeat along a** | int, 1 to 500 | `1` | How many cells along a. |
+| **Repeat along b** | int, 1 to 500 | `1` | How many cells along b. |
+| **Rectangular cell** | bool | `False` | The orthogonal cell, a by sqrt(3) a with four atoms a layer, in place of the hexagonal two-atom one: a is then the zigzag direction and b the armchair one. |
+
 (mod-carbon)=
 ## Disordered carbon builder
 

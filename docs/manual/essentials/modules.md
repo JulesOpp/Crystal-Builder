@@ -18,8 +18,8 @@ builder*, *Carbon builder*, *Polymer builder*), then what
 characterises a structure (*Porosity*, *PXRD*), then the calculations
 (*Force Field*, *DFTB+*, *Energy scan*, *ORCA*).  Each entry inside a
 submenu is one thing that module does, except that *Carbon builder*
-holds several modules, one entry each: the fullerene, nanotube and
-disordered-carbon builders, from 0D to 3D.  The same tree, with the
+holds four modules, one entry each: the fullerene, nanotube, graphene
+and disordered-carbon builders, from 0D to 3D.  The same tree, with the
 *Stop* button for the run in progress, is the {ref}`Modules panel
 <panel-modules_dock>`.
 

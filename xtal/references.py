@@ -118,6 +118,16 @@ FULLERENE = (
 )
 
 
+#: The graphene builder: the sheet, graphite's stacking, and the
+#: radii its bond comes from.
+GRAPHENE = (
+    doi("Novoselov et al., Science 2004", "10.1126/science.1102896"),
+    doi("Bernal, Proc. R. Soc. A 1924", "10.1098/rspa.1924.0101"),
+    NANOTUBE[-2],
+    NANOTUBE[-1],
+)
+
+
 def rcsr_net(name: str, dimension: int = 3) -> Reference:
     """RCSR's own page for one net -- the address each page gives as
     its "RCSR reference".  http, because rcsr.net does not answer on

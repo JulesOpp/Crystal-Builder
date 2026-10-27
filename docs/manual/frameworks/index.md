@@ -7,7 +7,8 @@ blocks or your own, understand what the builder measured and what it
 did not, stack a layered framework at the spacing you want, draw a net
 over a crystal and have it named, build a molecule from a SMILES
 string or a drawing to use as a linker or a guest, roll a
-single-walled nanotube from its (n,m), close a fullerene cage, and
+single-walled nanotube from its (n,m), close a fullerene cage, stack
+graphene or h-BN sheets, and
 make the two kinds of disordered material the application builds
 without a framework: a connected carbon that follows a net, and an
 amorphous polymer packed from chains of a monomer.
@@ -38,7 +39,8 @@ layers
 nets
 molecule-builder
 carbon
-nanotube
 fullerene
+nanotube
+graphene
 polymer
 ```

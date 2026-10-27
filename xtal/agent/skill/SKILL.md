@@ -40,6 +40,7 @@ the Crystal Builder window, so leave them something they can check.
 | the task is an amorphous polymer, a polymer membrane, or a PIM | [`references/polymer.md`](references/polymer.md) |
 | a carbon or BN nanotube, periodic or capped (`nanotube.build`) | [`references/api.md`](references/api.md), under `build` |
 | a fullerene cage, C20 to C100 or by its spiral (`fullerene.build`) | [`references/api.md`](references/api.md), under `build` |
+| graphene or h-BN sheets, stacked or a slab (`graphene.build`) | [`references/api.md`](references/api.md), under `build` |
 | an energy, a relaxation or a scan: which engine, and what it means | [`references/calculations.md`](references/calculations.md) |
 | pore volume, surface area, pore size, or a PXRD pattern | [`references/porosity.md`](references/porosity.md) |
 | where files land, and how the person opens what you made | [`references/workspace.md`](references/workspace.md) |

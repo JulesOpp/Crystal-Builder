@@ -179,11 +179,11 @@ def test_a_registry_action_gets_an_action_of_its_own(window):
 
 
 def test_the_carbon_builders_are_one_submenu_by_dimension(window):
-    """Fullerene, nanotube, disordered carbon: one Carbon builder
-    submenu, 0D to 3D, where there were a submenu each."""
+    """Fullerene, nanotube, graphene, disordered carbon: one Carbon
+    builder submenu, 0D to 3D, where there were a submenu each."""
     carbon = _submenu(window.modules_menu, "Carbon builder")
     assert [a.text() for a in carbon.actions()] == [
-        "Fullerene...", "Nanotube...",
+        "Fullerene...", "Nanotube...", "Graphene...",
         "Disordered carbon (ZTC, schwarzite)..."]
     titles = [a.text() for a in window.modules_menu.actions()]
     for gone in ("Fullerene builder", "Nanotube builder",
@@ -194,7 +194,8 @@ def test_the_carbon_builders_are_one_submenu_by_dimension(window):
 def test_sharing_a_submenu_keeps_every_registry_key(window):
     """Only the menu moved: ``xtal run nanotube.build``, a saved
     shortcut and a test still name each entry as they did."""
-    for path in ("fullerene.build", "nanotube.build", "carbon.build"):
+    for path in ("fullerene.build", "nanotube.build", "graphene.build",
+                 "carbon.build"):
         module, action = MODULES.find(path)
         assert module.menu == "Carbon builder"
         assert f"module.{path}" in window.actions_
@@ -411,17 +412,17 @@ def test_an_unavailable_module_is_disabled_in_the_tree(qapp):
 
 def test_the_tree_groups_a_shared_submenu_under_one_row(window):
     """The panel says what the menu says: one Carbon builder row, the
-    three builders' entries under it, each still running its own
+    four builders' entries under it, each still running its own
     module."""
     tree = window.modules_dock.tree
     carbon = _tree_row(tree, "Carbon builder")
     leaves = [carbon.child(k) for k in range(carbon.rowCount())]
     assert [leaf.text() for leaf in leaves] == [
-        "Fullerene...", "Nanotube...",
+        "Fullerene...", "Nanotube...", "Graphene...",
         "Disordered carbon (ZTC, schwarzite)..."]
     assert [leaf.data(MODULE_ROLE) for leaf in leaves] == [
         ("fullerene", "build"), ("nanotube", "build"),
-        ("carbon", "build")]
+        ("graphene", "build"), ("carbon", "build")]
 
 
 def test_a_greyed_module_in_a_shared_row_greys_only_its_entries(qapp):

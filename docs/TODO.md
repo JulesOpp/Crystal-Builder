@@ -374,21 +374,14 @@ builders under Modules ▸ Carbon builder.  Branch
 
 | Phase | Deliverable | Size |
 |---|---|---|
-| 3 | Graphene core and module (`graphene.build`) | M |
 | 4 | Twisted bilayer at commensurate (m, r) | M |
 
-In that order, one commit each.  Phases 1, 2 and 5 shipped
+One commit.  Phases 1, 2, 3 and 5 shipped
 2026-10-27: the core in `xtal/fullerene/` with its table to IPR
 C100, `fullerene.build` with its form, and the Carbon builder
-submenu (`Module.menu`).  Graphene joins it with `menu="Carbon
-builder"` at order 25, labelled "Graphene...".
-
-### Phase 3 — Graphene (`xtal/graphene/`, `xtal/modules/graphene.py`)
-
-Elements A/B, bond from Pyykkö, layers, AA/AB/ABC (AA' when A != B),
-spacing (3.35 C, 3.33 BN when empty), graphite periodic in c or a
-slab with vacuum, supercell, the rectangular 4-atom cell; bonds
-stated with images, none between layers; `limits.check_graphene`.
+submenu (`Module.menu`); Phase 3, `graphene.build` in that submenu,
+the same day.  The twisted bilayer goes in `xtal/graphene/twist.py`
+beside `build.py`, as a choice of the same module.
 
 ### Phase 4 — Twisted bilayer (`xtal/graphene/twist.py`)
 

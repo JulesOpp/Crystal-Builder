@@ -1673,6 +1673,14 @@
    "checkable": false
   },
   {
+   "key": "module.graphene.build",
+   "section": "Modules",
+   "path": "Carbon builder ▸ Graphene...",
+   "shortcut": "",
+   "tip": "Honeycomb sheets, alone or stacked; the result opens in a new tab",
+   "checkable": false
+  },
+  {
    "key": "module.carbon.build",
    "section": "Modules",
    "path": "Carbon builder ▸ Disordered carbon (ZTC, schwarzite)...",
@@ -2663,6 +2671,99 @@
        "accepts": "float, 3 to 50 A",
        "default": "12.0",
        "help": "The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "graphene",
+   "label": "Graphene builder",
+   "description": "Build honeycomb sheets -- graphene, h-BN or any two elements -- one layer or stacked AA, AB, ABC or AA', as bulk graphite or a slab in vacuum, in the hexagonal or the rectangular cell, repeated.  It opens in a new tab with its bonds stated.",
+   "actions": [
+    {
+     "name": "build",
+     "label": "Graphene...",
+     "tip": "Honeycomb sheets, alone or stacked; the result opens in a new tab",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "element_a",
+       "label": "Element A",
+       "accepts": "text",
+       "default": "C",
+       "help": "The element on one of the honeycomb's two sites.  C and C is graphene; B and N hexagonal boron nitride."
+      },
+      {
+       "name": "element_b",
+       "label": "Element B",
+       "accepts": "text",
+       "default": "C",
+       "help": "The element on the other site; every bond joins an A to a B."
+      },
+      {
+       "name": "bond",
+       "label": "Bond length",
+       "accepts": "text",
+       "default": "",
+       "help": "The sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii: 1.42 A for C-C, 1.47 A for B-N.  0.8 to 3.0 A."
+      },
+      {
+       "name": "layers",
+       "label": "Layers",
+       "accepts": "int, 1 to 100",
+       "default": "1",
+       "help": "How many sheets.  Bulk repeats the stacking along c, so its layers must be a whole number of the stacking's period: 2 for AB and AA', 3 for ABC."
+      },
+      {
+       "name": "stacking",
+       "label": "Stacking",
+       "accepts": "one of AA (eclipsed), AB (Bernal, graphite's), ABC (rhombohedral), AA' (h-BN's, elements alternating)",
+       "default": "AB",
+       "help": "How each layer sits over the last.  AA puts every atom over one; AB (Bernal) shifts every other layer by one bond, graphite's; ABC shifts each by one more, rhombohedral graphite's; AA' is AA with the elements alternating, B over N, h-BN's own."
+      },
+      {
+       "name": "spacing",
+       "label": "Layer spacing",
+       "accepts": "text",
+       "default": "",
+       "help": "The distance between layers, in Angstrom.  Left empty it is graphite's 3.35 A, or h-BN's 3.33 A for B and N.  1 to 20 A."
+      },
+      {
+       "name": "stack",
+       "label": "Stack",
+       "accepts": "one of Slab, vacuum above, Bulk, periodic along c",
+       "default": "slab",
+       "help": "Bulk is periodic along c with no gap but the layer spacing: graphite.  A slab is the layers with vacuum above the top one, for a surface or a sheet alone."
+      },
+      {
+       "name": "vacuum",
+       "label": "Vacuum",
+       "accepts": "float, 3 to 100 A",
+       "default": "15.0",
+       "help": "A slab's gap between its top layer and its image's bottom one.  15 A clears the force field's 12 A cutoff.  Bulk has none."
+      },
+      {
+       "name": "cells_a",
+       "label": "Repeat along a",
+       "accepts": "int, 1 to 500",
+       "default": "1",
+       "help": "How many cells along a."
+      },
+      {
+       "name": "cells_b",
+       "label": "Repeat along b",
+       "accepts": "int, 1 to 500",
+       "default": "1",
+       "help": "How many cells along b."
+      },
+      {
+       "name": "rectangular",
+       "label": "Rectangular cell",
+       "accepts": "bool",
+       "default": "False",
+       "help": "The orthogonal cell, a by sqrt(3) a with four atoms a layer, in place of the hexagonal two-atom one: a is then the zigzag direction and b the armchair one."
       }
      ]
     }

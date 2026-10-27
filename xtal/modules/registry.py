@@ -206,13 +206,12 @@ class Module:
     #: put every entry a click further away for nothing.
     group: str = ""
     #: The title of a submenu this module shares with others of the
-    #: same title -- "Carbon builder" holds the fullerene, nanotube
-    #: and disordered-carbon builders, one entry each, where three
-    #: submenus of one entry each had been.  It moves only how
-    #: the menu and the Modules panel show the entries: the module
-    #: keeps its name, so ``xtal run nanotube.build`` and a saved
-    #: shortcut still find it.  It is not a third level either: the
-    #: shared submenu stands where the module's own would have.
+    #: same title -- "Carbon builder" holds the fullerene, nanotube,
+    #: graphene and disordered-carbon builders, one entry each.  It
+    #: moves only how the menu and the Modules panel show the entries:
+    #: the module keeps its name, so ``xtal run nanotube.build`` and a
+    #: saved shortcut still find it.  It is not a third level either:
+    #: the shared submenu stands where the module's own would have.
     menu: str = ""
     provides: frozenset = field(default_factory=frozenset)
 

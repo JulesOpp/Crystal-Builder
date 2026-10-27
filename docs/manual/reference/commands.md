@@ -2110,6 +2110,16 @@ A single-walled tube from (n,m); the result opens in a new tab
 ```{index} Nanotube...
 ```
 
+(cmd-module.graphene.build)=
+### Carbon builder ▸ Graphene...
+
+`module.graphene.build`
+
+Honeycomb sheets, alone or stacked; the result opens in a new tab
+
+```{index} Graphene...
+```
+
 (cmd-module.carbon.build)=
 ### Carbon builder ▸ Disordered carbon (ZTC, schwarzite)...
 
