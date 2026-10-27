@@ -374,29 +374,13 @@ builders under Modules ▸ Carbon builder.  Branch
 
 | Phase | Deliverable | Size |
 |---|---|---|
-| 1 | Fullerene core: spiral, shipped isomer table, cage, UFF | M |
 | 2 | Fullerene module (`fullerene.build`) | S-M |
 | 5 | `Module.menu`: the Carbon builder submenu and dock row | S-M |
 | 3 | Graphene core and module (`graphene.build`) | M |
 | 4 | Twisted bilayer at commensurate (m, r) | M |
 
-In that order, one commit each.
-
-### Phase 1 — Fullerene core (`xtal/fullerene/`)
-
-Face spiral (Fowler-Manolopoulos) to the dual with its cyclic order,
-atoms as its triangles, topological coordinates (adjacency
-eigenvectors 2-4), springs, then UFF by default.  Measured: C60 with
-UFF is 4 steps, bonds 1.398-1.416, r 3.48 A (experiment 1.40/1.45,
-3.55 -- UFF's C_R makes them equal, and the report says so).
-**Isomers are a shipped table, never enumerated in the app**:
-enumeration in Python took 69 s for IPR C78.
-`scripts/fullerene_spirals.py` writes `data/spirals.json` -- every
-isomer C20-C40, IPR C60 up to C100 if the script finishes in about
-an hour (else C90), canonical spirals, |Aut|, Atlas number; point
-groups only for the named cages.  One element per cage: pentagons are
-odd rings, so B/N is refused naming why.  Hydrogenate puts one H
-radially out per carbon.  A test regenerates C20-C36 and C60 IPR.
+In that order, one commit each.  Phase 1, the core in
+`xtal/fullerene/` with its table to IPR C100, shipped 2026-10-27.
 
 ### Phase 2 — Fullerene module (`xtal/modules/fullerene.py`)
 
