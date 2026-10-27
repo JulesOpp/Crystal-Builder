@@ -363,32 +363,6 @@ Measure each in a scratch environment against
 Preferences ▸ Engines, or replace 0.3.  Bindings only if the numbers
 favour them clearly.
 
-## Carbon builders: fullerenes, graphene and one submenu
-
-Asked 2026-10-27: 0D fullerenes (C20, C60, C70, C72, ..., any
-element) and 2D graphene (layers, spacing, stacking, elements,
-twisted bilayers), grouped with the nanotube and disordered-carbon
-builders under Modules ▸ Carbon builder.  Branch
-`features/carbon-builders`; the full plan, with what was measured, is
-`~/.claude/plans/carbon-builders.md`.
-
-| Phase | Deliverable | Size |
-|---|---|---|
-| 4 | Twisted bilayer at commensurate (m, r) | M |
-
-One commit.  Phases 1, 2, 3 and 5 shipped
-2026-10-27: the core in `xtal/fullerene/` with its table to IPR
-C100, `fullerene.build` with its form, and the Carbon builder
-submenu (`Module.menu`); Phase 3, `graphene.build` in that submenu,
-the same day.  The twisted bilayer goes in `xtal/graphene/twist.py`
-beside `build.py`, as a choice of the same module.
-
-### Phase 4 — Twisted bilayer (`xtal/graphene/twist.py`)
-
-Commensurate (m, r), cos θ = (3m²+3mr+r²/2)/(3m²+3mr+r²), atoms
-4(3m²+3mr+r²); the form offers the nearest commensurate angles under
-the size limit.  (1,1) is 21.79° and 28 atoms.
-
 ---
 
 # Not scheduled

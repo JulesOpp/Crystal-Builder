@@ -309,6 +309,22 @@ def check_graphene(recipe, profile=None) -> Verdict:
         / max(int(recipe.cells_a) * int(recipe.cells_b), 1)
 
     def fits(limit):
+        if recipe.twisted:
+            # The twist is what sets the size, so the angle nearest
+            # the one asked whose cell fits, at the repeat and layers
+            # as asked.
+            from xtal.graphene import twist
+
+            # Atoms a build has per atom of one bilayer cell.
+            scale = atoms_per_layer(recipe) * int(recipe.layers) \
+                / recipe.moire.atoms
+            near = twist.nearest(recipe.moire.angle, 1,
+                                 max_atoms=int(limit / scale))
+            if not near:
+                return "no twisted cell is small enough"
+            return (f"{twist.spelled(near[0])} degrees, "
+                    f"{count(near[0].atoms * scale)} atoms, is the "
+                    f"nearest twist that fits")
         # Square repeats, the layers as asked: the repeat is what a
         # person turns down first.
         k = int(math.floor(math.sqrt(

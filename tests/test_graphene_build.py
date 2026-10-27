@@ -52,7 +52,8 @@ def test_every_build_is_three_bonded_at_its_own_bond_length():
     """Every cell, repeat, stacking and stack: each atom three bonds,
     each bond exactly the sheet's.  The rectangular cell put atoms a
     rounding error short of a face, and wrapping them without their
-    bonds stated some 16 A long."""
+    bonds stated some 16 A long.  Twisted at 21.79 degrees, its
+    smallest cell."""
     for rectangular, cells, layers, stacking, stack in itertools.product(
             (False, True), ((1, 1), (3, 2)), (1, 2, 3, 6),
             sheet.STACKINGS, sheet.STACKS):
@@ -62,7 +63,7 @@ def test_every_build_is_three_bonded_at_its_own_bond_length():
                 element_a=elements[0], element_b=elements[1],
                 rectangular=rectangular, cells_a=cells[0],
                 cells_b=cells[1], layers=layers, stacking=stacking,
-                stack=stack))
+                stack=stack, twist="21.79"))
         except GrapheneError:
             continue
         degree, lengths = _bonds(built.structure)

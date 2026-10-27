@@ -25,6 +25,13 @@ the two elements swapped on every other layer, h-BN's own stacking.
 Bulk repeats the sequence along c, so the layer count must be a whole
 number of its periods; a slab is the layers with vacuum above.
 
+**A twisted stack turns every other layer** by a commensurate angle
+(:mod:`xtal.graphene.twist`) about an atom the two share, so it is AA
+twisted: each layer is the honeycomb in its own integer cell of the
+twisted one, and the same layout and bonding serve both.  The repeat
+and the rectangular cell are transforms of the twisted cell as they
+are of the sheet's.
+
 **The spacing follows the elements unless one is typed**: graphite's
 3.35 A, and h-BN's 3.33 A for B and N.
 """
@@ -39,17 +46,24 @@ import numpy as np
 
 from xtal.carbon import honeycomb
 from xtal.core import pyykko
+from xtal.graphene import twist as twisting
 
-__all__ = ["STACKINGS", "STACKS", "Recipe", "Built", "GrapheneError",
-           "checked", "build", "cell_matrix", "atoms_per_layer"]
+__all__ = ["STACKINGS", "STACKS", "TWISTED", "Recipe", "Built",
+           "GrapheneError", "checked", "build", "cell_matrix",
+           "atoms_per_layer"]
+
+#: The stacking that turns every other layer by ``Recipe.twist``.
+TWISTED = "twisted"
 
 #: Stacking -> the sequence of lateral shifts, in thirds of a bond's
 #: worth of shift, and whether every other layer swaps its elements.
+#: Twisted's sequence is of turns instead: none, then the twist.
 STACKINGS = {
     "AA": ((0,), False),
     "AB": ((0, 1), False),
     "ABC": ((0, 1, 2), False),
     "AA'": ((0, 0), True),
+    TWISTED: ((0, 1), False),
 }
 
 STACKS = ("bulk", "slab")
@@ -86,6 +100,24 @@ class Recipe:
     cells_a: int = 1
     cells_b: int = 1
     rectangular: bool = False
+    #: A twisted stack's angle, degrees, as text: read to the
+    #: precision it is written at (:func:`twist.read`).
+    twist: float | str = "1.08"
+
+    @property
+    def twisted(self) -> bool:
+        return self.stacking == TWISTED
+
+    @property
+    def moire(self) -> twisting.Twist | None:
+        """The commensurate twist, or None for a stack that has
+        none."""
+        if not self.twisted:
+            return None
+        try:
+            return twisting.read(self.twist)
+        except twisting.TwistError as exc:
+            raise GrapheneError(str(exc)) from None
 
     @property
     def symbols(self) -> tuple[str, str]:
@@ -136,6 +168,13 @@ class Recipe:
             name = "h-BN"
         else:
             name = f"{self.element_a}{self.element_b} honeycomb"
+        if self.twisted:
+            angle = f"{twisting.spelled(self.moire)}°"
+            if self.stack == "bulk":
+                return f"{angle} twisted {name}, bulk"
+            if self.layers == 2:
+                return f"{angle} twisted bilayer {name}"
+            return f"{self.layers}-layer {angle} twisted {name}"
         if self.layers == 1:
             return f"{name}, one layer"
         if self.stack == "bulk":
@@ -168,6 +207,8 @@ def checked(recipe: Recipe) -> Recipe:
                for text in (recipe.element_a, recipe.element_b)]
     stacking = re.sub(r"\s+", "", str(recipe.stacking)).upper() \
         .replace("’", "'").replace("PRIME", "'")
+    stacking = {key.upper(): key for key in STACKINGS}.get(stacking,
+                                                           stacking)
     if stacking not in STACKINGS:
         raise GrapheneError(f"stacking must be one of "
                             f"{', '.join(STACKINGS)}, not "
@@ -183,6 +224,9 @@ def checked(recipe: Recipe) -> Recipe:
         raise GrapheneError(
             "AA' stacks each layer's A over the next layer's B, which "
             "is AA when the two elements are the same")
+    if stacking == TWISTED and recipe.layers < 2:
+        raise GrapheneError("a twist turns one layer against another, "
+                            "so it needs at least two layers")
     period = len(STACKINGS[stacking][0])
     if recipe.stack == "bulk" and recipe.layers % period:
         lower = recipe.layers - recipe.layers % period
@@ -195,16 +239,23 @@ def checked(recipe: Recipe) -> Recipe:
     out = replace(recipe, element_a=symbols[0], element_b=symbols[1],
                   stacking=stacking,
                   bond=honeycomb.given_bond(recipe.bond, GrapheneError),
-                  spacing=_given_spacing(recipe.spacing))
+                  spacing=_given_spacing(recipe.spacing),
+                  twist=str(recipe.twist).strip())
+    # Read now, so that an angle nothing is near is said before
+    # anything is estimated or built.
+    _ = out.moire
     return out
 
 
-def cell_matrix(recipe: Recipe) -> np.ndarray:
+def cell_matrix(recipe: Recipe, upper: bool = False) -> np.ndarray:
     """``M``: the new cell's two in-plane vectors in the hexagonal
-    cell's, rows."""
+    cell's, rows -- the upper, turned, layer's own with ``upper``."""
     base = np.array([[1, 0], [1, 2]]) if recipe.rectangular \
         else np.eye(2, dtype=int)
-    return np.diag([recipe.cells_a, recipe.cells_b]) @ base
+    m = np.diag([recipe.cells_a, recipe.cells_b]) @ base
+    if recipe.twisted:
+        m = m @ twisting.matrices(recipe.moire)[1 if upper else 0]
+    return m
 
 
 def atoms_per_layer(recipe: Recipe) -> int:
@@ -243,6 +294,32 @@ _SITES = np.array([[1 / 3, 2 / 3], [2 / 3, 1 / 3]])
 _STEP = np.array([1 / 3, -1 / 3])
 
 
+def _sheet(m: np.ndarray):
+    """One layer in the cell ``m``: the hexagonal cells inside it (in
+    order, two sites each), ``M^-1``, and each A's three bonds, as
+    atom pairs of this layer and the cell each crosses into."""
+    inverse = np.linalg.inv(m)
+    # Every translation t whose fractional position t M^-1 is in
+    # [0, 1), from the box round the cell's corners.
+    corners = np.array([[0, 0], m[0], m[1], m[0] + m[1]])
+    low, high = corners.min(axis=0), corners.max(axis=0)
+    i, j = np.meshgrid(np.arange(low[0], high[0] + 1),
+                       np.arange(low[1], high[1] + 1), indexing="ij")
+    cells = np.column_stack([i.ravel(), j.ravel()])
+    f = cells @ inverse
+    cells = cells[np.all(f > -1e-9, axis=1) & np.all(f < 1 - 1e-9, axis=1)]
+    index = {t: k for k, t in enumerate(map(tuple, cells.tolist()))}
+    there = (cells[:, None, :] + np.array(_NEIGHBOURS)[None]) @ inverse
+    wrapped = np.floor(there + 1e-9).astype(int)
+    home = np.rint((there - wrapped) @ m).astype(int).reshape(-1, 2)
+    partner = np.array([index[t] for t in map(tuple, home.tolist())])
+    pairs = np.column_stack([np.repeat(2 * np.arange(len(cells)), 3),
+                             2 * partner + 1])
+    crossed = np.column_stack([wrapped.reshape(-1, 2),
+                               np.zeros(len(pairs), int)])
+    return cells, inverse, pairs, crossed
+
+
 def build(recipe: Recipe, say=None) -> Built:
     """Lay the sheets out and state their bonds."""
     from xtal.carbon.build import closest_contact
@@ -252,19 +329,11 @@ def build(recipe: Recipe, say=None) -> Built:
     say = say or (lambda _text: None)
     a = math.sqrt(3.0) * recipe.bond_length
     hexagonal = np.array([[a, 0.0], [-a / 2.0, a * math.sqrt(3) / 2.0]])
-    m = cell_matrix(recipe)
-    inverse = np.linalg.inv(m)
-    plane = m @ hexagonal
-
-    # The hexagonal cells inside the new one: every translation t
-    # whose fractional position t M^-1 is in [0, 1).
-    corners = np.array([[0, 0], m[0], m[1], m[0] + m[1]])
-    low, high = corners.min(axis=0), corners.max(axis=0)
-    cells = [np.array((i, j)) for i in range(low[0], high[0] + 1)
-             for j in range(low[1], high[1] + 1)]
-    cells = [t for t in cells
-             if np.all((f := t @ inverse) > -1e-9) and np.all(f < 1 - 1e-9)]
-    per_layer = 2 * len(cells)
+    plane = cell_matrix(recipe) @ hexagonal
+    sheets = {False: _sheet(cell_matrix(recipe))}
+    if recipe.twisted:
+        sheets[True] = _sheet(cell_matrix(recipe, upper=True))
+    per_layer = 2 * len(sheets[False][0])
     if per_layer != atoms_per_layer(recipe):     # pragma: no cover
         raise GrapheneError("the supercell lost a cell")
 
@@ -279,43 +348,38 @@ def build(recipe: Recipe, say=None) -> Built:
     matrix[:2, :2] = plane
     matrix[2, 2] = c
 
-    index = {}
-    names, frac = [], []
+    names, frac, bonds, images = [], [], [], []
     for layer in range(layers):
-        shift = _STEP * shifts[layer % len(shifts)]
+        step = shifts[layer % len(shifts)]
+        if recipe.twisted:
+            # Turned about an A atom at the origin in both layers, so
+            # that no twist is AA.
+            upper, shift = bool(step), -_SITES[0]
+        else:
+            upper, shift = False, _STEP * step
+        cells, inverse, pairs, crossed = sheets[upper]
         swapped = swap and layer % 2 == 1
         z = (layer * spacing + (0 if recipe.stack == "bulk"
                                 else recipe.vacuum / 2.0)) / c
-        for t in cells:
-            for site in (0, 1):
-                index[(layer, site, tuple(t))] = len(names)
-                names.append(recipe.symbols[site ^ swapped])
-                xy = (t + _SITES[site] + shift) @ inverse
-                frac.append([*xy, z])
-    frac = np.array(frac)
-
-    bonds, images = [], []
-    for layer in range(layers):
-        for t in cells:
-            here = index[(layer, 0, tuple(t))]
-            for step in _NEIGHBOURS:
-                there = (t + np.array(step)) @ inverse
-                wrapped = np.floor(there + 1e-9).astype(int)
-                home = np.rint((there - wrapped) @ m).astype(int)
-                bonds.append((here, index[(layer, 1, tuple(home))]))
-                images.append((*wrapped, 0))
+        xy = ((cells[:, None, :] + _SITES[None] + shift) @ inverse) \
+            .reshape(-1, 2)
+        bonds.append(pairs + len(names))
+        images.append(crossed)
+        names.extend(recipe.symbols[site ^ swapped]
+                     for _cell in range(len(cells)) for site in (0, 1))
+        frac.append(np.column_stack([xy, np.full(len(xy), z)]))
+    frac = np.concatenate(frac)
+    bonds, images = np.concatenate(bonds), np.concatenate(images)
     say(f"{recipe.title}: {len(names)} atoms, {len(bonds)} bonds")
     # A site plus a stacking shift can land past a face.  Wrapped
     # into the cell, each bond's image moves with its two atoms, or
     # it would be stated across the cell.
-    bonds = np.array(bonds, int)
     whole = np.floor(frac + 1e-9).astype(int)
     # A rounding error short of a face is on it: left at -1e-10,
     # structure_of's own wrap would put it back at the far face
     # without its bonds.
     frac = np.clip(frac - whole, 0.0, None)
-    images = np.array(images, int) + whole[bonds[:, 1]] \
-        - whole[bonds[:, 0]]
+    images = images + whole[bonds[:, 1]] - whole[bonds[:, 0]]
     structure = structure_of(
         honeycomb.Atoms(matrix=matrix, elements=names, frac=frac,
                         bonds=bonds, images=images),

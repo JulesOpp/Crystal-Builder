@@ -60,10 +60,14 @@ their parameters.  A fullerene is `n` and `isomer` (0 is the
 cage the formula means: C60-Ih, C80-Ih) from the shipped table --
 every isomer to C40, the IPR ones from C60 to C100 -- or `spiral`,
 its twelve pentagon places, for any other cage.  Graphene is
-`element_a`/`element_b`, `layers`, `stacking` (AA, AB, ABC, AA'),
-`stack` (`slab` or `bulk`; bulk needs a whole number of the
-stacking's period), `cells_a`/`cells_b` and `rectangular`; no bond
-joins two layers.
+`element_a`/`element_b`, `layers`, `stacking` (AA, AB, ABC, AA',
+`twisted`), `stack` (`slab` or `bulk`; bulk needs a whole number of
+the stacking's period), `cells_a`/`cells_b` and `rectangular`; no
+bond joins two layers.  `twisted` turns every other layer by `twist`,
+an angle as text read to the precision written: the smallest
+commensurate cell at it, so `"1.08"` is (m, r) = (30, 1), 11 164
+atoms a bilayer.  An angle no cell is near is refused naming the
+nearest, and one over the size limit naming the nearest that fits.
 
 ## Reading
 

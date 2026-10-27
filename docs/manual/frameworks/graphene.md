@@ -30,6 +30,9 @@ and pick the cell a calculation wants.
    - **AA′** is AA with the two elements swapped on every other
      layer, boron over nitrogen: h-BN's stacking.  It needs two
      different elements.
+   - **Twisted** turns every other layer by the **Twist**, from AA,
+     about an atom the two layers share -- see
+     {ref}`frameworks-graphene-twisted`.
 4. Choose the **Stack**:
    - **Bulk** is periodic along *c*, with no gap but the layer
      spacing: graphite itself.  The stacking repeats along *c*, so the
@@ -38,7 +41,7 @@ and pick the cell a calculation wants.
      that work.
    - **Slab** is the layers with **Vacuum** above the top one, for a
      sheet alone or a surface.
-5. Press **Run**.  The sheets open in a new tab, in {term}`P1`, with
+5. Press **Build**.  The sheets open in a new tab, in {term}`P1`, with
    their bonds stated, so nothing is perceived.  No bond joins two
    layers.
 
@@ -55,6 +58,45 @@ instead, *a* by √3 *a* with four atoms a layer: *a* runs along the
 zigzag direction and *b* along the armchair one, which is the cell a
 ribbon or a strain along one direction wants.  **Repeat along a** and
 **Repeat along b** repeat whichever cell it is.
+
+(frameworks-graphene-twisted)=
+## A twisted bilayer
+
+```{index} single: graphene; twisted bilayer
+```
+```{index} single: magic angle
+```
+
+Two layers turned against each other close into a periodic cell only
+at certain angles, each named by a pair of whole numbers (*m*, *r*)
+{cite}`lopesdossantos2007graphene`:
+
+$$\cos\theta = \frac{3m^2 + 3mr + r^2/2}{3m^2 + 3mr + r^2},$$
+
+with 4(3*m*² + 3*mr* + *r*²) atoms a bilayer.  (1, 1) is 21.79° and
+28 atoms; (30, 1) is 1.08°, the magic angle, and 11 164.
+
+1. Set **Layers** to 2 and **Stacking** to *Twisted*.
+2. Type the **Twist** in degrees.  The angle is read to the
+   precision you write it at: 1.08 is any angle from 1.075° to
+   1.085°, and the smallest cell among those is the one built;
+   1.0845 narrows that to 0.00005°.  Two decimals is the coarsest it
+   reads -- the angles are dense, and "2" alone would otherwise be
+   2.45°.
+3. The **Commensurate** list under the box offers the angles nearest
+   the one typed, each with the atoms its cell holds at the repeat
+   and layers you chose, and only those under the
+   {ref}`size limit <preferences-large-structures>`.  Choosing one writes it
+   into the box.  The line under the list says what will be built.
+
+An angle no cell is near (59.9°, say) is refused naming the nearest
+there is; one whose cell is over the size limit is refused naming the
+nearest that fits.  More than two layers alternate, the turned layer
+every other one, and a bulk stack needs an even number.  The report
+adds the **Twist** as built, its (*m*, *r*), and the **Moiré
+period**, the twisted cell's edge.  Nothing joins the layers, and
+nothing is relaxed: the layers are flat and the twisted cell is
+exactly each layer's own lattice.
 
 ## Reading the report
 

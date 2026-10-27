@@ -3,8 +3,9 @@ xtal.modules.graphene
 =====================
 The graphene builder, as a registry entry: honeycomb sheets of
 carbon, boron nitride or any two elements, one layer or stacked AA,
-AB, ABC or AA', as graphite (periodic along c) or a slab in vacuum,
-in the hexagonal cell or the rectangular one, repeated.
+AB, ABC or AA' or twisted by a commensurate angle, as graphite
+(periodic along c) or a slab in vacuum, in the hexagonal cell or the
+rectangular one, repeated.
 
 The geometry is :mod:`xtal.graphene`; this file is the entry in the
 Modules menu -- Carbon builder, between the nanotube and the
@@ -35,7 +36,8 @@ _DEFAULT = sheet.Recipe()
 _STACKINGS = (("AA", "AA (eclipsed)"),
               ("AB", "AB (Bernal, graphite's)"),
               ("ABC", "ABC (rhombohedral)"),
-              ("AA'", "AA' (h-BN's, elements alternating)"))
+              ("AA'", "AA' (h-BN's, elements alternating)"),
+              (sheet.TWISTED, "Twisted (every other layer turned)"))
 
 _STACKS = (("slab", "Slab, vacuum above"),
            ("bulk", "Bulk, periodic along c"))
@@ -66,7 +68,19 @@ PARAMS = (
                "atom over one; AB (Bernal) shifts every other layer "
                "by one bond, graphite's; ABC shifts each by one more, "
                "rhombohedral graphite's; AA' is AA with the elements "
-               "alternating, B over N, h-BN's own."),
+               "alternating, B over N, h-BN's own.  Twisted turns "
+               "every other layer by the Twist about an atom the two "
+               "share, from AA."),
+    # Text, so that the angle is read to the precision it is written
+    # at, as the bond and the spacing are read for "" meaning their
+    # own.
+    Param("twist", "Twist", kind="text", default=_DEFAULT.twist,
+          help="A twisted stack's angle, in degrees.  Only some "
+               "angles close into a cell: the one built is the "
+               "smallest cell at the angle written, to its last "
+               "decimal place -- 1.08 is (m, r) = (30, 1), 11 164 "
+               "atoms a bilayer, the magic angle.  Used only by the "
+               "Twisted stacking."),
     Param("spacing", "Layer spacing", kind="text", default="",
           help="The distance between layers, in Angstrom.  Left "
                "empty it is graphite's 3.35 A, or h-BN's 3.33 A for "
@@ -124,6 +138,20 @@ def build_graphene(job) -> JobResult:
         report=report(built))
 
 
+def _twist_rows(built) -> list:
+    """A twisted stack's angle, (m, r) and moiré period."""
+    twist = built.recipe.moire
+    if twist is None:
+        return []
+    period = built.recipe.bond_length * math.sqrt(3.0 * twist.cells)
+    return [Row.number("Twist", twist.angle, "deg",
+                       f"(m, r) = ({twist.m}, {twist.r}), the smallest "
+                       f"commensurate cell at {built.recipe.twist}",
+                       decimals=4),
+            Row.number("Moiré period", period, "A",
+                       "the twisted cell's edge", decimals=2)]
+
+
 def report(built) -> Report:
     """What was built: its layers, its cell, its bonds."""
     recipe = built.recipe
@@ -133,6 +161,7 @@ def report(built) -> Report:
         Row("Layers", str(recipe.layers)),
         Row("Stacking", dict(_STACKINGS)[recipe.stacking]
             if recipe.layers > 1 else "--"),
+        *_twist_rows(built),
         Row("Stack", dict(_STACKS)[recipe.stack]),
         Row("Composition", formula),
         Row("Atoms per layer", str(built.atoms_per_layer)),
@@ -168,7 +197,8 @@ GRAPHENE = Module(
     name="graphene",
     label="Graphene builder",
     description="Build honeycomb sheets -- graphene, h-BN or any two "
-                "elements -- one layer or stacked AA, AB, ABC or AA', "
+                "elements -- one layer or stacked AA, AB, ABC, AA' or "
+                "twisted by a commensurate angle, "
                 "as bulk graphite or a slab in vacuum, in the "
                 "hexagonal or the rectangular cell, repeated.  It "
                 "opens in a new tab with its bonds stated.",
@@ -181,6 +211,7 @@ GRAPHENE = Module(
                    "opens in a new tab",
                kind="build",
                needs_structure=False,
+               dialog="graphene-build",
                params=PARAMS,
                run=build_graphene,
                references=references.GRAPHENE),

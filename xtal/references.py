@@ -118,11 +118,13 @@ FULLERENE = (
 )
 
 
-#: The graphene builder: the sheet, graphite's stacking, and the
-#: radii its bond comes from.
+#: The graphene builder: the sheet, graphite's stacking, the
+#: commensurate twists, and the radii its bond comes from.
 GRAPHENE = (
     doi("Novoselov et al., Science 2004", "10.1126/science.1102896"),
     doi("Bernal, Proc. R. Soc. A 1924", "10.1098/rspa.1924.0101"),
+    doi("Lopes dos Santos, Peres and Castro Neto, Phys. Rev. Lett. "
+        "2007", "10.1103/PhysRevLett.99.256802"),
     NANOTUBE[-2],
     NANOTUBE[-1],
 )

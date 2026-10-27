@@ -1,5 +1,7 @@
 """The graphene builder as a module: xtal.modules.graphene."""
 
+import pytest
+
 from xtal.core import bonding
 from xtal.modules import MODULES, Job
 
@@ -74,3 +76,22 @@ def test_an_assistant_builds_a_sheet_through_session_build(tmp_path):
                             cells_a=4, cells_b=4, layers=2)
     assert session.built.ok
     assert session.n_atoms == 64
+
+
+def test_the_report_names_the_twist_its_cell_and_its_moire_period():
+    result = _run(layers=2, stacking="twisted", twist="1.08")
+    assert result.ok, result.message
+    assert result.message == \
+        "1.08° twisted bilayer graphene: 11164 atoms"
+    rows = _rows(result)
+    assert rows["Twist"].value == "1.0845"
+    assert rows["Twist"].note.startswith("(m, r) = (30, 1)")
+    assert float(rows["Moiré period"].value) == pytest.approx(
+        1.42 * 3 ** 0.5 * 2791 ** 0.5, abs=0.01)
+    assert "Twist" not in _rows(_run(layers=2))
+
+
+def test_a_twist_too_large_is_a_failed_run_naming_the_nearest_that_fits():
+    result = _run(layers=2, stacking="twisted", twist="0.2")
+    assert not result.ok
+    assert "is the nearest twist that fits" in result.message

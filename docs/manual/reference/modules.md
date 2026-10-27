@@ -225,7 +225,7 @@ A single-walled tube from (n,m); the result opens in a new tab
 (mod-graphene)=
 ## Graphene builder
 
-Build honeycomb sheets -- graphene, h-BN or any two elements -- one layer or stacked AA, AB, ABC or AA', as bulk graphite or a slab in vacuum, in the hexagonal or the rectangular cell, repeated.  It opens in a new tab with its bonds stated.
+Build honeycomb sheets -- graphene, h-BN or any two elements -- one layer or stacked AA, AB, ABC, AA' or twisted by a commensurate angle, as bulk graphite or a slab in vacuum, in the hexagonal or the rectangular cell, repeated.  It opens in a new tab with its bonds stated.
 
 ```{index} Graphene builder
 ```
@@ -244,7 +244,8 @@ Honeycomb sheets, alone or stacked; the result opens in a new tab
 | **Element B** | text | `C` | The element on the other site; every bond joins an A to a B. |
 | **Bond length** | text |  | The sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii: 1.42 A for C-C, 1.47 A for B-N.  0.8 to 3.0 A. |
 | **Layers** | int, 1 to 100 | `1` | How many sheets.  Bulk repeats the stacking along c, so its layers must be a whole number of the stacking's period: 2 for AB and AA', 3 for ABC. |
-| **Stacking** | one of AA (eclipsed), AB (Bernal, graphite's), ABC (rhombohedral), AA' (h-BN's, elements alternating) | `AB` | How each layer sits over the last.  AA puts every atom over one; AB (Bernal) shifts every other layer by one bond, graphite's; ABC shifts each by one more, rhombohedral graphite's; AA' is AA with the elements alternating, B over N, h-BN's own. |
+| **Stacking** | one of AA (eclipsed), AB (Bernal, graphite's), ABC (rhombohedral), AA' (h-BN's, elements alternating), Twisted (every other layer turned) | `AB` | How each layer sits over the last.  AA puts every atom over one; AB (Bernal) shifts every other layer by one bond, graphite's; ABC shifts each by one more, rhombohedral graphite's; AA' is AA with the elements alternating, B over N, h-BN's own.  Twisted turns every other layer by the Twist about an atom the two share, from AA. |
+| **Twist** | text | `1.08` | A twisted stack's angle, in degrees.  Only some angles close into a cell: the one built is the smallest cell at the angle written, to its last decimal place -- 1.08 is (m, r) = (30, 1), 11 164 atoms a bilayer, the magic angle.  Used only by the Twisted stacking. |
 | **Layer spacing** | text |  | The distance between layers, in Angstrom.  Left empty it is graphite's 3.35 A, or h-BN's 3.33 A for B and N.  1 to 20 A. |
 | **Stack** | one of Slab, vacuum above, Bulk, periodic along c | `slab` | Bulk is periodic along c with no gap but the layer spacing: graphite.  A slab is the layers with vacuum above the top one, for a surface or a sheet alone. |
 | **Vacuum** | float, 3 to 100 A | `15.0` | A slab's gap between its top layer and its image's bottom one.  15 A clears the force field's 12 A cutoff.  Bulk has none. |
