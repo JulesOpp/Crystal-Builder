@@ -33,6 +33,8 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
+from xtal.carbon import honeycomb
+from xtal.carbon.honeycomb import hydrogen_length
 from xtal.core import elements, pyykko
 from xtal.nanotube import geometry
 
@@ -50,11 +52,6 @@ COMPRESSED = 0.97
 #: Below this diameter the (n - m) mod 3 rule is unreliable: sigma-pi
 #: hybridisation (Blase et al., PRL 72, 1878 (1994)).
 THIN_FOR_ZONE_FOLDING = 7.0
-
-#: The bond lengths a recipe may give, A: the form's old spinbox
-#: range, kept now the box is text and nothing else holds it.
-BOND_RANGE = (0.8, 3.0)
-
 
 class NanotubeError(ValueError):
     """A recipe that cannot be built, said in one sentence."""
@@ -122,6 +119,12 @@ class Recipe:
         return f"({self.n},{self.m}) {kind}"
 
 
+def _given_bond(value) -> float | None:
+    """The bond the recipe gives, in A, or None; refused as a
+    :class:`NanotubeError`."""
+    return honeycomb.given_bond(value, NanotubeError)
+
+
 def checked(recipe: Recipe) -> Recipe:
     """The recipe with its elements spelled properly, or a
     :class:`NanotubeError` saying what is wrong with it."""
@@ -131,40 +134,12 @@ def checked(recipe: Recipe) -> Recipe:
     if recipe.ends not in ENDS:
         raise NanotubeError(f"ends must be one of {', '.join(ENDS)}, "
                             f"not {recipe.ends!r}")
-    symbols = []
-    for text in (recipe.element_a, recipe.element_b):
-        symbol = elements.canonical_symbol(str(text))
-        if symbol is None or elements.is_dummy(symbol):
-            raise NanotubeError(f"{str(text).strip()!r} is not an "
-                                f"element")
-        symbols.append(symbol)
+    symbols = [honeycomb.element_symbol(text, NanotubeError)
+               for text in (recipe.element_a, recipe.element_b)]
     # No element is refused for want of a radius: Pyykkö covers all
     # 118 and the radii take D as H, which a test sweeps.
     return replace(recipe, element_a=symbols[0], element_b=symbols[1],
                    bond=_given_bond(recipe.bond))
-
-
-def _given_bond(value) -> float | None:
-    """A bond given as a number or the form's text, in A; None when
-    none was given."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        text = value.strip()
-        if not text:
-            return None
-        try:
-            bond = float(text)
-        except ValueError:
-            raise NanotubeError(f"the bond length must be a number, "
-                                f"not {text!r}") from None
-    else:
-        bond, text = float(value), f"{float(value):g}"
-    low, high = BOND_RANGE
-    if not low <= bond <= high:
-        raise NanotubeError(f"the bond length must be {low} to {high} "
-                            f"A, not {text}")
-    return bond
 
 
 @dataclass
@@ -192,17 +167,6 @@ class Built:
                 f"{len(self.structure.sites)} atoms, "
                 f"{self.length:.2f} A long",
                 *self.notes]
-
-
-@dataclass
-class _Atoms:
-    """What :func:`xtal.carbon.lattice.structure_of` reads."""
-
-    matrix: np.ndarray
-    elements: list
-    frac: np.ndarray
-    bonds: np.ndarray
-    images: np.ndarray
 
 
 def build(recipe: Recipe, say=None) -> Built:
@@ -256,7 +220,7 @@ def build(recipe: Recipe, say=None) -> Built:
     frac, all_images = _in_cell(everything @ np.linalg.inv(matrix),
                                 all_bonds, all_images)
     structure = structure_of(
-        _Atoms(matrix=matrix, elements=names, frac=frac,
+        honeycomb.Atoms(matrix=matrix, elements=names, frac=frac,
                bonds=all_bonds, images=all_images),
         title=recipe.title)
     notes = _notes(recipe, shortest)
@@ -358,23 +322,6 @@ def _closest_unbonded(structure, reach: float) -> float:
     unbonded &= (i != j) | np.any(image != 0, axis=1)
     distances = found["v"][unbonded]
     return float(distances.min()) if len(distances) else math.inf
-
-
-def hydrogen_length(symbol: str) -> float:
-    """UFF's natural X-H single bond for an sp2 ``symbol`` -- what
-    Add Hydrogens would put the hydrogen at.  An element with no
-    resonant or sp2 type takes its first UFF type, and one with no UFF
-    type at all the sum of the two covalent radii."""
-    from xtal.ff.uff import params, terms
-
-    types = params.types_for(symbol)
-    for name in (f"{symbol}_R", f"{symbol}_2"):
-        if name in types:
-            return terms.natural_bond_length(name, "H_", 1.0)
-    if types:
-        return terms.natural_bond_length(types[0], "H_", 1.0)
-    return elements.covalent_radius(symbol) \
-        + elements.covalent_radius("H")
 
 
 def electronic_character(recipe: Recipe) -> str:

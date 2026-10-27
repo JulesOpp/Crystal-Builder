@@ -363,6 +363,70 @@ Measure each in a scratch environment against
 Preferences ▸ Engines, or replace 0.3.  Bindings only if the numbers
 favour them clearly.
 
+## Carbon builders: fullerenes, graphene and one submenu
+
+Asked 2026-10-27: 0D fullerenes (C20, C60, C70, C72, ..., any
+element) and 2D graphene (layers, spacing, stacking, elements,
+twisted bilayers), grouped with the nanotube and disordered-carbon
+builders under Modules ▸ Carbon builder.  Branch
+`features/carbon-builders`; the full plan, with what was measured, is
+`~/.claude/plans/carbon-builders.md`.
+
+| Phase | Deliverable | Size |
+|---|---|---|
+| 1 | Fullerene core: spiral, shipped isomer table, cage, UFF | M |
+| 2 | Fullerene module (`fullerene.build`) | S-M |
+| 5 | `Module.menu`: the Carbon builder submenu and dock row | S-M |
+| 3 | Graphene core and module (`graphene.build`) | M |
+| 4 | Twisted bilayer at commensurate (m, r) | M |
+
+In that order, one commit each.
+
+### Phase 1 — Fullerene core (`xtal/fullerene/`)
+
+Face spiral (Fowler-Manolopoulos) to the dual with its cyclic order,
+atoms as its triangles, topological coordinates (adjacency
+eigenvectors 2-4), springs, then UFF by default.  Measured: C60 with
+UFF is 4 steps, bonds 1.398-1.416, r 3.48 A (experiment 1.40/1.45,
+3.55 -- UFF's C_R makes them equal, and the report says so).
+**Isomers are a shipped table, never enumerated in the app**:
+enumeration in Python took 69 s for IPR C78.
+`scripts/fullerene_spirals.py` writes `data/spirals.json` -- every
+isomer C20-C40, IPR C60 up to C100 if the script finishes in about
+an hour (else C90), canonical spirals, |Aut|, Atlas number; point
+groups only for the named cages.  One element per cage: pentagons are
+odd rings, so B/N is refused naming why.  Hydrogenate puts one H
+radially out per carbon.  A test regenerates C20-C36 and C60 IPR.
+
+### Phase 2 — Fullerene module (`xtal/modules/fullerene.py`)
+
+Size, isomer (dependent on size: a `dialog` if `Param` cannot),
+spiral, element, bond, hydrogenate, relax, vacuum; a report with
+formula, isomer and group, IPR, diameter, bond range.
+`xtal run fullerene.build`, `Session.build`, the agent skill's rows.
+
+### Phase 5 — The Carbon builder submenu
+
+`Module.menu`: modules sharing it are one submenu in the Modules
+menu and one row in the Modules dock, each entry greyed by its own
+module.  Registry keys unchanged (`nanotube.build`, `carbon.build`).
+Orders fullerene 23, nanotube 24, graphene 25, disordered carbon 26,
+polymer 27; entries "Fullerene...", "Nanotube...", "Graphene...",
+"Disordered carbon (ZTC, schwarzite)...".
+
+### Phase 3 — Graphene (`xtal/graphene/`, `xtal/modules/graphene.py`)
+
+Elements A/B, bond from Pyykkö, layers, AA/AB/ABC (AA' when A != B),
+spacing (3.35 C, 3.33 BN when empty), graphite periodic in c or a
+slab with vacuum, supercell, the rectangular 4-atom cell; bonds
+stated with images, none between layers; `limits.check_graphene`.
+
+### Phase 4 — Twisted bilayer (`xtal/graphene/twist.py`)
+
+Commensurate (m, r), cos θ = (3m²+3mr+r²/2)/(3m²+3mr+r²), atoms
+4(3m²+3mr+r²); the form offers the nearest commensurate angles under
+the size limit.  (1,1) is 21.79° and 28 atoms.
+
 ---
 
 # Not scheduled
