@@ -51,7 +51,7 @@ Provides: forces, hessian, periodic, stress
 | Setting | Accepts | Default | What it is |
 |---|---|---|---|
 | **Model** | one of MACE-MPA-0 -- MPtrj + sAlex, PBE+U (recommended), MACE-MP-0b3 -- MPtrj, PBE+U, steadier under pressure, MACE-OMAT-0 -- OMat, PBE+U [ASL licence], MACE-MATPES-r2SCAN-0 -- r2SCAN, no +U [ASL licence], MACE-MH-1 -- crystals, molecules and surfaces [ASL licence], MACE-MP-MOF0 -- 127 MOFs, PBE-D3(BJ), for phonons; 26 elements [CC BY 4.0, cite], uMOF-MH -- 19 950 MOFs, r2SCAN-D4, gas loading and MD [ASL licence, cite], MACE-MP-0a medium -- the default before mace 0.3.10, MACE-MP-0a small -- fastest, MACE-MP-0a large, A model file of my own | `medium-mpa-0` | The MACE-MP foundation models are fitted over the Materials Project and need nothing assigning -- they answer for a framework whose metal node UFF has no parameters for.  Each is downloaded once, to MACE's own cache.  Choose 'a model file of my own' for one you have fitted. |
-| **Model file** | path |  | A .model file, for the 'my own' choice above.  Ignored by the MACE-MP models. |
+| **Model file** | path |  | A .model file, for the 'my own' choice above.  Ignored by the MACE-MP models.  Download opens the uMOF models' page on figshare. |
 | **Run on** | one of Whatever is fastest here, CPU, Apple GPU (mps), NVIDIA GPU (cuda) | `auto` | A GPU is worth an order of magnitude on a framework of a few thousand atoms.  'Whatever is fastest here' asks torch what this machine has. |
 | **Double precision** | bool | `True` | Leave this on for geometry optimisation: in single precision the model's own noise is larger than the energy differences an optimiser is reading, and the line search wanders instead of converging. |
 

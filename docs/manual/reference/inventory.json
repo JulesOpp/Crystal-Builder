@@ -6096,7 +6096,7 @@
      "label": "Model file",
      "accepts": "path",
      "default": "",
-     "help": "A .model file, for the 'my own' choice above.  Ignored by the MACE-MP models."
+     "help": "A .model file, for the 'my own' choice above.  Ignored by the MACE-MP models.  Download opens the uMOF models' page on figshare."
     },
     {
      "name": "device",

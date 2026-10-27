@@ -189,6 +189,49 @@ def test_a_model_file_that_is_not_there_is_refused(monkeypatch,
                           model_path=str(real)).ok
 
 
+def test_a_fine_tuned_model_file_loads_through_the_head_it_fitted(
+        monkeypatch, tmp_path):
+    """uMOF-MH pointed at by path failed with "no head in the model is
+    'default'": a fine-tuned file holds its foundation model's head
+    beside its own, and MACE will not choose.  The file is read once,
+    and handed over loaded rather than by path."""
+    import types
+
+    loaded = types.SimpleNamespace(heads=["pt_head", "r2scan+d4"])
+    made = []
+
+    class Model:
+        def __init__(self, **kwargs):
+            made.append(kwargs)
+
+    torch = types.ModuleType("torch")
+    torch.load = lambda path, **kwargs: loaded
+    calculators = types.ModuleType("mace.calculators")
+    calculators.MACECalculator = Model
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "mace", types.ModuleType("mace"))
+    monkeypatch.setitem(sys.modules, "mace.calculators", calculators)
+    monkeypatch.setattr(mace, "_device", lambda wanted: "cpu")
+
+    mace._build_model(mace.MACEOptions(
+        model=mace.CUSTOM, model_path=str(tmp_path / "uMOF-MH.model")))
+
+    assert made == [{"models": loaded, "device": "cpu",
+                     "default_dtype": "float64", "head": "r2scan+d4"}]
+
+
+def test_a_model_files_head_is_left_to_mace_unless_it_cannot_choose():
+    """One head, or one called default, is MACE's to pick and always
+    was; two fitted heads are named rather than guessed between."""
+    choose = mace._fine_tuned_head
+    assert choose(None, "a.model") is None
+    assert choose(["Default"], "a.model") is None
+    assert choose(["pt_head", "Default"], "a.model") is None
+    assert choose(["pt_head", "pbe_d3"], "a.model") == "pbe_d3"
+    with pytest.raises(CalculatorError, match="pbe, r2scan"):
+        choose(["pt_head", "pbe", "r2scan"], "a.model")
+
+
 def test_the_engine_is_in_the_registry_with_what_it_provides():
     engine = ENGINES.get("mace")
     assert "forces" in engine.provides and "stress" in engine.provides

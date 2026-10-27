@@ -436,6 +436,21 @@ def test_the_form_hands_back_declared_types(qtbot):
     assert isinstance(form.values()["n"], int)
 
 
+def test_a_path_says_where_its_file_is_had_when_it_declares_it(qtbot):
+    """The MACE model file's Download link, beside Browse: a path
+    nobody can fill without knowing where the file comes from.  One
+    that declares nothing draws no link."""
+    url = "https://doi.org/10.6084/m9.figshare.33311829"
+    form = ParamForm((Param("f", kind="path", link=("Download", url)),
+                      Param("g", kind="path")))
+    qtbot.addWidget(form)
+    link = form.widgets["f"].link
+    assert link.openExternalLinks()
+    assert f'href="{url}"' in link.text() and "Download" in link.text()
+    assert form.widgets["g"].link is None
+    assert form.values() == {"f": "", "g": ""}
+
+
 def test_a_choice_gives_back_its_value_not_its_label(qtbot):
     form = ParamForm((Param("m", kind="choice",
                             choices=(("lbfgs", "L-BFGS"),

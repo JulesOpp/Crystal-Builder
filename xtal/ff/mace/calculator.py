@@ -282,7 +282,10 @@ OPTIONS = (
                "you have fitted."),
     Param("model_path", "Model file", kind="path",
           help="A .model file, for the 'my own' choice above.  "
-               "Ignored by the MACE-MP models."),
+               "Ignored by the MACE-MP models.  Download opens the "
+               "uMOF models' page on figshare.",
+          link=("Download", "https://doi.org/10.6084/m9.figshare."
+                            "33311829")),
     Param("device", "Run on", kind="choice", choices=DEVICE_CHOICES,
           default="auto",
           help="A GPU is worth an order of magnitude on a framework "
@@ -331,12 +334,18 @@ def _build_model(options: MACEOptions):
     device = _device(options.device)
     try:
         if options.model == CUSTOM:
+            import torch
             from mace.calculators import MACECalculator as _Model
 
-            model = _Model(
-                model_paths=str(Path(options.model_path)
-                                .expanduser()),
-                device=device, default_dtype=dtype)
+            # Loaded here, once, so its heads can be read before MACE
+            # is asked to choose among them -- which it will not do.
+            loaded = torch.load(Path(options.model_path).expanduser(),
+                                map_location=device, weights_only=False)
+            head = _fine_tuned_head(getattr(loaded, "heads", None),
+                                    Path(options.model_path).name)
+            model = _Model(models=loaded, device=device,
+                           default_dtype=dtype,
+                           **({"head": head} if head else {}))
         elif options.model in _FETCHED:
             from mace.calculators import MACECalculator as _Model
 
@@ -364,6 +373,34 @@ def _build_model(options: MACEOptions):
             f"({options.model_path or options.model}): {exc}"
         ) from None
     return model
+
+
+#: The head ``mace run_train`` keeps for the foundation model a file
+#: was fine-tuned from, beside the head it fitted.
+PRETRAINED_HEAD = "pt_head"
+
+
+def _fine_tuned_head(heads, name: str) -> str | None:
+    """The head of a model file of one's own to load, or ``None`` for
+    MACE's own choice.
+
+    A fine-tuned file holds the foundation model's head beside its own
+    and MACE refuses to guess between them ("no head in the model is
+    'default'") -- uMOF-MH and MACE-MP-MOF0 are both such files, and
+    pointed at by path neither loaded.  The fitted head is the one
+    that is not ``pt_head``; with several of those it is for the
+    person to say, so they are named.
+    """
+    heads = list(heads or ())
+    if len(heads) <= 1 or any(h.lower() == "default" for h in heads):
+        return None
+    fitted = [h for h in heads if h != PRETRAINED_HEAD]
+    if len(fitted) == 1:
+        return fitted[0]
+    raise CalculatorError(
+        f"{name} holds {len(heads)} heads ({', '.join(heads)}) and "
+        f"none is the one to use by default; this engine cannot "
+        f"choose a head yet")
 
 
 def _cache_dir() -> Path:
