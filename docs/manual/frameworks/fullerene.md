@@ -35,8 +35,8 @@ the Td one.
 
 ## Building one
 
-1. Open *Modules ▸ Fullerene builder ▸*
-   {ref}`Build a fullerene… <cmd-module.fullerene.build>`.
+1. Open *Modules ▸ Carbon builder ▸*
+   {ref}`Fullerene… <cmd-module.fullerene.build>`.
 2. Set the **Size**.  The **Isomer** list fills with the size's
    isomers, each named by its point group where it was checked by hand
    and by the order of its group otherwise.  **Default** is the cage

@@ -530,8 +530,12 @@ class ShellRefresh:
         asks which.
         """
         idle = self.module_worker is None
-        for name, needs_structure, action in self._module_actions:
+        for name, needs_structure, action, module in self._module_actions:
             available = action.availability()
+            # A module with a submenu of its own is greyed there; one
+            # sharing a submenu is greyed here, entry by entry.
+            if module.menu and available:
+                available = module.availability()
             self.actions_.set_enabled(
                 [name], idle and bool(available)
                 and (editable or not needs_structure))

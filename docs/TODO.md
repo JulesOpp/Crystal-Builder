@@ -374,22 +374,14 @@ builders under Modules ▸ Carbon builder.  Branch
 
 | Phase | Deliverable | Size |
 |---|---|---|
-| 5 | `Module.menu`: the Carbon builder submenu and dock row | S-M |
 | 3 | Graphene core and module (`graphene.build`) | M |
 | 4 | Twisted bilayer at commensurate (m, r) | M |
 
-In that order, one commit each.  Phases 1 and 2, the core in
-`xtal/fullerene/` with its table to IPR C100 and `fullerene.build`
-with its form, shipped 2026-10-27.
-
-### Phase 5 — The Carbon builder submenu
-
-`Module.menu`: modules sharing it are one submenu in the Modules
-menu and one row in the Modules dock, each entry greyed by its own
-module.  Registry keys unchanged (`nanotube.build`, `carbon.build`).
-Orders fullerene 23, nanotube 24, graphene 25, disordered carbon 26,
-polymer 27; entries "Fullerene...", "Nanotube...", "Graphene...",
-"Disordered carbon (ZTC, schwarzite)...".
+In that order, one commit each.  Phases 1, 2 and 5 shipped
+2026-10-27: the core in `xtal/fullerene/` with its table to IPR
+C100, `fullerene.build` with its form, and the Carbon builder
+submenu (`Module.menu`).  Graphene joins it with `menu="Carbon
+builder"` at order 25, labelled "Graphene...".
 
 ### Phase 3 — Graphene (`xtal/graphene/`, `xtal/modules/graphene.py`)
 

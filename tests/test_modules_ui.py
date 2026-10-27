@@ -109,7 +109,8 @@ def test_the_menu_is_built_from_the_registry(window):
     before it opens appears without this file changing."""
     submenus = [a.text() for a in window.modules_menu.actions()
                 if not a.isSeparator()]
-    assert submenus == [m.label for m in MODULES if m.listed]
+    titles = [m.menu or m.label for m in MODULES if m.listed]
+    assert submenus == list(dict.fromkeys(titles))
     assert "Stub" in submenus
 
 
@@ -117,7 +118,7 @@ def test_modules_of_one_kind_sit_together_between_separators(window):
     """A separator where the group changes, and nowhere else.  If this
     fails, the menu is a flat list again, or a group is split in
     two."""
-    group = {m.label: m.group for m in MODULES}
+    group = {m.menu or m.label: m.group for m in MODULES}
     runs = [[]]
     for action in window.modules_menu.actions():
         if action.isSeparator():
@@ -175,6 +176,62 @@ def test_a_registry_action_gets_an_action_of_its_own(window):
     assert "module.stub.count" in window.actions_
     assert window.actions_["module.stub.count"].text() == \
         "Count here..."
+
+
+def test_the_carbon_builders_are_one_submenu_by_dimension(window):
+    """Fullerene, nanotube, disordered carbon: one Carbon builder
+    submenu, 0D to 3D, where there were a submenu each."""
+    carbon = _submenu(window.modules_menu, "Carbon builder")
+    assert [a.text() for a in carbon.actions()] == [
+        "Fullerene...", "Nanotube...",
+        "Disordered carbon (ZTC, schwarzite)..."]
+    titles = [a.text() for a in window.modules_menu.actions()]
+    for gone in ("Fullerene builder", "Nanotube builder",
+                 "Disordered carbon builder"):
+        assert gone not in titles
+
+
+def test_sharing_a_submenu_keeps_every_registry_key(window):
+    """Only the menu moved: ``xtal run nanotube.build``, a saved
+    shortcut and a test still name each entry as they did."""
+    for path in ("fullerene.build", "nanotube.build", "carbon.build"):
+        module, action = MODULES.find(path)
+        assert module.menu == "Carbon builder"
+        assert f"module.{path}" in window.actions_
+
+
+def _shared(name, label, available=True):
+    reason = "" if available else f"{label} is not installed"
+    return Module(
+        name=name, label=label, order=800, menu="Shared",
+        check=lambda: Availability(available, reason),
+        actions=(Action(name="go", label=f"{label}...",
+                        needs_structure=False,
+                        run=lambda job: None),))
+
+
+def test_a_greyed_module_in_a_shared_submenu_greys_only_its_entries(
+        qtbot, settings):
+    """The submenu runs while anything in it can, and the module that
+    cannot is greyed entry by entry with its reason.  Greying the
+    submenu, as a module's own is greyed, would have hidden the one
+    that works."""
+    MODULES.register(_shared("here", "Here"))
+    MODULES.register(_shared("gone", "Gone", available=False))
+    try:
+        win = MainWindow(viewport_factory=StubViewport,
+                         settings=settings)
+        qtbot.addWidget(win)
+        shared = _submenu(win.modules_menu, "Shared")
+        assert shared.isEnabled()
+        assert "Gone is not installed" in shared.toolTip()
+        assert win.actions_["module.here.go"].isEnabled()
+        gone = win.actions_["module.gone.go"]
+        assert not gone.isEnabled()
+        assert "Gone is not installed" in gone.toolTip()
+    finally:
+        MODULES.unregister("here")
+        MODULES.unregister("gone")
 
 
 def test_an_unavailable_module_is_greyed_out_with_the_reason(
@@ -350,6 +407,36 @@ def test_an_unavailable_module_is_disabled_in_the_tree(qapp):
                if not item.child(c).data(WHY_ROLE)]
     assert [e.text() for e in entries] == ["Go"]
     assert not entries[0].isEnabled()
+
+
+def test_the_tree_groups_a_shared_submenu_under_one_row(window):
+    """The panel says what the menu says: one Carbon builder row, the
+    three builders' entries under it, each still running its own
+    module."""
+    tree = window.modules_dock.tree
+    carbon = _tree_row(tree, "Carbon builder")
+    leaves = [carbon.child(k) for k in range(carbon.rowCount())]
+    assert [leaf.text() for leaf in leaves] == [
+        "Fullerene...", "Nanotube...",
+        "Disordered carbon (ZTC, schwarzite)..."]
+    assert [leaf.data(MODULE_ROLE) for leaf in leaves] == [
+        ("fullerene", "build"), ("nanotube", "build"),
+        ("carbon", "build")]
+
+
+def test_a_greyed_module_in_a_shared_row_greys_only_its_entries(qapp):
+    registry = type(MODULES)()
+    registry.register(_shared("here", "Here"))
+    registry.register(_shared("gone", "Gone", available=False))
+    tree = ModuleTree(registry)
+    shared = tree.model_.item(0)
+    assert shared.text() == "Shared" and shared.isEnabled()
+    entries = {shared.child(k).text(): shared.child(k)
+               for k in range(shared.rowCount())
+               if not shared.child(k).data(WHY_ROLE)}
+    assert entries["Here..."].isEnabled()
+    assert not entries["Gone..."].isEnabled()
+    assert "Gone is not installed" in entries["Gone..."].toolTip()
 
 
 def _porosity_tree(monkeypatch):

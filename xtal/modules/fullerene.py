@@ -159,12 +159,11 @@ FULLERENE = Module(
                 "or any cage typed as its face spiral, of one element, "
                 "optionally with a hydrogen on every atom.  It opens "
                 "in a new tab with its bonds stated.",
-    # After the nanotube until the Carbon builder submenu orders the
-    # four by dimension.
-    order=26, group="build",
+    # The carbon builders by dimension: 0D, 1D, 2D, 3D.
+    order=23, group="build", menu="Carbon builder",
     provides=frozenset({"structure", "table"}),
     actions=(
-        Action(name="build", label="Build a fullerene...",
+        Action(name="build", label="Fullerene...",
                tip="A closed cage from the table of isomers or a "
                    "typed spiral; the result opens in a new tab",
                kind="build",

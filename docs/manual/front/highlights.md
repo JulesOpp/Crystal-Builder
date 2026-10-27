@@ -5,7 +5,7 @@ by release, is the {doc}`change log </back/changelog>`.
 
 ## In 1.0
 
-- **Disordered carbon** (*Modules ▸ Disordered carbon builder*): a
+- **Disordered carbon** (*Modules ▸ Carbon builder ▸ Disordered carbon*): a
   zeolite-templated carbon or a schwarzite as one connected, terminated
   sheet that follows a net, at the density you ask for, with the rings
   Gauss--Bonnet fixes said up front --

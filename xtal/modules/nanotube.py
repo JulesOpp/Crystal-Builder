@@ -175,10 +175,10 @@ NANOTUBE = Module(
                 "nitride or any two elements on the honeycomb's two "
                 "sites.  It opens in a new tab with its bonds "
                 "stated.",
-    order=25, group="build",
+    order=24, group="build", menu="Carbon builder",
     provides=frozenset({"structure", "table"}),
     actions=(
-        Action(name="build", label="Build a nanotube...",
+        Action(name="build", label="Nanotube...",
                tip="A single-walled tube from (n,m); the result "
                    "opens in a new tab",
                kind="build",

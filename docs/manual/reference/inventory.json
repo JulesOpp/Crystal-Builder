@@ -1657,9 +1657,25 @@
    "checkable": false
   },
   {
+   "key": "module.fullerene.build",
+   "section": "Modules",
+   "path": "Carbon builder ▸ Fullerene...",
+   "shortcut": "",
+   "tip": "A closed cage from the table of isomers or a typed spiral; the result opens in a new tab",
+   "checkable": false
+  },
+  {
+   "key": "module.nanotube.build",
+   "section": "Modules",
+   "path": "Carbon builder ▸ Nanotube...",
+   "shortcut": "",
+   "tip": "A single-walled tube from (n,m); the result opens in a new tab",
+   "checkable": false
+  },
+  {
    "key": "module.carbon.build",
    "section": "Modules",
-   "path": "Disordered carbon builder ▸ Build a disordered carbon...",
+   "path": "Carbon builder ▸ Disordered carbon (ZTC, schwarzite)...",
    "shortcut": "",
    "tip": "Ribbons of carbon along a net, at a density; the result opens in a new tab",
    "checkable": false
@@ -1670,22 +1686,6 @@
    "path": "Polymer builder ▸ Build an amorphous polymer...",
    "shortcut": "",
    "tip": "Chains grown into a box at a density; the result opens in a new tab",
-   "checkable": false
-  },
-  {
-   "key": "module.nanotube.build",
-   "section": "Modules",
-   "path": "Nanotube builder ▸ Build a nanotube...",
-   "shortcut": "",
-   "tip": "A single-walled tube from (n,m); the result opens in a new tab",
-   "checkable": false
-  },
-  {
-   "key": "module.fullerene.build",
-   "section": "Modules",
-   "path": "Fullerene builder ▸ Build a fullerene...",
-   "shortcut": "",
-   "tip": "A closed cage from the table of isomers or a typed spiral; the result opens in a new tab",
    "checkable": false
   },
   {
@@ -2518,13 +2518,164 @@
    ]
   },
   {
+   "name": "fullerene",
+   "label": "Fullerene builder",
+   "description": "Build a fullerene cage: any of the isomers from C20 to C40, the isolated-pentagon ones from C60 to C100, or any cage typed as its face spiral, of one element, optionally with a hydrogen on every atom.  It opens in a new tab with its bonds stated.",
+   "actions": [
+    {
+     "name": "build",
+     "label": "Fullerene...",
+     "tip": "A closed cage from the table of isomers or a typed spiral; the result opens in a new tab",
+     "dialog": "fullerene-build",
+     "shell": "",
+     "params": [
+      {
+       "name": "n",
+       "label": "Size",
+       "accepts": "int, 20 to 500 atoms",
+       "default": "60",
+       "help": "How many atoms the cage has: an even number from 20, and not 22.  The table holds every isomer from C20 to C40 and every isolated-pentagon one from C60 to C100; any other size needs its spiral typed."
+      },
+      {
+       "name": "isomer",
+       "label": "Isomer",
+       "accepts": "int, 0 to 10000",
+       "default": "0",
+       "help": "Which of the size's isomers, counted from 1 in the Atlas of Fullerenes' order (from C60, among the IPR ones).  0 is the one the formula usually means: C60-Ih, C70-D5h, C80-Ih, C84-D2."
+      },
+      {
+       "name": "spiral",
+       "label": "Spiral",
+       "accepts": "text",
+       "default": "",
+       "help": "The twelve faces, counted from 1, where the pentagons fall in a face spiral -- C60-Ih is 1 7 9 11 13 15 18 20 22 24 26 32.  Builds any cage that has one, in place of the isomer; left empty, the isomer is built."
+      },
+      {
+       "name": "element",
+       "label": "Element",
+       "accepts": "text",
+       "default": "C",
+       "help": "One element for every atom.  A cage's twelve pentagons are odd rings, so two elements cannot alternate round it as B and N do on a sheet."
+      },
+      {
+       "name": "bond",
+       "label": "Bond length",
+       "accepts": "text",
+       "default": "",
+       "help": "The cage's bond, in Angstrom, before relaxing.  Left empty it is the element's from Pyykkö's covalent radii: aromatic (1.42 A for C) for a bare cage, single (1.50 A) for a hydrogenated one.  0.8 to 3.0 A."
+      },
+      {
+       "name": "hydrogenate",
+       "label": "Hydrogen on every atom",
+       "accepts": "bool",
+       "default": "False",
+       "help": "One hydrogen on every atom, pointing out of the cage, at UFF's sp3 X-H length: C60H60."
+      },
+      {
+       "name": "relax",
+       "label": "Relax",
+       "accepts": "one of UFF in a fixed box, No, as placed",
+       "default": "uff",
+       "help": "UFF on the stated bonds, positions only.  As placed is the springs' shape, every bond within about 10 % of the one asked for.  UFF types a bare carbon cage C_R, so its bonds come out nearly equal; C60's alternate 1.40 and 1.45 A."
+      },
+      {
+       "name": "relax_steps",
+       "label": "Relax steps",
+       "accepts": "int, 0 to 5000",
+       "default": "500",
+       "help": "The most UFF steps; C60 converges in a handful."
+      },
+      {
+       "name": "vacuum",
+       "label": "Vacuum",
+       "accepts": "float, 3 to 50 A",
+       "default": "12.0",
+       "help": "The gap between the cage and its periodic image, atom to atom.  12 A clears the force field's 12 A cutoff, so a relaxation sees one cage alone."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "nanotube",
+   "label": "Nanotube builder",
+   "description": "Build a single-walled nanotube from its roll-up vector (n,m): periodic along c, or a finite piece with bare or hydrogen-capped ends, of carbon, boron nitride or any two elements on the honeycomb's two sites.  It opens in a new tab with its bonds stated.",
+   "actions": [
+    {
+     "name": "build",
+     "label": "Nanotube...",
+     "tip": "A single-walled tube from (n,m); the result opens in a new tab",
+     "dialog": "",
+     "shell": "",
+     "params": [
+      {
+       "name": "n",
+       "label": "n",
+       "accepts": "int, 1 to 200",
+       "default": "10",
+       "help": "The roll-up vector's first index: the sheet is rolled so that n a1 + m a2 goes once round the tube.  (n,n) is armchair, (n,0) zigzag, anything else chiral."
+      },
+      {
+       "name": "m",
+       "label": "m",
+       "accepts": "int, 0 to 200",
+       "default": "10",
+       "help": "The roll-up vector's second index.  (m,n) is the mirror image of (n,m): the same tube in the other hand."
+      },
+      {
+       "name": "ends",
+       "label": "Ends",
+       "accepts": "one of Periodic (infinite along c), Finite, ends capped with H, Finite, bare ends",
+       "default": "periodic",
+       "help": "Periodic is an infinite tube along c, with no ends.  Finite is a piece of the length asked for in a vacuum box; capped puts a hydrogen on each edge atom at the force field's own X-H length, bare leaves the edge atoms two-coordinate."
+      },
+      {
+       "name": "length",
+       "label": "Length",
+       "accepts": "float, 1 to 2000 A",
+       "default": "20.0",
+       "help": "Finite: the tube's length.  Periodic: rounded to a whole number of the tube's translational periods, at least one -- the report says what it came to.  A chiral tube's period can be tens of angstroms."
+      },
+      {
+       "name": "element_a",
+       "label": "Element A",
+       "accepts": "text",
+       "default": "C",
+       "help": "The element on one of the honeycomb's two sites.  C and C is a carbon nanotube; B and N a boron nitride one."
+      },
+      {
+       "name": "element_b",
+       "label": "Element B",
+       "accepts": "text",
+       "default": "C",
+       "help": "The element on the other site; every bond joins an A to a B."
+      },
+      {
+       "name": "bond",
+       "label": "Bond length",
+       "accepts": "text",
+       "default": "",
+       "help": "The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest."
+      },
+      {
+       "name": "vacuum",
+       "label": "Vacuum",
+       "accepts": "float, 3 to 50 A",
+       "default": "12.0",
+       "help": "The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A."
+      }
+     ]
+    }
+   ]
+  },
+  {
    "name": "carbon",
    "label": "Disordered carbon builder",
    "description": "Build a zeolite-templated carbon or a schwarzite: one connected sheet that follows a net, cut into ribbons, with Stone-Wales defects and terminated edges, at the density asked for.  It opens in a new tab with its bonds stated.",
    "actions": [
     {
      "name": "build",
-     "label": "Build a disordered carbon...",
+     "label": "Disordered carbon (ZTC, schwarzite)...",
      "tip": "Ribbons of carbon along a net, at a density; the result opens in a new tab",
      "dialog": "carbon-build",
      "shell": "",
@@ -2810,157 +2961,6 @@
        "accepts": "int, 100 to 1000000",
        "default": "20000",
        "help": "A recipe that would make more is refused before anything is grown."
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "name": "nanotube",
-   "label": "Nanotube builder",
-   "description": "Build a single-walled nanotube from its roll-up vector (n,m): periodic along c, or a finite piece with bare or hydrogen-capped ends, of carbon, boron nitride or any two elements on the honeycomb's two sites.  It opens in a new tab with its bonds stated.",
-   "actions": [
-    {
-     "name": "build",
-     "label": "Build a nanotube...",
-     "tip": "A single-walled tube from (n,m); the result opens in a new tab",
-     "dialog": "",
-     "shell": "",
-     "params": [
-      {
-       "name": "n",
-       "label": "n",
-       "accepts": "int, 1 to 200",
-       "default": "10",
-       "help": "The roll-up vector's first index: the sheet is rolled so that n a1 + m a2 goes once round the tube.  (n,n) is armchair, (n,0) zigzag, anything else chiral."
-      },
-      {
-       "name": "m",
-       "label": "m",
-       "accepts": "int, 0 to 200",
-       "default": "10",
-       "help": "The roll-up vector's second index.  (m,n) is the mirror image of (n,m): the same tube in the other hand."
-      },
-      {
-       "name": "ends",
-       "label": "Ends",
-       "accepts": "one of Periodic (infinite along c), Finite, ends capped with H, Finite, bare ends",
-       "default": "periodic",
-       "help": "Periodic is an infinite tube along c, with no ends.  Finite is a piece of the length asked for in a vacuum box; capped puts a hydrogen on each edge atom at the force field's own X-H length, bare leaves the edge atoms two-coordinate."
-      },
-      {
-       "name": "length",
-       "label": "Length",
-       "accepts": "float, 1 to 2000 A",
-       "default": "20.0",
-       "help": "Finite: the tube's length.  Periodic: rounded to a whole number of the tube's translational periods, at least one -- the report says what it came to.  A chiral tube's period can be tens of angstroms."
-      },
-      {
-       "name": "element_a",
-       "label": "Element A",
-       "accepts": "text",
-       "default": "C",
-       "help": "The element on one of the honeycomb's two sites.  C and C is a carbon nanotube; B and N a boron nitride one."
-      },
-      {
-       "name": "element_b",
-       "label": "Element B",
-       "accepts": "text",
-       "default": "C",
-       "help": "The element on the other site; every bond joins an A to a B."
-      },
-      {
-       "name": "bond",
-       "label": "Bond length",
-       "accepts": "text",
-       "default": "",
-       "help": "The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest."
-      },
-      {
-       "name": "vacuum",
-       "label": "Vacuum",
-       "accepts": "float, 3 to 50 A",
-       "default": "12.0",
-       "help": "The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A."
-      }
-     ]
-    }
-   ]
-  },
-  {
-   "name": "fullerene",
-   "label": "Fullerene builder",
-   "description": "Build a fullerene cage: any of the isomers from C20 to C40, the isolated-pentagon ones from C60 to C100, or any cage typed as its face spiral, of one element, optionally with a hydrogen on every atom.  It opens in a new tab with its bonds stated.",
-   "actions": [
-    {
-     "name": "build",
-     "label": "Build a fullerene...",
-     "tip": "A closed cage from the table of isomers or a typed spiral; the result opens in a new tab",
-     "dialog": "fullerene-build",
-     "shell": "",
-     "params": [
-      {
-       "name": "n",
-       "label": "Size",
-       "accepts": "int, 20 to 500 atoms",
-       "default": "60",
-       "help": "How many atoms the cage has: an even number from 20, and not 22.  The table holds every isomer from C20 to C40 and every isolated-pentagon one from C60 to C100; any other size needs its spiral typed."
-      },
-      {
-       "name": "isomer",
-       "label": "Isomer",
-       "accepts": "int, 0 to 10000",
-       "default": "0",
-       "help": "Which of the size's isomers, counted from 1 in the Atlas of Fullerenes' order (from C60, among the IPR ones).  0 is the one the formula usually means: C60-Ih, C70-D5h, C80-Ih, C84-D2."
-      },
-      {
-       "name": "spiral",
-       "label": "Spiral",
-       "accepts": "text",
-       "default": "",
-       "help": "The twelve faces, counted from 1, where the pentagons fall in a face spiral -- C60-Ih is 1 7 9 11 13 15 18 20 22 24 26 32.  Builds any cage that has one, in place of the isomer; left empty, the isomer is built."
-      },
-      {
-       "name": "element",
-       "label": "Element",
-       "accepts": "text",
-       "default": "C",
-       "help": "One element for every atom.  A cage's twelve pentagons are odd rings, so two elements cannot alternate round it as B and N do on a sheet."
-      },
-      {
-       "name": "bond",
-       "label": "Bond length",
-       "accepts": "text",
-       "default": "",
-       "help": "The cage's bond, in Angstrom, before relaxing.  Left empty it is the element's from Pyykkö's covalent radii: aromatic (1.42 A for C) for a bare cage, single (1.50 A) for a hydrogenated one.  0.8 to 3.0 A."
-      },
-      {
-       "name": "hydrogenate",
-       "label": "Hydrogen on every atom",
-       "accepts": "bool",
-       "default": "False",
-       "help": "One hydrogen on every atom, pointing out of the cage, at UFF's sp3 X-H length: C60H60."
-      },
-      {
-       "name": "relax",
-       "label": "Relax",
-       "accepts": "one of UFF in a fixed box, No, as placed",
-       "default": "uff",
-       "help": "UFF on the stated bonds, positions only.  As placed is the springs' shape, every bond within about 10 % of the one asked for.  UFF types a bare carbon cage C_R, so its bonds come out nearly equal; C60's alternate 1.40 and 1.45 A."
-      },
-      {
-       "name": "relax_steps",
-       "label": "Relax steps",
-       "accepts": "int, 0 to 5000",
-       "default": "500",
-       "help": "The most UFF steps; C60 converges in a handful."
-      },
-      {
-       "name": "vacuum",
-       "label": "Vacuum",
-       "accepts": "float, 3 to 50 A",
-       "default": "12.0",
-       "help": "The gap between the cage and its periodic image, atom to atom.  12 A clears the force field's 12 A cutoff, so a relaxation sees one cage alone."
       }
      ]
     }
