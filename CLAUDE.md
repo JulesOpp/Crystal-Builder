@@ -148,7 +148,7 @@ ignored, unlike `QDialog.exec`. So every context menu is raised
 through `xtalapp.menus.popup`, and that is what the guard replaces; a
 test that means to open one patches it itself. The gap cost three CI
 jobs 30 minutes each, cancelled at 98 % with nothing in the log saying
-which test it was, which is also why CI now caps at 12 minutes and
+which test it was, which is also why CI now caps at 15 minutes and
 dumps stacks at `faulthandler_timeout=180`.
 
 **No window the suite shows is ever drawn.** `qapp_cls` in

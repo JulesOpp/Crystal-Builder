@@ -23,8 +23,11 @@ jobs:
     # Intel one 13-20, and both caps cancelled green suites at 100 %
     # on 2026-09-30.  At 5500 Windows is 17-19 minutes of tests and
     # two of setup, and 20 cancelled a green run on 2026-10-22, so it
-    # has Intel's 30.  A hang is still caught per test at 180 s.
-    timeout-minutes: ${{ (matrix.os == 'macos-15-intel' || matrix.os == 'windows-latest') && 30 || 12 }}
+    # has Intel's 30.  Linux and Apple silicon went from 12 to 15 at
+    # 6100: Ubuntu runs on main were 6.5-11 minutes, and the carbon
+    # builders' PR was cancelled green at 99 % on 2026-10-27.  A hang
+    # is still caught per test at 180 s.
+    timeout-minutes: ${{ (matrix.os == 'macos-15-intel' || matrix.os == 'windows-latest') && 30 || 15 }}
     strategy:
       fail-fast: false
       matrix:
