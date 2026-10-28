@@ -596,7 +596,7 @@
    "key": "export",
    "section": "File",
    "path": "Export...",
-   "shortcut": "",
+   "shortcut": "Ctrl+E",
    "tip": "Write a file for something else to read -- a CIF, an XYZ.  One way: it never becomes this document's file",
    "checkable": false
   },
@@ -636,7 +636,7 @@
    "key": "new_workspace",
    "section": "File",
    "path": "New workspace...",
-   "shortcut": "",
+   "shortcut": "Ctrl+Shift+N",
    "tip": "",
    "checkable": false
   },
@@ -1236,7 +1236,7 @@
    "key": "measure_selection",
    "section": "Measure",
    "path": "Measure selection",
-   "shortcut": "Ctrl+M",
+   "shortcut": "Ctrl+Shift+M",
    "tip": "Measure the selected atoms in the order they were picked: two a distance, three an angle about the middle one, four a torsion -- or the length of every selected bond",
    "checkable": false
   },
@@ -1756,7 +1756,7 @@
    "key": "single_point",
    "section": "Modules",
    "path": "Force Field ▸ Single point energy",
-   "shortcut": "Ctrl+E",
+   "shortcut": "",
    "tip": "Energy and per-term breakdown at this geometry",
    "checkable": false
   },
@@ -1764,7 +1764,7 @@
    "key": "optimize",
    "section": "Modules",
    "path": "Force Field ▸ Optimise geometry",
-   "shortcut": "Ctrl+Shift+E",
+   "shortcut": "Ctrl+M",
    "tip": "Relax the structure within its space group",
    "checkable": false
   },
@@ -1908,7 +1908,7 @@
    "key": "help_contents",
    "section": "Help",
    "path": "Crystal Builder Help",
-   "shortcut": "Ctrl+?",
+   "shortcut": "F1",
    "tip": "Every command and every module setting, generated from the application itself",
    "checkable": false
   },

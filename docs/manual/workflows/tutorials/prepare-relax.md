@@ -100,7 +100,7 @@ point of the next section.
    *unticked*: this first run moves atoms only, at the experimental
    cell.
 3. Choose *Modules ▸ Force Field ▸* {ref}`Optimise geometry
-   <cmd-optimize>` ({kbd}`Ctrl+Shift+E`).
+   <cmd-optimize>` ({kbd}`Ctrl+M`).
 
 ```console
 $ xtal optimize MIL-53_prep.cif --method smart -q -o MIL-53_pos.cif
