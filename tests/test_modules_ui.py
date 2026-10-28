@@ -167,8 +167,7 @@ def test_the_shortcuts_followed_the_entries_into_the_menu(window):
     forcefield = _submenu(window.modules_menu, "Force Field")
     shortcuts = {s.toString() for a in forcefield.actions()
                  for s in a.shortcuts()}
-    assert QKeySequence("Ctrl+E").toString() in shortcuts
-    assert QKeySequence("Ctrl+Shift+E").toString() in shortcuts
+    assert QKeySequence("Ctrl+M").toString() in shortcuts
 
 
 def test_a_registry_action_gets_an_action_of_its_own(window):

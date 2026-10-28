@@ -13,15 +13,15 @@ crystal when the atoms move but never appears on the undo stack.
 
 1. Select the atoms, in the order the measurement reads them.
 2. Press {ref}`Measure selection <cmd-measure_selection>`
-   ({kbd}`Ctrl+M`).  Two atoms are a distance, three an angle about
+   ({kbd}`Ctrl+Shift+M`).  Two atoms are a distance, three an angle about
    the middle one, four a torsion; the status bar gives the number
    and it joins the *Measure* panel's table -- for two Zn of MOF-5,
    *Zn1 - Zn1   10.6895 A*; for three, *Zn1 - Zn1 - Zn1   90.00 deg*.
 3. With bonds selected and no atom in hand, the same command measures
    every selected bond, one distance each and announced once:
-   clicking a bond and pressing {kbd}`Ctrl+M` is the shortest way to
-   ask how long it is, and a box drawn round a linker followed by
-   {kbd}`Ctrl+M` measures the eleven bonds inside it.
+   clicking a bond and pressing {kbd}`Ctrl+Shift+M` is the shortest
+   way to ask how long it is, and a box drawn round a linker followed
+   by {kbd}`Ctrl+Shift+M` measures the eleven bonds inside it.
 
 The entry is enabled exactly when it would do something -- two to four
 atoms, or bonds with no atom -- and the context menu names the

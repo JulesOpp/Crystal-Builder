@@ -36,12 +36,10 @@ found.  Entries that need no binary -- the *(faster)* porosity
 entries, which read their numbers off the application's own grid --
 stay enabled beside their greyed Zeo++ twins.
 
-Two entries keep the keys they had when they were the whole of a
-*Calculate* menu: *Force Field ▸* {ref}`Single point energy
-<cmd-single_point>` is {kbd}`Ctrl+E` and {ref}`Optimise geometry
-<cmd-optimize>` is {kbd}`Ctrl+Shift+E`.  Their DFTB+ counterparts have
-no key on purpose: a DFTB+ run is launched from its panel or this
-menu, not by reflex.
+One entry has a key: *Force Field ▸* {ref}`Optimise geometry
+<cmd-optimize>` is {kbd}`Ctrl+M`.  Its DFTB+ counterpart has no key on
+purpose: a DFTB+ run is launched from its panel or this menu, not by
+reflex.
 
 ## Where each module is described
 

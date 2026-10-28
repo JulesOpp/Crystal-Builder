@@ -313,7 +313,7 @@ behind, and the panel says so once.
    it says; on a large cell the repaint is the most expensive thing
    happening, so a long run is often best watched as the plot alone.
 4. Press **Optimise** (or *Modules ▸ Force Field ▸*
-   {ref}`Optimise geometry <cmd-optimize>`, {kbd}`Ctrl+Shift+E`).  The
+   {ref}`Optimise geometry <cmd-optimize>`, {kbd}`Ctrl+M`).  The
    structure moves in the view, the energy and largest force are
    plotted live, and the button becomes **Stop**; **Pause** holds the
    run between steps.

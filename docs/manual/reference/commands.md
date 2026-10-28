@@ -747,7 +747,7 @@ Save the session under another name
 (cmd-export)=
 ### Export...
 
-`export`
+`export` · Ctrl+E
 
 Write a file for something else to read -- a CIF, an XYZ.  One way: it never becomes this document's file
 
@@ -797,7 +797,7 @@ One unit cell with its bonds, lit and rendered by Blender, the scene kept beside
 (cmd-new_workspace)=
 ### New workspace...
 
-`new_workspace`
+`new_workspace` · Ctrl+Shift+N
 
 *No description yet.*
 
@@ -1559,7 +1559,7 @@ Put the cell's corner somewhere else, so that a cluster cut in two by a face com
 (cmd-measure_selection)=
 ### Measure selection
 
-`measure_selection` · Ctrl+M
+`measure_selection` · Ctrl+Shift+M
 
 Measure the selected atoms in the order they were picked: two a distance, three an angle about the middle one, four a torsion -- or the length of every selected bond
 
@@ -2213,7 +2213,7 @@ Atom types, electrostatics, and how the run is going
 (cmd-single_point)=
 ### Force Field ▸ Single point energy
 
-`single_point` · Ctrl+E
+`single_point`
 
 Energy and per-term breakdown at this geometry
 
@@ -2223,7 +2223,7 @@ Energy and per-term breakdown at this geometry
 (cmd-optimize)=
 ### Force Field ▸ Optimise geometry
 
-`optimize` · Ctrl+Shift+E
+`optimize` · Ctrl+M
 
 Relax the structure within its space group
 
@@ -2407,7 +2407,7 @@ Put the panels back where they started
 (cmd-help_contents)=
 ### Crystal Builder Help
 
-`help_contents` · Ctrl+?
+`help_contents` · F1
 
 Every command and every module setting, generated from the application itself
 
