@@ -170,3 +170,18 @@ def test_a_spiral_that_does_not_close_greys_build_saying_so(dialog):
     _widget(dialog, "spiral").setText("1 2 3 4 5 6 7 8 9 10 11 32")
     assert not build.isEnabled()
     assert "does not close" in dialog.readout.text()
+
+
+def test_a_cage_uff_cannot_type_fails_with_a_sentence(monkeypatch):
+    """A typing error past the recipe's own check is a failed run with
+    the typer's reason, never a traceback."""
+    from xtal.ff.uff.typer import TypingError
+    from xtal.fullerene import build as cage
+
+    def refuse(*_args, **_kwargs):
+        raise TypingError("UFF has no parameters for Qq")
+
+    monkeypatch.setattr(cage, "_relax", refuse)
+    result = _run(n=20)
+    assert not result.ok
+    assert "UFF has no parameters for Qq" in result.message

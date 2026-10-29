@@ -90,8 +90,8 @@ class GrapheneBuildDialog(ModuleDialog):
         if values["stacking"] != sheet.TWISTED:
             return
         try:
-            angle = float(str(values["twist"]).strip().rstrip("°"))
-        except ValueError:
+            angle, _text = twist.written(values["twist"])
+        except twist.TwistError:
             return
         layers = max(int(values["layers"]), 1)
         # Atoms a build has per atom of one bilayer cell.

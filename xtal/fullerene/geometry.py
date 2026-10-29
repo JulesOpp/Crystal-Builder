@@ -56,13 +56,23 @@ def _second_neighbours(n, bonds):
     return np.array(sorted(pairs))
 
 
+def _keys(pairs, n: int) -> np.ndarray:
+    """Each pair of atoms as one integer, whichever way round."""
+    pairs = np.sort(np.asarray(pairs, dtype=np.int64).reshape(-1, 2),
+                    axis=1)
+    return pairs[:, 0] * n + pairs[:, 1]
+
+
 def springs(xyz, bonds, bond: float = 1.0) -> np.ndarray:
     """``xyz`` relaxed under the springs, in units where ``bond`` is
     the bond's length."""
     n = len(xyz)
     bonds = np.asarray(bonds)
     second = _second_neighbours(n, bonds)
-    near = {tuple(p) for p in bonds} | {tuple(p) for p in second}
+    # Pairs as i * n + j, i < j, so the pairs the springs already hold
+    # are dropped from the KD-tree's in one step, not by a Python loop
+    # over every pair on every iteration.
+    near = np.unique(np.concatenate([_keys(bonds, n), _keys(second, n)]))
     targets = ((bonds, bond), (second, bond * np.sqrt(3.0)))
 
     def energy(flat):
@@ -78,9 +88,8 @@ def springs(xyz, bonds, bond: float = 1.0) -> np.ndarray:
             np.add.at(grad, pairs[:, 0], f)
             np.add.at(grad, pairs[:, 1], -f)
         reach = APART * bond
-        close = np.array([p for p in cKDTree(x).query_pairs(
-            reach, output_type="ndarray") if tuple(p) not in near],
-            dtype=int).reshape(-1, 2)
+        close = cKDTree(x).query_pairs(reach, output_type="ndarray")
+        close = close[~np.isin(_keys(close, n), near)]
         if len(close):
             d = x[close[:, 0]] - x[close[:, 1]]
             r = np.linalg.norm(d, axis=1)

@@ -91,10 +91,13 @@ def recipe_of(job) -> cage.Recipe:
 
 def build_fullerene(job) -> JobResult:
     """Build the cage, into a document of its own, with a report."""
+    from xtal.ff.uff.typer import TypingError
+
     try:
         recipe = recipe_of(job)
         built = cage.build(recipe, say=job.say)
-    except cage.FullereneError as exc:
+    # A cage UFF cannot type is a sentence, never a traceback.
+    except (cage.FullereneError, TypingError) as exc:
         return JobResult.failure(str(exc))
     for line in built.lines():
         job.say(line)

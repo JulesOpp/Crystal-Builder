@@ -14,6 +14,7 @@ module catches its own builder's error and reports it as a failed run.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -37,9 +38,11 @@ def element_symbol(text, error=ValueError) -> str:
     return symbol
 
 
-def given_bond(value, error=ValueError) -> float | None:
-    """A bond given as a number or the form's text, in A; None when
-    none was given."""
+def given_bond(value, error=ValueError, name="bond length",
+               within=BOND_RANGE) -> float | None:
+    """A length given as a number or the form's text, in A; None when
+    none was given.  A bond unless ``name`` and ``within`` say what
+    else: graphene's layer spacing is read here too."""
     if value is None:
         return None
     if isinstance(value, str):
@@ -47,17 +50,21 @@ def given_bond(value, error=ValueError) -> float | None:
         if not text:
             return None
         try:
-            bond = float(text)
+            length = float(text)
         except ValueError:
-            raise error(f"the bond length must be a number, "
+            raise error(f"the {name} must be a number, "
                         f"not {text!r}") from None
     else:
-        bond, text = float(value), f"{float(value):g}"
-    low, high = BOND_RANGE
-    if not low <= bond <= high:
-        raise error(f"the bond length must be {low} to {high} "
+        length, text = float(value), f"{float(value):g}"
+    # nan fails the range check too, but "0.8 to 3.0 A, not nan" reads
+    # as though nan were merely too small.
+    if not math.isfinite(length):
+        raise error(f"the {name} must be a number, not {text}")
+    low, high = within
+    if not low <= length <= high:
+        raise error(f"the {name} must be {low} to {high} "
                     f"A, not {text}")
-    return bond
+    return length
 
 
 def hydrogen_length(symbol: str) -> float:

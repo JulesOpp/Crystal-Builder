@@ -80,6 +80,29 @@ def test_a_word_that_is_no_element_is_refused_naming_it():
         cage.checked(Recipe(element="Qq"))
 
 
+def test_an_element_uff_does_not_cover_is_refused_only_when_relaxed():
+    """Rf has no UFF type: relaxed, the typer raised past the module
+    and the run ended in a traceback; unrelaxed it builds."""
+    with pytest.raises(FullereneError, match="UFF has no parameters "
+                                             "for Rf"):
+        cage.checked(Recipe(element="Rf"))
+    assert cage.checked(Recipe(element="Rf", relax="none")).element \
+        == "Rf"
+
+
+@pytest.mark.parametrize("element, sp3", [
+    ("C", "C_3"), ("Si", "Si3"), ("S", "S_3+2"), ("P", "P_3+3")])
+def test_a_cap_is_at_uff_s_sp3_x_h_whatever_the_type_is_called(
+        element, sp3):
+    """UFF does not spell sp3 ``<symbol>_3`` for every element; sulfur
+    and phosphorus missed the name and were capped at the sp2
+    length."""
+    from xtal.ff.uff import terms
+
+    assert cage._xh_length(element) == pytest.approx(
+        terms.natural_bond_length(sp3, "H_", 1.0))
+
+
 def test_a_hydrogenated_cage_has_a_hydrogen_on_every_atom_pointing_out():
     """C60H60: one hydrogen per carbon, each bonded to it alone and
     further from the centre than its carbon."""

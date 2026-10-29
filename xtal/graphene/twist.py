@@ -42,7 +42,7 @@ from functools import lru_cache
 import numpy as np
 
 __all__ = ["Twist", "TwistError", "MAX_ATOMS", "matrices", "angle_of",
-           "table", "nearest", "read", "spelled"]
+           "table", "nearest", "written", "read", "spelled"]
 
 #: The largest bilayer the table enumerates: past every size
 #: profile's hard limit but Warn only's, and 34 000 twists.
@@ -171,17 +171,25 @@ def tolerance(text: str) -> float:
     return min(0.5 * 10.0 ** -places, COARSEST)
 
 
-def read(text) -> Twist:
-    """The smallest commensurate cell whose angle is the one written,
-    to the precision it was written at."""
+def written(text) -> tuple[float, str]:
+    """The angle ``text`` writes, degrees, and the number as written
+    (whose places are its precision), with any ``°`` or ``deg``
+    taken off.  The form's list of nearby angles reads the box through
+    this too, so whatever builds also lists."""
     text = str(text).strip().rstrip("°").strip()
     if text.lower().endswith("deg"):
         text = text[:-3].strip()
     try:
-        angle = float(text)
+        return float(text), text
     except ValueError:
         raise TwistError(f"the twist must be an angle in degrees, not "
                          f"{text!r}") from None
+
+
+def read(text) -> Twist:
+    """The smallest commensurate cell whose angle is the one written,
+    to the precision it was written at."""
+    angle, text = written(text)
     if not 0.0 < angle < 60.0:
         raise TwistError(f"the twist must be between 0 and 60 degrees, "
                          f"not {text}")

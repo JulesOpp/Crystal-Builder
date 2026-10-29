@@ -141,7 +141,7 @@ class Recipe:
         given = _given_spacing(self.spacing)
         if given is not None:
             return given
-        if set(self.symbols) == {"B", "N"}:
+        if self.is_bn:
             return HBN_SPACING
         return GRAPHITE_SPACING
 
@@ -149,7 +149,7 @@ class Recipe:
     def spacing_source(self) -> str:
         if _given_spacing(self.spacing) is not None:
             return "as given"
-        if set(self.symbols) == {"B", "N"}:
+        if self.is_bn:
             return "h-BN's"
         if set(self.symbols) == {"C"}:
             return "graphite's"
@@ -183,21 +183,8 @@ class Recipe:
 
 
 def _given_spacing(value) -> float | None:
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    try:
-        spacing = float(text)
-    except ValueError:
-        raise GrapheneError(f"the layer spacing must be a number, not "
-                            f"{text!r}") from None
-    low, high = SPACING_RANGE
-    if not low <= spacing <= high:
-        raise GrapheneError(f"the layer spacing must be {low} to {high} "
-                            f"A, not {text}")
-    return spacing
+    return honeycomb.given_bond(value, GrapheneError, "layer spacing",
+                                SPACING_RANGE)
 
 
 def checked(recipe: Recipe) -> Recipe:
@@ -333,8 +320,11 @@ def build(recipe: Recipe, say=None) -> Built:
     sheets = {False: _sheet(cell_matrix(recipe))}
     if recipe.twisted:
         sheets[True] = _sheet(cell_matrix(recipe, upper=True))
-    per_layer = 2 * len(sheets[False][0])
-    if per_layer != atoms_per_layer(recipe):     # pragma: no cover
+    # Both sheets: the turned one is laid out over its own cell matrix
+    # and is the likelier to come up a cell short.
+    per_layer = atoms_per_layer(recipe)
+    if any(2 * len(cells) != per_layer
+           for cells, *_rest in sheets.values()):   # pragma: no cover
         raise GrapheneError("the supercell lost a cell")
 
     shifts, swap = STACKINGS[recipe.stacking]

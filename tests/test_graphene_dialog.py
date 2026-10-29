@@ -46,6 +46,15 @@ def test_the_list_offers_the_twists_near_the_one_typed_with_their_atoms(
     assert dialog.buttons.button(QDialogButtonBox.Ok).isEnabled()
 
 
+def test_an_angle_written_in_deg_still_lists_its_neighbours(dialog):
+    """The build reads "1.08 deg"; the list stripped only the degree
+    sign and went blank over an angle that builds."""
+    _twisted(dialog, "1.08 deg")
+    assert dialog.twists.count() == 8
+    assert dialog.twists.currentText().startswith("1.08°, (m, r) = "
+                                                   "(30, 1)")
+
+
 def test_choosing_a_twist_writes_its_angle_into_the_box(dialog):
     _twisted(dialog)
     index = dialog.twists.findData("1.05")

@@ -120,6 +120,10 @@ def checked(recipe: Recipe) -> Recipe:
     if recipe.relax not in RELAX:
         raise FullereneError(f"relax must be one of {', '.join(RELAX)}, "
                              f"not {recipe.relax!r}")
+    if recipe.relax == "uff" and not _uff_covers(element):
+        raise FullereneError(
+            f"UFF has no parameters for {element}, so a {element} cage "
+            f"cannot be relaxed with it; build it with relax none")
     if recipe.spiral.strip():
         spiral.pentagons_of(recipe.n, parse_spiral(recipe.spiral))
     else:
@@ -287,14 +291,24 @@ def _hydrogens(cage, bonds, length) -> np.ndarray:
     return cage + length * out
 
 
+def _uff_covers(symbol: str) -> bool:
+    from xtal.ff.uff import params
+
+    return params.has_element(symbol)
+
+
 def _xh_length(symbol: str) -> float:
     """UFF's natural X-H bond for an sp3 ``symbol``, else the sp2 one
-    the nanotube's caps use."""
+    the nanotube's caps use.
+
+    Found by the type's hybridisation, not its name: UFF spells sp3
+    ``C_3`` but ``Si3``, ``S_3+2`` and ``P_3+3``, and a name built as
+    ``S_3`` missed sulfur and gave it the sp2 length."""
     from xtal.ff.uff import params, terms
 
-    name = f"{symbol}_3"
-    if name in params.types_for(symbol):
-        return terms.natural_bond_length(name, "H_", 1.0)
+    for name in params.types_for(symbol):
+        if params.get(name).geometry == "3":
+            return terms.natural_bond_length(name, "H_", 1.0)
     return honeycomb.hydrogen_length(symbol)
 
 

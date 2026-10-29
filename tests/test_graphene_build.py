@@ -131,8 +131,12 @@ def test_the_spacing_follows_the_elements_unless_one_is_typed():
     assert Recipe(element_a="B", element_b="N").interlayer == 3.33
     recipe = sheet.checked(Recipe(spacing="3.4"))
     assert recipe.interlayer == 3.4 and recipe.spacing_source == "as given"
-    with pytest.raises(GrapheneError, match="must be a number"):
+    with pytest.raises(GrapheneError, match="the layer spacing must "
+                                            "be a number, not 'wide'"):
         sheet.checked(Recipe(spacing="wide"))
+    with pytest.raises(GrapheneError, match="the layer spacing must "
+                                            "be 1.0 to 20.0 A, not 25"):
+        sheet.checked(Recipe(spacing="25"))
 
 
 def test_a_slab_leaves_the_vacuum_above_its_top_layer():
