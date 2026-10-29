@@ -2090,14 +2090,44 @@ Build a molecule; it opens in a new tab
 ```{index} Build a molecule with the 2D sketcher...
 ```
 
+(cmd-module.fullerene.build)=
+### Carbon builder ▸ Fullerene...
+
+`module.fullerene.build`
+
+A closed cage from the table of isomers or a typed spiral; the result opens in a new tab
+
+```{index} Fullerene...
+```
+
+(cmd-module.nanotube.build)=
+### Carbon builder ▸ Nanotube...
+
+`module.nanotube.build`
+
+A single-walled tube from (n,m); the result opens in a new tab
+
+```{index} Nanotube...
+```
+
+(cmd-module.graphene.build)=
+### Carbon builder ▸ Graphene...
+
+`module.graphene.build`
+
+Honeycomb sheets, alone or stacked; the result opens in a new tab
+
+```{index} Graphene...
+```
+
 (cmd-module.carbon.build)=
-### Disordered carbon builder ▸ Build a disordered carbon...
+### Carbon builder ▸ Disordered carbon (ZTC, schwarzite)...
 
 `module.carbon.build`
 
 Ribbons of carbon along a net, at a density; the result opens in a new tab
 
-```{index} Build a disordered carbon...
+```{index} Disordered carbon (ZTC, schwarzite)...
 ```
 
 (cmd-module.polymer.build)=
@@ -2108,16 +2138,6 @@ Ribbons of carbon along a net, at a density; the result opens in a new tab
 Chains grown into a box at a density; the result opens in a new tab
 
 ```{index} Build an amorphous polymer...
-```
-
-(cmd-module.nanotube.build)=
-### Nanotube builder ▸ Build a nanotube...
-
-`module.nanotube.build`
-
-A single-walled tube from (n,m); the result opens in a new tab
-
-```{index} Build a nanotube...
 ```
 
 (cmd-module.zeopp.diameters)=

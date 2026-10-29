@@ -26,8 +26,8 @@ anything else **chiral**: with *m* ≤ *n* the chiral angle runs from
 
 ## Building one
 
-1. Open *Modules ▸ Nanotube builder ▸*
-   {ref}`Build a nanotube… <cmd-module.nanotube.build>`.
+1. Open *Modules ▸ Carbon builder ▸*
+   {ref}`Nanotube… <cmd-module.nanotube.build>`.
 2. Type **n** and **m**, then choose the **Ends**:
    - **Periodic** is an infinite tube along *c*, for DFTB+ or a
      force field.  **Length** is rounded to whole periods, and a
@@ -114,4 +114,4 @@ wrote tube.cif
   Nothing is relaxed: that is the
   {ref}`Force Field panel <panel-ff_dock>`'s job.
 
-The settings are under {ref}`Build a nanotube… <mod-nanotube-build>`.
+The settings are under {ref}`Nanotube… <mod-nanotube-build>`.

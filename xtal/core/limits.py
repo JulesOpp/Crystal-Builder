@@ -57,6 +57,9 @@ BUDGETS = {
     # (200,199) piece of about 4,000 atoms rolls 477,604 a period and
     # took 18.5 s and 0.8 GB, on a worker thread, under this budget.
     "nanotube": (50_000, 200_000),
+    # The same bargain for a sheet: the atoms built, which is all a
+    # graphene build is (no rolling, no relaxing).
+    "graphene": (50_000, 200_000),
     # A phonopy supercell is evaluated once per displacement, so its
     # size is an engine's single point many times over: 2,000 atoms
     # is a few seconds a point under an ML engine on a laptop.
@@ -225,6 +228,15 @@ def nanotube_atoms(recipe) -> int:
         + edge + caps
 
 
+def graphene_atoms(recipe) -> int:
+    """Atoms a graphene build of ``recipe`` comes out with: two a
+    hexagonal cell, times the supercell's cells, times the layers.
+    Exact."""
+    from xtal.graphene.build import atoms_per_layer
+
+    return atoms_per_layer(recipe) * int(recipe.layers)
+
+
 # ======================================================================
 #  CHECKS
 # ======================================================================
@@ -288,6 +300,41 @@ def check_nanotube(recipe, profile=None) -> Verdict:
         return f"about {longest} A is the longest that fits"
     return _judge("nanotube", nanotube_atoms(recipe), profile,
                   "the tube would have {} atoms", fits)
+
+
+def check_graphene(recipe, profile=None) -> Verdict:
+    from xtal.graphene.build import atoms_per_layer
+
+    per_cell = atoms_per_layer(recipe) \
+        / max(int(recipe.cells_a) * int(recipe.cells_b), 1)
+
+    def fits(limit):
+        if recipe.twisted:
+            # The twist is what sets the size, so the angle nearest
+            # the one asked whose cell fits, at the repeat and layers
+            # as asked.
+            from xtal.graphene import twist
+
+            # Atoms a build has per atom of one bilayer cell.
+            scale = atoms_per_layer(recipe) * int(recipe.layers) \
+                / recipe.moire.atoms
+            near = twist.nearest(recipe.moire.angle, 1,
+                                 max_atoms=int(limit / scale))
+            if not near:
+                return "no twisted cell is small enough"
+            return (f"{twist.spelled(near[0])} degrees, "
+                    f"{count(near[0].atoms * scale)} atoms, is the "
+                    f"nearest twist that fits")
+        # Square repeats, the layers as asked: the repeat is what a
+        # person turns down first.
+        k = int(math.floor(math.sqrt(
+            limit / max(per_cell * int(recipe.layers), 1)) + 1e-9))
+        if k < 1:
+            return (f"{recipe.layers} layers of one cell alone are "
+                    f"{count(per_cell * recipe.layers)} atoms")
+        return f"{k} x {k} is the largest repeat that fits"
+    return _judge("graphene", graphene_atoms(recipe), profile,
+                  "the sheets would have {} atoms", fits)
 
 
 def check_phonons(n_atoms: int, p, profile=None) -> Verdict:

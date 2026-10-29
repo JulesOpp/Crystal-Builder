@@ -937,14 +937,21 @@ def build_modules_menu(window) -> None:
     menu.setToolTipsVisible(True)
     window._module_actions = []
     window._module_submenus = {}
+    shared = {}
     previous = None
     for module in MODULES:
         if not module.listed:
             continue                    # Blender: File is its way in
-        if previous is not None and module.group != previous:
-            menu.addSeparator()
-        previous = module.group
-        entry = submenu(menu, module.label)
+        entry = shared.get(module.menu) if module.menu else None
+        if entry is None:
+            if previous is not None and module.group != previous:
+                menu.addSeparator()
+            previous = module.group
+            entry = submenu(menu, module.menu or module.label)
+            if module.menu:
+                shared[module.menu] = entry
+        # Every module sharing a submenu names the same one here, so
+        # a test or a refresh asks for it by the module's own name.
         window._module_submenus[module.name] = entry
         for action in module.actions:
             if action.listed:
@@ -970,14 +977,27 @@ def refresh_module_availability(window) -> None:
     true for a plugin's module, which this file has never heard of.
     """
     external.apply_hints(window.settings)
+    sharing = {}
     for name, submenu in window._module_submenus.items():
         if name not in MODULES:                 # pragma: no cover
             continue
-        module = MODULES.get(name)
-        available = module.availability()
-        submenu.setEnabled(bool(available))
-        submenu.setToolTip(module.description if available
-                           else available.reason)
+        sharing.setdefault(id(submenu), (submenu, []))[1].append(
+            MODULES.get(name))
+    for submenu, modules in sharing.values():
+        answers = [module.availability() for module in modules]
+        if len(modules) == 1:
+            submenu.setEnabled(bool(answers[0]))
+            submenu.setToolTip(modules[0].description if answers[0]
+                               else answers[0].reason)
+            continue
+        # A shared submenu is greyed only when nothing in it can run;
+        # a module in it that cannot is greyed entry by entry
+        # (ShellRefresh._refresh_module_actions), its reason the
+        # entries' tooltip.
+        submenu.setEnabled(any(answers))
+        submenu.setToolTip("; ".join(
+            module.label if answer else answer.reason
+            for module, answer in zip(modules, answers, strict=True)))
 
 def module_action(window, module, action):
     """The QAction for one module entry, made once and reused.
@@ -994,7 +1014,7 @@ def module_action(window, module, action):
         return window.actions_[action.shell]
     name = f"module.{module.name}.{action.name}"
     window._module_actions.append((name, action.needs_structure,
-                                   action))
+                                   action, module))
     if name not in window.actions_:
         window.actions_.add(
             name, action.label,

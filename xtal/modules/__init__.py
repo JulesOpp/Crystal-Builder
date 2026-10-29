@@ -33,6 +33,8 @@ from xtal.modules import (
     carbon,
     dftb,
     forcefield,
+    fullerene,
+    graphene,
     mof,
     nanotube,
     net,
@@ -66,6 +68,8 @@ mof.register()
 build.register()
 carbon.register()
 nanotube.register()
+fullerene.register()
+graphene.register()
 net.register()
 orca.register()
 polymer.register()

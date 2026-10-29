@@ -105,6 +105,31 @@ NANOTUBE = (
 )
 
 
+#: The fullerene builder: the cage, the spiral and topological
+#: coordinates it is placed by, and the radii its bond comes from.
+FULLERENE = (
+    doi("Kroto et al., Nature 1985", "10.1038/318162a0"),
+    doi("Manolopoulos and Fowler, J. Chem. Phys. 1992",
+        "10.1063/1.462413"),
+    doi("UFF: Rappé et al., J. Am. Chem. Soc. 1992",
+        "10.1021/ja00051a040"),
+    NANOTUBE[-2],
+    NANOTUBE[-1],
+)
+
+
+#: The graphene builder: the sheet, graphite's stacking, the
+#: commensurate twists, and the radii its bond comes from.
+GRAPHENE = (
+    doi("Novoselov et al., Science 2004", "10.1126/science.1102896"),
+    doi("Bernal, Proc. R. Soc. A 1924", "10.1098/rspa.1924.0101"),
+    doi("Lopes dos Santos, Peres and Castro Neto, Phys. Rev. Lett. "
+        "2007", "10.1103/PhysRevLett.99.256802"),
+    NANOTUBE[-2],
+    NANOTUBE[-1],
+)
+
+
 def rcsr_net(name: str, dimension: int = 3) -> Reference:
     """RCSR's own page for one net -- the address each page gives as
     its "RCSR reference".  http, because rcsr.net does not answer on

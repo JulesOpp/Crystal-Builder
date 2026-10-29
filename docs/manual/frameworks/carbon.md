@@ -100,8 +100,8 @@ view.
 
 ## Building one
 
-1. Open *Modules ▸ Disordered carbon builder ▸*
-   {ref}`Build a disordered carbon… <cmd-module.carbon.build>`.
+1. Open *Modules ▸ Carbon builder ▸*
+   {ref}`Disordered carbon (ZTC, schwarzite)… <cmd-module.carbon.build>`.
 2. Choose the **Net** and the **Repeat**, then the **Carbon density**
    in g/cm³ of framework carbon, terminations left out.  The cell is
    not an input: it is **solved** so that the carbon kept is exactly
@@ -222,8 +222,8 @@ the tab it opened in.
 
 ## Settings
 
-The parameters are listed under {ref}`Build a disordered carbon…
-<mod-carbon-build>` in the generated reference, and the module is
+The parameters are listed under {ref}`Disordered carbon (ZTC,
+schwarzite)… <mod-carbon-build>` in the generated reference, and the module is
 {ref}`Disordered carbon builder <mod-carbon>`.
 
 ## Limitations

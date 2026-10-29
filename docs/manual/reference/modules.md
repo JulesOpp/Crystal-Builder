@@ -167,6 +167,92 @@ Build a molecule; it opens in a new tab
 | **Relax it** | bool | `True` | Relax the embedded geometry with MMFF, or UFF where MMFF has no parameters for it.  The force field in this application takes it further. |
 | **Conformer seed** | int, 0 to 2147483647 | `61453` | Which conformer comes out.  Fixed rather than random so that the same string twice is the same molecule; change it to be offered another one. |
 
+(mod-fullerene)=
+## Fullerene builder
+
+Build a fullerene cage: any of the isomers from C20 to C40, the isolated-pentagon ones from C60 to C100, or any cage typed as its face spiral, of one element, optionally with a hydrogen on every atom.  It opens in a new tab with its bonds stated.
+
+```{index} Fullerene builder
+```
+
+(mod-fullerene-build)=
+### Fullerene...
+
+A closed cage from the table of isomers or a typed spiral; the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Size** | int, 20 to 500 atoms | `60` | How many atoms the cage has: an even number from 20, and not 22.  The table holds every isomer from C20 to C40 and every isolated-pentagon one from C60 to C100; any other size needs its spiral typed. |
+| **Isomer** | int, 0 to 10000 | `0` | Which of the size's isomers, counted from 1 in the Atlas of Fullerenes' order (from C60, among the IPR ones).  0 is the one the formula usually means: C60-Ih, C70-D5h, C80-Ih, C84-D2. |
+| **Spiral** | text |  | The twelve faces, counted from 1, where the pentagons fall in a face spiral -- C60-Ih is 1 7 9 11 13 15 18 20 22 24 26 32.  Builds any cage that has one, in place of the isomer; left empty, the isomer is built. |
+| **Element** | text | `C` | One element for every atom.  A cage's twelve pentagons are odd rings, so two elements cannot alternate round it as B and N do on a sheet. |
+| **Bond length** | text |  | The cage's bond, in Angstrom, before relaxing.  Left empty it is the element's from Pyykkö's covalent radii: aromatic (1.42 A for C) for a bare cage, single (1.50 A) for a hydrogenated one.  0.8 to 3.0 A. |
+| **Hydrogen on every atom** | bool | `False` | One hydrogen on every atom, pointing out of the cage, at UFF's sp3 X-H length: C60H60. |
+| **Relax** | one of UFF in a fixed box, No, as placed | `uff` | UFF on the stated bonds, positions only.  As placed is the springs' shape, every bond within about 10 % of the one asked for.  UFF types a bare carbon cage C_R, so its bonds come out nearly equal; C60's alternate 1.40 and 1.45 A. |
+| **Relax steps** | int, 0 to 5000 | `500` | The most UFF steps; C60 converges in a handful. |
+| **Vacuum** | float, 3 to 50 A | `12.0` | The gap between the cage and its periodic image, atom to atom.  12 A clears the force field's 12 A cutoff, so a relaxation sees one cage alone. |
+
+(mod-nanotube)=
+## Nanotube builder
+
+Build a single-walled nanotube from its roll-up vector (n,m): periodic along c, or a finite piece with bare or hydrogen-capped ends, of carbon, boron nitride or any two elements on the honeycomb's two sites.  It opens in a new tab with its bonds stated.
+
+```{index} Nanotube builder
+```
+
+(mod-nanotube-build)=
+### Nanotube...
+
+A single-walled tube from (n,m); the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **n** | int, 1 to 200 | `10` | The roll-up vector's first index: the sheet is rolled so that n a1 + m a2 goes once round the tube.  (n,n) is armchair, (n,0) zigzag, anything else chiral. |
+| **m** | int, 0 to 200 | `10` | The roll-up vector's second index.  (m,n) is the mirror image of (n,m): the same tube in the other hand. |
+| **Ends** | one of Periodic (infinite along c), Finite, ends capped with H, Finite, bare ends | `periodic` | Periodic is an infinite tube along c, with no ends.  Finite is a piece of the length asked for in a vacuum box; capped puts a hydrogen on each edge atom at the force field's own X-H length, bare leaves the edge atoms two-coordinate. |
+| **Length** | float, 1 to 2000 A | `20.0` | Finite: the tube's length.  Periodic: rounded to a whole number of the tube's translational periods, at least one -- the report says what it came to.  A chiral tube's period can be tens of angstroms. |
+| **Element A** | text | `C` | The element on one of the honeycomb's two sites.  C and C is a carbon nanotube; B and N a boron nitride one. |
+| **Element B** | text | `C` | The element on the other site; every bond joins an A to a B. |
+| **Bond length** | text |  | The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest. |
+| **Vacuum** | float, 3 to 50 A | `12.0` | The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A. |
+
+(mod-graphene)=
+## Graphene builder
+
+Build honeycomb sheets -- graphene, h-BN or any two elements -- one layer or stacked AA, AB, ABC, AA' or twisted by a commensurate angle, as bulk graphite or a slab in vacuum, in the hexagonal or the rectangular cell, repeated.  It opens in a new tab with its bonds stated.
+
+```{index} Graphene builder
+```
+
+(mod-graphene-build)=
+### Graphene...
+
+Honeycomb sheets, alone or stacked; the result opens in a new tab
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Element A** | text | `C` | The element on one of the honeycomb's two sites.  C and C is graphene; B and N hexagonal boron nitride. |
+| **Element B** | text | `C` | The element on the other site; every bond joins an A to a B. |
+| **Bond length** | text |  | The sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii: 1.42 A for C-C, 1.47 A for B-N.  0.8 to 3.0 A. |
+| **Layers** | int, 1 to 100 | `1` | How many sheets.  Bulk repeats the stacking along c, so its layers must be a whole number of the stacking's period: 2 for AB and AA', 3 for ABC. |
+| **Stacking** | one of AA (eclipsed), AB (Bernal, graphite's), ABC (rhombohedral), AA' (h-BN's, elements alternating), Twisted (every other layer turned) | `AB` | How each layer sits over the last.  AA puts every atom over one; AB (Bernal) shifts every other layer by one bond, graphite's; ABC shifts each by one more, rhombohedral graphite's; AA' is AA with the elements alternating, B over N, h-BN's own.  Twisted turns every other layer by the Twist about an atom the two share, from AA. |
+| **Twist** | text | `1.08` | A twisted stack's angle, in degrees.  Only some angles close into a cell: the one built is the smallest cell at the angle written, to its last decimal place -- 1.08 is (m, r) = (30, 1), 11 164 atoms a bilayer, the magic angle.  Used only by the Twisted stacking. |
+| **Layer spacing** | text |  | The distance between layers, in Angstrom.  Left empty it is graphite's 3.35 A, or h-BN's 3.33 A for B and N.  1 to 20 A. |
+| **Stack** | one of Slab, vacuum above, Bulk, periodic along c | `slab` | Bulk is periodic along c with no gap but the layer spacing: graphite.  A slab is the layers with vacuum above the top one, for a surface or a sheet alone. |
+| **Vacuum** | float, 3 to 100 A | `15.0` | A slab's gap between its top layer and its image's bottom one.  15 A clears the force field's 12 A cutoff.  Bulk has none. |
+| **Repeat along a** | int, 1 to 500 | `1` | How many cells along a. |
+| **Repeat along b** | int, 1 to 500 | `1` | How many cells along b. |
+| **Rectangular cell** | bool | `False` | The orthogonal cell, a by sqrt(3) a with four atoms a layer, in place of the hexagonal two-atom one: a is then the zigzag direction and b the armchair one. |
+
 (mod-carbon)=
 ## Disordered carbon builder
 
@@ -176,7 +262,7 @@ Build a zeolite-templated carbon or a schwarzite: one connected sheet that follo
 ```
 
 (mod-carbon-build)=
-### Build a disordered carbon...
+### Disordered carbon (ZTC, schwarzite)...
 
 Ribbons of carbon along a net, at a density; the result opens in a new tab
 
@@ -242,33 +328,6 @@ Chains grown into a box at a density; the result opens in a new tab
 | **Trials per step** | int, 2 to 100 | `12` | Torsions tried for each unit added.  More is slower and finds room in a fuller box. |
 | **Seed** | int, 0 to 2147483647 | `0` | The same seed and recipe build the same model, atom for atom. |
 | **Most atoms** | int, 100 to 1000000 | `20000` | A recipe that would make more is refused before anything is grown. |
-
-(mod-nanotube)=
-## Nanotube builder
-
-Build a single-walled nanotube from its roll-up vector (n,m): periodic along c, or a finite piece with bare or hydrogen-capped ends, of carbon, boron nitride or any two elements on the honeycomb's two sites.  It opens in a new tab with its bonds stated.
-
-```{index} Nanotube builder
-```
-
-(mod-nanotube-build)=
-### Build a nanotube...
-
-A single-walled tube from (n,m); the result opens in a new tab
-
-```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
-```
-
-| Setting | Accepts | Default | What it is |
-|---|---|---|---|
-| **n** | int, 1 to 200 | `10` | The roll-up vector's first index: the sheet is rolled so that n a1 + m a2 goes once round the tube.  (n,n) is armchair, (n,0) zigzag, anything else chiral. |
-| **m** | int, 0 to 200 | `10` | The roll-up vector's second index.  (m,n) is the mirror image of (n,m): the same tube in the other hand. |
-| **Ends** | one of Periodic (infinite along c), Finite, ends capped with H, Finite, bare ends | `periodic` | Periodic is an infinite tube along c, with no ends.  Finite is a piece of the length asked for in a vacuum box; capped puts a hydrogen on each edge atom at the force field's own X-H length, bare leaves the edge atoms two-coordinate. |
-| **Length** | float, 1 to 2000 A | `20.0` | Finite: the tube's length.  Periodic: rounded to a whole number of the tube's translational periods, at least one -- the report says what it came to.  A chiral tube's period can be tens of angstroms. |
-| **Element A** | text | `C` | The element on one of the honeycomb's two sites.  C and C is a carbon nanotube; B and N a boron nitride one. |
-| **Element B** | text | `C` | The element on the other site; every bond joins an A to a B. |
-| **Bond length** | text |  | The flat sheet's bond, in Angstrom.  Left empty it is the two elements' aromatic bond from Pyykkö's covalent radii (each atom's radius the mean of its single- and double-bond radii): 1.42 A for C-C, 1.47 A for B-N.  A number typed here is used instead, 0.8 to 3.0 A.  Rolling shortens each bond to a chord, a little; the report gives the shortest. |
-| **Vacuum** | float, 3 to 50 A | `12.0` | The gap between the tube and its periodic image, atom to atom: across, and for a finite tube along it, caps included.  12 A clears the force field's 12 A cutoff, so a relaxation sees one tube alone; a bundle's gap is about 3.2-3.4 A. |
 
 (mod-zeopp)=
 ## Porosity

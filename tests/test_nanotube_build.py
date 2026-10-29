@@ -205,6 +205,9 @@ def test_the_bond_follows_the_elements_unless_one_is_typed():
     ("0.5", "the bond length must be 0.8 to 3.0 A, not 0.5"),
     ("3.5", "the bond length must be 0.8 to 3.0 A, not 3.5"),
     (4.0, "the bond length must be 0.8 to 3.0 A, not 4"),
+    ("nan", "the bond length must be a number, not nan"),
+    (float("nan"), "the bond length must be a number, not nan"),
+    ("inf", "the bond length must be a number, not inf"),
 ])
 def test_a_bond_that_is_no_length_is_refused_by_name(bond, wanted):
     """A word, or a number outside 0.8-3.0 A, typed in the bond box is
