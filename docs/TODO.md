@@ -984,9 +984,10 @@ contended Intel CI runner (2026-10-01); the margin is thin for CI.
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
   keeps every mutation a command, and adds capability through
   registries.
-* Volumetric data and SHELX round-trips are
+* Volumetric data and writing SHELX files are
   [docs/PLAN.md](PLAN.md) § 12 and stay there until they are asked
-  for.  Rietveld was asked for, and has shipped.
+  for.  Rietveld was asked for, and has shipped, and so has reading
+  `.res` / `.ins`.
 * The relaxed scan was built on 2026-09-15 and is
   [docs/PLAN.md](PLAN.md) § 12a.  What it left undone is in § Scans
   above, and M9 has a chapter for it.

@@ -255,7 +255,8 @@ def classify(path) -> str:
         return "pattern"
     if path.stem == "final":
         return "final"
-    if suffix in (".cif", ".mcif", ".xyz", ".gen", ".cssr", ".res"):
+    if suffix in (".cif", ".mcif", ".xyz", ".gen", ".cssr", ".res",
+                  ".ins"):
         return "structure"
     return "file"
 
