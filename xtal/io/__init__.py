@@ -15,7 +15,7 @@ pattern -- see :mod:`xtal.io.xy` for why registering it would put a
 file in the Open dialog that nothing downstream could accept.
 """
 
-from xtal.io import lammps, pdb, pmg, poscar
+from xtal.io import lammps, pdb, pmg, poscar, shelx
 from xtal.io.cif_reader import read_cif, read_cif_all, read_cif_string
 from xtal.io.cif_writer import cif_string, write_cif
 from xtal.io.cssr import (
@@ -69,6 +69,16 @@ FORMATS.register(Format(
     # A project keeps everything, which is the whole reason it exists.
     keeps=frozenset({"symmetry", "occupancy", "adp", "charges",
                      "bonds", "view"}),
+))
+
+FORMATS.register(Format(
+    name="shelx",
+    description="SHELX instruction file",
+    extensions=(".res", ".ins"),
+    read=shelx.read_shelx,
+    # Read only: what makes one worth writing is the refinement's
+    # instructions, and a structure has none of them to give.
+    keeps=frozenset({"symmetry", "occupancy", "adp"}),
 ))
 
 FORMATS.register(Format(

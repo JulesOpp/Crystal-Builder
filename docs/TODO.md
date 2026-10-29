@@ -618,7 +618,7 @@ MOF-5 +2.80 % to +2.17 %) -- not always towards experiment.  Wanted:
 a decision on D3 as an option of the ASE engines, and on whether it is
 on by default.  `torch-dftd` is what the benchmark used and pulls in
 pymatgen; `tad-dftd3` is torch-only.  **MACE-MP-MOF0 already has D3
-inside and must never get it twice.**
+inside, and uMOF-MH D4; neither must ever get it twice.**
 
 ### UFF4MOF-II redefines Pt4+2 and the table does not
 
@@ -984,9 +984,10 @@ contended Intel CI runner (2026-10-01); the margin is thin for CI.
   [docs/PLAN.md](PLAN.md) § 1.  Every phase keeps the core Qt-free,
   keeps every mutation a command, and adds capability through
   registries.
-* Volumetric data and SHELX round-trips are
+* Volumetric data and writing SHELX files are
   [docs/PLAN.md](PLAN.md) § 12 and stay there until they are asked
-  for.  Rietveld was asked for, and has shipped.
+  for.  Rietveld was asked for, and has shipped, and so has reading
+  `.res` / `.ins`.
 * The relaxed scan was built on 2026-09-15 and is
   [docs/PLAN.md](PLAN.md) § 12a.  What it left undone is in § Scans
   above, and M9 has a chapter for it.

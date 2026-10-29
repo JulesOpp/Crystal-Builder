@@ -189,6 +189,49 @@ def test_a_model_file_that_is_not_there_is_refused(monkeypatch,
                           model_path=str(real)).ok
 
 
+def test_a_fine_tuned_model_file_loads_through_the_head_it_fitted(
+        monkeypatch, tmp_path):
+    """uMOF-MH pointed at by path failed with "no head in the model is
+    'default'": a fine-tuned file holds its foundation model's head
+    beside its own, and MACE will not choose.  The file is read once,
+    and handed over loaded rather than by path."""
+    import types
+
+    loaded = types.SimpleNamespace(heads=["pt_head", "r2scan+d4"])
+    made = []
+
+    class Model:
+        def __init__(self, **kwargs):
+            made.append(kwargs)
+
+    torch = types.ModuleType("torch")
+    torch.load = lambda path, **kwargs: loaded
+    calculators = types.ModuleType("mace.calculators")
+    calculators.MACECalculator = Model
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "mace", types.ModuleType("mace"))
+    monkeypatch.setitem(sys.modules, "mace.calculators", calculators)
+    monkeypatch.setattr(mace, "_device", lambda wanted: "cpu")
+
+    mace._build_model(mace.MACEOptions(
+        model=mace.CUSTOM, model_path=str(tmp_path / "uMOF-MH.model")))
+
+    assert made == [{"models": loaded, "device": "cpu",
+                     "default_dtype": "float64", "head": "r2scan+d4"}]
+
+
+def test_a_model_files_head_is_left_to_mace_unless_it_cannot_choose():
+    """One head, or one called default, is MACE's to pick and always
+    was; two fitted heads are named rather than guessed between."""
+    choose = mace._fine_tuned_head
+    assert choose(None, "a.model") is None
+    assert choose(["Default"], "a.model") is None
+    assert choose(["pt_head", "Default"], "a.model") is None
+    assert choose(["pt_head", "pbe_d3"], "a.model") == "pbe_d3"
+    with pytest.raises(CalculatorError, match="pbe, r2scan"):
+        choose(["pt_head", "pbe", "r2scan"], "a.model")
+
+
 def test_the_engine_is_in_the_registry_with_what_it_provides():
     engine = ENGINES.get("mace")
     assert "forces" in engine.provides and "stress" in engine.provides
@@ -375,10 +418,11 @@ def test_every_model_offered_is_a_name_mace_knows():
         "from mace.calculators.foundations_models import mace_mp_urls\n"
         "print(json.dumps(sorted(mace_mp_urls)))\n")
 
-    # MACE-MP-MOF0 is not in mace's table: it is fetched from its own
-    # pinned URL (``_fetch_mof0``) and never handed to mace_mp by name.
+    # MACE-MP-MOF0 and uMOF-MH are not in mace's table: each is fetched
+    # from its own pinned URL (``_FETCHED``) and never handed to mace_mp
+    # by name.
     for name, _label in mace.MODEL_CHOICES:
-        if name in ("custom", mace.MOF0):
+        if name in ("custom", mace.MOF0, mace.UMOF):
             continue
         assert name in mace_mp_urls, name
 
@@ -467,6 +511,152 @@ def test_mof0_is_cited_when_it_is_the_model(stand_in):
     usual = [r.url for r in engine.sources()]
     assert any("10.1038/s41524-025-01611-8" in u for u in chosen)
     assert not any("s41524-025-01611-8" in u for u in usual)
+
+
+# ------------------------------------------------------------ uMOF-MH
+#
+# Jaffrelot Inizan, Kamath, Elena and Persson, arXiv:2608.28100:
+# MACE-MH-1's r2SCAN-D4 head fine-tuned on 19 950 MOFs, gas loading and
+# MD among them.  Served only inside a zip beside uMOF-POLAR.
+
+def _a_umof_archive(model: bytes) -> bytes:
+    """A zip laid out as the figshare one is, macOS junk included."""
+    import io
+    import zipfile
+
+    held = io.BytesIO()
+    with zipfile.ZipFile(held, "w") as zipped:
+        zipped.writestr("umof_models/", b"")
+        zipped.writestr("umof_models/uMOF-POLAR.model", b"the other")
+        zipped.writestr("__MACOSX/umof_models/._uMOF-MH.model", b"junk")
+        zipped.writestr(mace.UMOF_MEMBER, model)
+    return held.getvalue()
+
+
+def test_umof_is_offered_and_says_what_it_is_before_it_is_chosen(
+        monkeypatch):
+    """The licence and the size are said before the download, because
+    MACE's own notice comes as it downloads; and that dispersion is in
+    it, because D3 on top would count it twice."""
+    monkeypatch.setattr(mace, "installed", lambda: True)
+    label = dict(mace.MODEL_CHOICES)[mace.UMOF]
+    assert "r2SCAN-D4" in label and "ASL" in label and "cite" in label
+    said = mace.available(model=mace.UMOF).reason
+    assert "106 MB" in said and "Academic Software License" in said
+    assert "2608.28100" in said and "dispersion" in said
+    assert mace.DEFAULT_MODEL != mace.UMOF
+
+
+def test_umof_is_loaded_through_its_r2scan_d4_head(monkeypatch,
+                                                   tmp_path):
+    """The file holds MH-1's own head beside the MOF one, and MACE
+    refuses to guess.  The wrong head would answer under uMOF's name
+    with the numbers of the model it was fine-tuned from."""
+    import types
+
+    made = []
+
+    class Model:
+        def __init__(self, **kwargs):
+            made.append(kwargs)
+
+    calculators = types.ModuleType("mace.calculators")
+    calculators.MACECalculator = Model
+    monkeypatch.setitem(sys.modules, "mace", types.ModuleType("mace"))
+    monkeypatch.setitem(sys.modules, "mace.calculators", calculators)
+    monkeypatch.setattr(mace, "_device", lambda wanted: "cpu")
+    monkeypatch.setattr(mace, "_fetch_umof",
+                        lambda: tmp_path / "uMOF-MH.model")
+
+    mace._build_model(mace.MACEOptions(model=mace.UMOF))
+
+    assert made == [{"model_paths": str(tmp_path / "uMOF-MH.model"),
+                     "device": "cpu", "default_dtype": "float64",
+                     "head": "r2scan+d4"}]
+
+
+def test_umof_is_unzipped_only_from_the_published_archive(monkeypatch,
+                                                          tmp_path):
+    """Two checks, for two different things.  The archive's says what
+    is unzipped is the authors' zip; the member's, run on every load,
+    says the cached file is still theirs.  Nothing but the model is
+    left behind -- not 47 MB of uMOF-POLAR, not a partial file."""
+    import hashlib
+    import io
+
+    good = b"the model"
+    archive = _a_umof_archive(good)
+    monkeypatch.setattr(mace, "UMOF_SHA256",
+                        hashlib.sha256(good).hexdigest())
+    monkeypatch.setattr(mace, "UMOF_ZIP_SHA256",
+                        hashlib.sha256(archive).hexdigest())
+    monkeypatch.setattr(mace, "_cache_dir", lambda: tmp_path)
+    served = []
+
+    def urlopen(url, timeout=None):
+        served.append(url)
+        return io.BytesIO(served_bytes[0])
+
+    monkeypatch.setattr(mace.urllib.request, "urlopen", urlopen)
+
+    served_bytes = [_a_umof_archive(b"another model")]
+    with pytest.raises(CalculatorError, match="archive is not the file"):
+        mace._fetch_umof()
+    assert list(tmp_path.iterdir()) == []
+
+    served_bytes[0] = archive
+    path = mace._fetch_umof()
+    assert path.read_bytes() == good
+    assert [p.name for p in tmp_path.iterdir()] == ["uMOF-MH.model"]
+    assert mace._fetch_umof() == path                # cached
+    assert len(served) == 2
+    assert served[0].endswith("/files/67738656")
+
+    path.write_bytes(b"tampered")
+    with pytest.raises(CalculatorError, match="not the file"):
+        mace._fetch_umof()
+    assert not path.exists()
+
+
+def test_umof_is_cited_when_it_is_the_model(stand_in):
+    from xtal.ff import ENGINES
+
+    engine = ENGINES.get("mace")
+    chosen = [r.url for r in engine.sources(model=mace.UMOF)]
+    usual = [r.url for r in engine.sources()]
+    assert any("2608.28100" in u for u in chosen)
+    assert not any("2608.28100" in u for u in usual)
+
+
+@pytest.mark.slow
+@needs_mace
+def test_umof_answers_for_a_crystal_when_it_is_already_downloaded():
+    """The real file through the real head: an energy, forces on every
+    atom and a stress.  Skipped rather than downloaded where it is not
+    cached -- 106 MB is not a test's to fetch."""
+    answer = in_a_fresh_interpreter(
+        "import json\n"
+        "from tests.conftest_ff import water\n"
+        "from xtal.core import p1\n"
+        "from xtal.ff.mace import calculator as mace\n"
+        "if not (mace._cache_dir() / mace.UMOF_FILE).is_file():\n"
+        "    print(json.dumps(None)); raise SystemExit\n"
+        "structure = water()\n"
+        "engine = mace.MACECalculator(structure, mace.MACEOptions(\n"
+        "    model=mace.UMOF, device='cpu'))\n"
+        "import numpy as np\n"
+        "cart = np.asarray(p1.expand(structure).cart, dtype=float)\n"
+        "matrix = np.asarray(structure.lattice.matrix, dtype=float)\n"
+        "got = engine.compute(cart, matrix)\n"
+        "print(json.dumps({'energy': float(got.energy),\n"
+        "    'forces': np.asarray(got.forces).shape,\n"
+        "    'stress': None if got.stress is None\n"
+        "              else np.asarray(got.stress).shape}))\n")
+    if answer is None:
+        pytest.skip("uMOF-MH is not in the MACE cache")
+    assert np.isfinite(answer["energy"])
+    assert answer["forces"] == [3, 3]
+    assert answer["stress"] == [3, 3]
 
 
 def test_an_element_the_model_was_not_fitted_on_is_refused_by_name(

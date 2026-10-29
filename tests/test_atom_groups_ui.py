@@ -445,6 +445,21 @@ def test_a_cif_with_shelx_parts_opens_with_a_group_for_each_part():
     assert "shelx_parts" not in document.structure.meta
 
 
+def test_a_res_file_opens_with_the_same_part_groups_as_its_cif(tmp_path):
+    """The ``.res`` UiO-67's CIF carries, opened on its own, gives
+    the groups the CIF gives, over the same atoms."""
+    import gemmi
+
+    from xtal.io import shelx
+    block = gemmi.cif.read(str(UIO67)).sole_block()
+    res = tmp_path / "UiO-67.res"
+    res.write_text(shelx.instruction_text(block))
+    from_cif, from_res = Document.load(UIO67), Document.load(res)
+    assert [(g.name, g.atoms) for g in from_res.atom_groups] \
+        == [(g.name, g.atoms) for g in from_cif.atom_groups]
+    assert from_res.cell.n_atoms == from_cif.cell.n_atoms
+
+
 def test_a_saved_project_does_not_make_its_part_groups_again(tmp_path):
     """A group deleted before the save stays deleted on reopening."""
     document = Document.load(UIO67)

@@ -15,6 +15,7 @@ import pytest
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
+from PySide6.QtGui import QKeySequence, QShortcut  # noqa: E402
 from PySide6.QtWidgets import QDialog, QMenu  # noqa: E402
 
 from xtal.workspace import Workspace  # noqa: E402
@@ -153,6 +154,32 @@ def test_return_continues_rather_than_quitting(chooser, qtbot):
     qtbot.waitExposed(dialog)
     assert dialog.go.isDefault()
     assert not dialog.quit.isDefault()
+
+
+def test_the_file_menus_keys_work_before_there_is_a_file_menu(
+        chooser, monkeypatch):
+    """New, Open and Quit are Cmd+N, Cmd+O and Cmd+Q everywhere else
+    in the application, and the chooser comes up before any menu bar
+    that would carry them."""
+    asked = []
+    monkeypatch.setattr(
+        "xtalapp.dialogs.workspace_chooser.ask_for_new",
+        lambda *_a: asked.append("new") or "")
+    monkeypatch.setattr(
+        "xtalapp.dialogs.workspace_chooser.ask_for_existing",
+        lambda *_a: asked.append("open") or "")
+    dialog = chooser()
+    shortcuts = {s.key(): s for s in dialog.findChildren(QShortcut)}
+
+    for key in (QKeySequence.StandardKey.New,
+                QKeySequence.StandardKey.Open):
+        shortcuts[QKeySequence(key)].activated.emit()
+    assert asked == ["new", "open"]
+    assert not dialog.result()
+
+    shortcuts[QKeySequence(QKeySequence.StandardKey.Quit)].activated.emit()
+    assert dialog.result() == QDialog.Rejected
+    assert dialog.workspace is None
 
 
 def test_a_row_says_where_the_folder_is_without_the_home_path(

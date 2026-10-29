@@ -18,6 +18,8 @@ default, and how to install the extra each one needs.
 ```
 ```{index} single: MACE-MP-MOF0
 ```
+```{index} single: uMOF-MH
+```
 ```{index} single: ORB-v3
 ```
 ```{index} single: MatterSim
@@ -74,6 +76,7 @@ deliberately not a characterisation of the application's:
 | MACE-MATPES-r2SCAN-0 | r2SCAN, no +U | ASL |
 | MACE-MH-1 | crystals, molecules and surfaces | ASL |
 | MACE-MP-MOF0 | 127 MOFs, PBE-D3(BJ), for phonons; 26 elements | CC BY 4.0, cite |
+| uMOF-MH | 19 950 MOFs, r2SCAN-D4, gas loading and MD | ASL, cite |
 | MACE-MP-0a small / medium / large | the models before mace 0.3.10 | MIT |
 | A model file of my own | a `.model` file you have fitted | -- |
 
@@ -106,6 +109,26 @@ It is not one of `mace_mp`'s models, so the application fetches it
 from the authors' repository at a fixed commit (a 31 MB download) and
 loads it only if it is byte for byte that file, because a model file
 is a pickle and loading one runs it.
+
+**uMOF-MH** {cite}`jaffrelot2026umof` is MACE-MH-1's r2SCAN-D4 head
+fine-tuned on 85 524 configurations of 19 950 frameworks over 79
+elements, with gas-loaded cells, equations of state and molecular
+dynamics among them.  On its authors' benchmark it is level with
+MACE-MH-1 on bulk modulus and heat capacity, and its error on gas
+adsorption enthalpies is under a fifth of the MOF gas-capture models
+it was compared with -- so it is the choice for a framework with a
+guest in it.
+
+- **Dispersion is already in it**: its reference data were
+  r2SCAN-D4.  Never add D3 on top; see {doc}`dispersion`.
+- **The licence is labelled ASL.**  The deposit is CC BY 4.0, which
+  makes the citation a condition, and the source links name the paper
+  whenever the model is chosen; the model it was fine-tuned from is
+  under the Academic Software License, so the chooser names that too.
+- **It is served only inside a zip** beside uMOF-POLAR, 106 MB in all.
+  The application checks the archive against its published SHA-256
+  before opening it, keeps the 59 MB model alone in MACE's cache, and
+  checks that file on every load, as it does MACE-MP-MOF0's.
 
 *Run on* asks torch what the machine has; a GPU is worth an order of
 magnitude on a framework of a few thousand atoms, and on a Mac the
@@ -247,7 +270,7 @@ model file -- are listed under {ref}`MACE <engine-mace>`,
 ## Limitations
 
 - **No {term}`dispersion correction` on the foundation models** other than
-  MACE-MP-MOF0, which has it inside.  A relaxed framework's volume
+  MACE-MP-MOF0 and uMOF-MH, which have it inside.  A relaxed framework's volume
   from ORB-v3 or MatterSim is the bare model's, not the benchmark's;
   see {doc}`dispersion`.
 - MACE-MP-MOF0 knows 26 elements and refuses the rest.
