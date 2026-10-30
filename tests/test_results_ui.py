@@ -166,6 +166,27 @@ def test_a_cancelled_export_writes_nothing(dock, tmp_path, monkeypatch):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_a_histogram_exports_its_data_as_csv(dock, tmp_path,
+                                             monkeypatch):
+    """A pore size distribution was a picture with no numbers behind
+    it: the figure in a paper is redrawn from these, not screenshot."""
+    from PySide6.QtWidgets import QFileDialog, QPushButton
+
+    target = tmp_path / "psd.csv"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        staticmethod(lambda *a, **k: (str(target), "")))
+    report = a_histogram()
+    dock.show_report(report, "Zeo++")
+    button = next(b for b in dock._blocks[0].findChildren(QPushButton)
+                  if "Export" in b.text())
+    button.click()
+
+    assert target.read_text() == report.blocks[0].as_csv()
+    lines = target.read_text().splitlines()
+    assert lines[0] == "pore diameter (A),sample points,dV/dD"
+    assert len(lines) == 41
+
+
 def a_long_table(rows: int = 4000) -> Report:
     return Report(blocks=(Table(
         title="Reflections",

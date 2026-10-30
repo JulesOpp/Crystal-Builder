@@ -227,10 +227,36 @@ class Histogram:
     #: sphere diameter over a pore size distribution says, at a glance,
     #: which of those pores anything can actually reach.
     markers: tuple[tuple[float, str], ...] = ()
+    #: Series written by :meth:`as_csv` and never drawn, as ``(label,
+    #: values)`` over ``x`` -- the cumulative distribution is what a
+    #: pore size distribution is integrated from in a spreadsheet, and
+    #: a third line on the plot would be read on the curve's scale.
+    columns: tuple[tuple[str, np.ndarray], ...] = ()
 
     @property
     def n_bins(self) -> int:
         return len(self.x)
+
+    def as_csv(self) -> str:
+        """The bars, the curve and any :attr:`columns`, one row a bin.
+
+        What is drawn, not what the program wrote: the run folder
+        already keeps the raw file, and a thousand bins of which
+        nine hundred are empty is not what anybody pastes into a
+        spreadsheet.
+        """
+        series = [(self.y_label or "y", self.y)]
+        if self.curve is not None:
+            series.append((self.curve_label or "curve", self.curve))
+        series += list(self.columns)
+        out = io.StringIO()
+        writer = csv.writer(out, lineterminator="\n")
+        writer.writerow([self.x_label or "x"]
+                        + [label for label, _values in series])
+        for row, x in enumerate(self.x):
+            writer.writerow([f"{x:.10g}"] + [f"{values[row]:.10g}"
+                                             for _label, values in series])
+        return out.getvalue()
 
     def as_text(self, rows: int = 24) -> str:
         """The histogram as characters, for a log and for a CLI.
