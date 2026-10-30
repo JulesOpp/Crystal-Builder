@@ -116,11 +116,12 @@ warning is for and how to answer it if you trust where you got the
 file.
 
 **macOS.** Double-clicking gives *"Crystal Builder" cannot be opened
-because the developer cannot be verified*. Right-click (or
-Control-click) the app in Applications and choose **Open**, then
-**Open** again in the dialog. macOS remembers the choice and normal
-double-clicking works afterwards. If the app was quarantined in a way
-that will not clear, the equivalent from a terminal is:
+because the developer cannot be verified*. Close the warning, open
+*System Settings ▸ Privacy & Security*, scroll down to *Security*,
+and click **Open Anyway** beside the message about Crystal Builder,
+then confirm with your password. macOS remembers the choice and
+normal double-clicking works afterwards. If the app was quarantined
+in a way that will not clear, the equivalent from a terminal is:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Crystal Builder.app"
