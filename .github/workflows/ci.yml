@@ -38,7 +38,7 @@ jobs:
         # the version sweep it used to carry: the bundle is built on
         # one Python, and so is every other row here.
         include:
-          - os: macos-14          # Apple silicon
+          - os: macos-15          # Apple silicon
             python: "3.12"
           - os: macos-15-intel    # Intel.  Not macos-13: that image
             python: "3.12"        # was retired on 2025-12-04 and a
@@ -225,7 +225,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14          # Apple silicon
+          - os: macos-15          # Apple silicon
             label: macos-arm64
             spec: packaging/macos.spec
           - os: macos-15-intel    # Intel.  VTK publishes no

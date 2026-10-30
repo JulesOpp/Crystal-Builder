@@ -501,8 +501,8 @@ plan got written on top of it.
 
 | Runner | Produces |
 |---|---|
-| `macos-14` | `Crystal-Builder-<v>-arm64.dmg` |
-| `macos-13` | `Crystal-Builder-<v>-x86_64.dmg` |
+| `macos-15` | `Crystal-Builder-<v>-arm64.dmg` |
+| `macos-15-intel` | `Crystal-Builder-<v>-x86_64.dmg` |
 | `windows-latest` | `Crystal-Builder-<v>-setup.exe` |
 | `ubuntu-22.04` | `Crystal_Builder-<v>-x86_64.AppImage` (§ 11) |
 

@@ -498,7 +498,12 @@ class ShellRefresh:
                                document.view.show_pores),
                               ("show_scale_bar",
                                document.view.show_scale_bar),
-                              ("depth_cue", document.view.depth_cue)):
+                              ("depth_cue", document.view.depth_cue),
+                              ("orthographic",
+                               document.view.projection
+                               == "orthographic"),
+                              ("labels",
+                               document.view.label_mode != "none")):
             widget = self.actions_[action]
             widget.blockSignals(True)
             widget.setChecked(value)

@@ -281,6 +281,28 @@ def test_the_boundary_tick_follows_the_tab(window, rutile_cif):
     assert not window.actions_["boundary_bonded"].isChecked()
 
 
+def test_the_projection_and_label_ticks_follow_the_tab(window, rutile_cif):
+    """A new tab opens in perspective with no labels, and the menu has
+    to say so.  Left ticked from the tab before, the first click on
+    Orthographic unticked it and asked for the perspective the tab
+    already had -- nothing happened, and a second click was needed."""
+    first = window.open_path(rutile_cif)
+    window.actions_["orthographic"].trigger()
+    window.actions_["labels"].trigger()
+    assert first.view.projection == "orthographic"
+    window.new_document()
+    second = window.current_document()
+    assert second.view.projection == "perspective"
+    assert not window.actions_["orthographic"].isChecked()
+    assert not window.actions_["labels"].isChecked()
+    window.actions_["orthographic"].trigger()
+    assert second.view.projection == "orthographic"
+
+    window.tabs.setCurrentIndex(window.documents.index(first))
+    assert window.actions_["orthographic"].isChecked()
+    assert window.actions_["labels"].isChecked()
+
+
 def test_the_new_view_toggles_reach_the_document(window, rutile_cif):
     doc = window.open_path(rutile_cif)
     assert doc.view.show_planes and not doc.view.show_scale_bar
