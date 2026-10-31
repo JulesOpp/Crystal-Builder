@@ -5,7 +5,7 @@ by release, is the {doc}`change log </back/changelog>`.
 
 ## In 1.0
 
-- **Disordered carbon** (*Modules ▸ Disordered carbon builder*): a
+- **Disordered carbon** (*Modules ▸ Carbon builder ▸ Disordered carbon*): a
   zeolite-templated carbon or a schwarzite as one connected, terminated
   sheet that follows a net, at the density you ask for, with the rings
   Gauss--Bonnet fixes said up front --
@@ -47,6 +47,8 @@ by release, is the {doc}`change log </back/changelog>`.
   deposited.
 - **MACE-MP-MOF0** as a model for the MACE engine
   {cite}`elena2025macemof0`.
+- **uMOF-MH**, a MACE model fine-tuned on twenty thousand frameworks
+  with gases in them {cite}`jaffrelot2026umof`.
 - **Porosity from a grid** without the Zeo++ binary, beside the Zeo++
   entries, and the pore surface drawn over channels only.
 - **Net transitivity from the RCSR** {cite}`okeeffe2008rcsr`, and the

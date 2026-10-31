@@ -68,6 +68,7 @@ from xtalapp.dialogs.scan import (
 )
 from xtalapp.docks import scrolling
 from xtalapp.docks.ff_panel import panel_engine
+from xtalapp.widgets.choices import set_choice_enabled
 from xtalapp.widgets.tone import HINT, set_tone
 from xtalapp.workers import start_in_thread
 
@@ -215,9 +216,8 @@ class ThermoDialog(QDialog):
         method = self.form.widgets.get("method")
         if method is not None:
             index = method.findData("phonopy")
-            item = method.model().item(index) if index >= 0 else None
-            if item is not None:
-                item.setEnabled(False)
+            if index >= 0:
+                set_choice_enabled(method, index, False)
             if method.currentData() == "phonopy":
                 self._select(method, "auto")
         for name in PHONOPY_ONLY:
@@ -243,14 +243,13 @@ class ThermoDialog(QDialog):
         if method is None:
             return
         index = method.findData("analytic")
-        item = method.model().item(index) if index >= 0 else None
-        if item is None:
+        if index < 0:
             return
         offered = has_analytic_hessian(name)
-        item.setEnabled(offered)
-        item.setToolTip("" if offered else
-                        "This engine has no second derivatives of its "
-                        "own; MACE does")
+        set_choice_enabled(method, index, offered)
+        method.setItemData(index, "" if offered else
+                           "This engine has no second derivatives of "
+                           "its own; MACE does", Qt.ToolTipRole)
         if not offered and method.currentData() == "analytic":
             self._select(method, "auto")
 

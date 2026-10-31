@@ -50,6 +50,7 @@ from xtal.mof.rodnet import PATTERNS
 from xtal.references import RCSR, RODS
 from xtalapp.dialogs.answered import answered
 from xtalapp.dialogs.mof_preview import BlockPreview
+from xtalapp.widgets.choices import set_choice_enabled
 from xtalapp.widgets.links import SourceLinks
 from xtalapp.widgets.tone import HINT, WARNING, set_tone
 
@@ -488,12 +489,11 @@ class RodBuildDialog(QDialog):
             "alternate, so choose All one hand for it." if chiral else
             "This rod has no hand -- an improper operation maps it "
             "onto itself -- so there is none to choose.")
-        alternating = self.hands.model().item(2)
         odd = pattern in ("hxl", "kgm")
-        alternating.setEnabled(not odd)
-        alternating.setToolTip(
-            f"{pattern} has triangles, so neighbouring rods cannot "
-            f"alternate" if odd else "")
+        set_choice_enabled(self.hands, 2, not odd)
+        self.hands.setItemData(
+            2, f"{pattern} has triangles, so neighbouring rods cannot "
+            f"alternate" if odd else "", Qt.ToolTipRole)
         if odd and self.hands.currentData() == "alternating":
             self.hands.setCurrentIndex(0)
         self._ask_fit()

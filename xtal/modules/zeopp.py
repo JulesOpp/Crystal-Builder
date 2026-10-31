@@ -791,6 +791,7 @@ def _psd_report(found, gas: str, probe: float, said: str) -> Report:
         y_label="sample points",
         curve=window.derivative,
         curve_label="dV/dD",
+        columns=(("cumulative", window.cumulative),),
         # A pore narrower than the probe is one the sampling could
         # never have found, so the rule says where the picture stops
         # being a measurement and starts being a blind spot.

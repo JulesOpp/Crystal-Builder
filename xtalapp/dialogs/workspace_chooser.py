@@ -38,7 +38,14 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, QSize, Qt
-from PySide6.QtGui import QFont, QPainter, QPalette, QPixmap
+from PySide6.QtGui import (
+    QFont,
+    QKeySequence,
+    QPainter,
+    QPalette,
+    QPixmap,
+    QShortcut,
+)
 from PySide6.QtSvg import QSvgRenderer
 from PySide6.QtWidgets import (
     QDialog,
@@ -268,6 +275,14 @@ class WorkspaceChooser(QDialog):
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+        # The File menu's keys, because there is no File menu yet: on
+        # macOS the menu bar is empty while this is up, and Cmd+Q went
+        # to nothing.
+        for key, answer in ((QKeySequence.StandardKey.New, self._new),
+                            (QKeySequence.StandardKey.Open, self._other),
+                            (QKeySequence.StandardKey.Quit, self.reject)):
+            QShortcut(QKeySequence(key), self).activated.connect(answer)
 
         self._fill()
         self.list.setFocus()

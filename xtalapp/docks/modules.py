@@ -83,8 +83,22 @@ class ModuleTree(QTreeView):
             root.appendRow(_row("No modules registered", None, None,
                                 enabled=False))
             return
+        shared = {}
         for module in modules:
-            root.appendRow(self._module_item(module))
+            if not module.menu:
+                root.appendRow(self._module_item(module))
+                continue
+            # The menu's shared submenu, as one row: each module's
+            # entries straight under it, greyed by their own module.
+            group = shared.get(module.menu)
+            if group is None:
+                group = shared[module.menu] = _row(module.menu, None,
+                                                   None)[0]
+                root.appendRow(group)
+            self._fill(group, module, module.availability())
+        for group in shared.values():
+            group.setEnabled(any(group.child(k).isEnabled()
+                                 for k in range(group.rowCount())))
         self.expandAll()
 
     def _module_item(self, module) -> QStandardItem:
@@ -93,6 +107,14 @@ class ModuleTree(QTreeView):
                     enabled=bool(available))[0]
         item.setToolTip(available.reason if not available
                         else (module.description or module.label))
+        self._fill(item, module, available)
+        if not module.actions:                      # pragma: no cover
+            item.appendRow(_row("(nothing to run)", None, None,
+                                enabled=False))
+        return item
+
+    def _fill(self, item, module, available) -> None:
+        """The module's reason row, if it has one, and its entries."""
         # An entry can be greyed under a module that runs -- Porosity's
         # Zeo++ entries want a binary its grid entries do not -- and
         # the reason row is still the way to Preferences.
@@ -108,10 +130,6 @@ class ModuleTree(QTreeView):
             leaf.setToolTip(action.tip or action.label if entry
                             else entry.reason)
             item.appendRow([leaf])
-        if not module.actions:                      # pragma: no cover
-            item.appendRow(_row("(nothing to run)", None, None,
-                                enabled=False))
-        return item
 
     def _on_activated(self, index) -> None:
         item = self.model_.itemFromIndex(index)

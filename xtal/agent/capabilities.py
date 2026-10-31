@@ -21,15 +21,15 @@ from xtal.params import Availability
 
 #: The public verbs of a session, in the order the skill teaches them.
 VERBS = (
-    "open", "new", "build", "inspect", "render", "select",
-    "add_atom", "delete_sites", "set_element", "move_sites",
+    "open", "new", "build", "inspect", "render", "view", "set_view",
+    "select", "add_atom", "delete_sites", "set_element", "move_sites",
     "set_cell", "supercell", "slab", "reduce_to_p1", "find_symmetry",
     "standardize", "set_space_group", "merge_duplicates",
     "recalculate_bonds", "add_bond", "remove_bond", "set_bond_type",
     "add_hydrogens", "substitute", "fill_pores", "place_molecule",
     "prepare", "interpenetrate",
     "energy", "optimize", "thermochemistry", "run",
-    "undo", "redo", "save", "export",
+    "undo", "redo", "checkpoint", "save", "export",
 )
 
 

@@ -186,6 +186,28 @@ def test_the_histogram_columns_are_arrays():
         assert len(column) == found.n_bins
 
 
+def test_the_distribution_exports_its_plotted_bins_with_the_cumulative():
+    """The Results panel's Export data writes this: the occupied
+    window, every bin's centre, and the cumulative as well as the two
+    drawn series -- lose the cumulative and a spreadsheet cannot
+    integrate the distribution it was handed."""
+    from xtal.modules.zeopp import _psd_report
+
+    found = porosity.parse_psd(psd_text([(11.5, 40), (18.7, 900)]),
+                               probe=1.2)
+    histogram = _psd_report(found, "N2", 1.2, "").histograms[0]
+    lines = histogram.as_csv().splitlines()
+    window = found.window()
+
+    assert lines[0] == ("pore diameter (A),sample points,dV/dD,"
+                        "cumulative")
+    assert len(lines) == 1 + window.n_bins < 1 + found.n_bins
+    first = [float(v) for v in lines[1].split(",")]
+    assert first == pytest.approx(
+        [window.diameters[0] + window.bin_size / 2, window.counts[0],
+         window.derivative[0], window.cumulative[0]])
+
+
 # ----------------------------------------------------- the channel network
 
 def _cell():

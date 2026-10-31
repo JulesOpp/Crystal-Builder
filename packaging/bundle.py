@@ -120,6 +120,7 @@ PACKAGE_DATA = {
     # The script Blender runs for Export as STL, by path.
     "xtal/modules": ["data/*.py"],
     "xtal/orca": ["data/*.json"],           # ORCA's basis sets, solvents
+    "xtal/fullerene": ["data/*.json"],      # the isomers' spirals
     # PORMAKE's nets and building blocks, vendored with it: 3271
     # files, 2.8 MB of bytes and about 13 MB once installed, because
     # a file that small is a 4 KB block.  The builder is broken

@@ -65,6 +65,7 @@ the D3(BJ) fitted for DFTB3.
 | DFTB+ | None of its own; **D3(BJ)** or a Lennard-Jones term with UFF's radii, as a setting |
 | MACE-MP-0, -MPA-0, -0b3, -OMAT-0, -MATPES, -MH-1 | None |
 | MACE-MP-MOF0 | **Inside the model**: its reference data were PBE-D3(BJ) {cite}`elena2025macemof0` |
+| uMOF-MH | **Inside the model**: its reference data were r2SCAN-D4 {cite}`jaffrelot2026umof` |
 | ORB-v3 | None |
 | MatterSim | None |
 
@@ -76,7 +77,8 @@ and a framework's pore size is a dispersion-bound number, so for a
 porous solid this is not an optional refinement.
 
 :::{warning}
-MACE-MP-MOF0 already has D3 inside and must never be given it twice.
+MACE-MP-MOF0 already has D3 inside, and uMOF-MH D4; neither must
+ever be given dispersion twice.
 The engines offer no way to add a correction today, so this cannot
 happen in the application; it can in a script that wraps the
 engine's calculator.
@@ -116,7 +118,8 @@ Whether D3 should be offered as an option of the machine-learned
 engines, and whether it should be on by default, is a decision for
 the author and is recorded as such in `docs/TODO.md`: torch-dftd is
 what the benchmark used and pulls in pymatgen, tad-dftd3 is
-torch-only, and MACE-MP-MOF0 must be excluded from either.  This
+torch-only, and MACE-MP-MOF0 and uMOF-MH must be excluded from
+either.  This
 manual describes the current state -- no correction on those engines
 -- and will change when the decision does.
 
@@ -134,4 +137,5 @@ manual describes the current state -- no correction on those engines
 ## Settings
 
 Dispersion is a setting of the {ref}`DFTB+ engine <engine-dftb>` only.
-The MACE-MP-MOF0 choice is described under {ref}`MACE <engine-mace>`.
+The MACE-MP-MOF0 and uMOF-MH choices are described under
+{ref}`MACE <engine-mace>`.

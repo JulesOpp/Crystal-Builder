@@ -240,10 +240,10 @@ CARBON = Module(
                 "ribbons, with Stone-Wales defects and terminated "
                 "edges, at the density asked for.  It opens in a new "
                 "tab with its bonds stated.",
-    order=23, group="build",
+    order=26, group="build", menu="Carbon builder",
     provides=frozenset({"structure", "table"}),
     actions=(
-        Action(name="build", label="Build a disordered carbon...",
+        Action(name="build", label="Disordered carbon (ZTC, schwarzite)...",
                tip="Ribbons of carbon along a net, at a density; the "
                    "result opens in a new tab",
                kind="build",

@@ -301,7 +301,7 @@ POLYMER = Module(
                 "any tacticity, from a library monomer or a SMILES "
                 "string.  It opens in a new tab with its bonds "
                 "stated.  The model is packed, not equilibrated.",
-    order=24, group="build",
+    order=27, group="build",
     check=available,
     provides=frozenset({"structure", "table"}),
     actions=(

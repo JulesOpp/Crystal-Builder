@@ -26,6 +26,8 @@ records the first, and the second is noted in the table.
 | File | {ref}`Open… <cmd-open>` | {kbd}`Ctrl+O` |
 | File | {ref}`Save File <cmd-save>` | {kbd}`Ctrl+S` |
 | File | {ref}`Save As… <cmd-save_as>` | {kbd}`Ctrl+Shift+S` |
+| File | {ref}`Export… <cmd-export>` | {kbd}`Ctrl+E` |
+| File | {ref}`New workspace… <cmd-new_workspace>` | {kbd}`Ctrl+Shift+N` |
 | File | {ref}`Close <cmd-close_tab>` | {kbd}`Ctrl+W` |
 | File | {ref}`Close All <cmd-close_all_tabs>` | {kbd}`Ctrl+Shift+W` |
 | File | {ref}`Preferences… <cmd-preferences>` | {kbd}`Ctrl+,` |
@@ -50,7 +52,7 @@ records the first, and the second is noted in the table.
 | Structure | {ref}`Mouse mode ▸ Measure <cmd-mode_measure>` | {kbd}`Ctrl+7` |
 | Structure | {ref}`Reset bonds to automatic <cmd-reset_bonds>` | {kbd}`Ctrl+B` |
 | Symmetry | {ref}`Find symmetry… <cmd-find_symmetry>` | {kbd}`Ctrl+Shift+F` |
-| Measure | {ref}`Measure selection <cmd-measure_selection>` | {kbd}`Ctrl+M` |
+| Measure | {ref}`Measure selection <cmd-measure_selection>` | {kbd}`Ctrl+Shift+M` |
 | Measure | {ref}`Define plane from selection <cmd-define_plane>` | {kbd}`Ctrl+Shift+P` |
 | View | {ref}`Display range… <cmd-display_range>` | {kbd}`Ctrl+R` |
 | View | {ref}`Group selected atoms… <cmd-group_selected>` | {kbd}`Ctrl+G` |
@@ -58,8 +60,7 @@ records the first, and the second is noted in the table.
 | View | {ref}`Along b <cmd-view_b>` | {kbd}`2` |
 | View | {ref}`Along c <cmd-view_c>` | {kbd}`3` |
 | View | {ref}`Reset view <cmd-reset_view>` | {kbd}`Ctrl+0` |
-| Modules | {ref}`Force Field ▸ Single point energy <cmd-single_point>` | {kbd}`Ctrl+E` |
-| Modules | {ref}`Force Field ▸ Optimise geometry <cmd-optimize>` | {kbd}`Ctrl+Shift+E` |
+| Modules | {ref}`Force Field ▸ Optimise geometry <cmd-optimize>` | {kbd}`Ctrl+M` |
 | Help | {ref}`Crystal Builder Help <cmd-help_contents>` | {kbd}`Ctrl+?` |
 | -- | {ref}`Cancel the current gesture <cmd-cancel_gesture>` | {kbd}`Esc` |
 
@@ -76,8 +77,8 @@ Three things about the table that are choices rather than accidents:
   the selection is its last rung, after a half-finished gesture and a
   mode.  Two actions on one key is, in Qt, neither of them firing.
 - The DFTB+ single point and optimisation have no key, because
-  {kbd}`Ctrl+E` and {kbd}`Ctrl+Shift+E` already mean the force field
-  and a DFTB+ run is launched from its panel or the *Modules* menu.
+  {kbd}`Ctrl+M` already means the force field and a DFTB+ run is
+  launched from its panel or the *Modules* menu.
 
 *Help ▸ Crystal Builder Help* lists the same keys inside the
 application.

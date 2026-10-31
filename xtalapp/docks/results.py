@@ -478,12 +478,36 @@ def _histogram_widget(histogram: Histogram) -> QWidget:
     plot = HistogramPlot()
     plot.set_histogram(histogram)
     layout.addWidget(plot)
+    export = QPushButton("Export data...")
+    export.setToolTip("Write the plotted bins as a .csv -- one row a "
+                      "bin, a column for each series")
+    export.clicked.connect(lambda: _export_histogram(histogram, box))
+    row = QHBoxLayout()
+    row.addStretch(1)
+    row.addWidget(export)
+    layout.addLayout(row)
     if histogram.note:
         note = QLabel(histogram.note)
         note.setWordWrap(True)
         set_tone(note, HINT)
         layout.addWidget(note)
     return box
+
+
+def _export_histogram(histogram: Histogram, parent) -> None:
+    from xtal.workspace import safe_name
+
+    suggested = safe_name(histogram.title or "histogram",
+                          "histogram").lower()
+    path, _filter = QFileDialog.getSaveFileName(
+        parent, "Export the data", f"{suggested}.csv",
+        "Comma-separated values (*.csv);;All files (*)")
+    if not path:
+        return
+    try:
+        Path(path).write_text(histogram.as_csv(), encoding="utf-8")
+    except OSError as exc:
+        QMessageBox.warning(parent, "Export the data", str(exc))
 
 
 def _curve_widget(curve: Curve, dock) -> QWidget:

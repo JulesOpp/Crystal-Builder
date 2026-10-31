@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from PySide6.QtCore import Qt
 
 from xtal.modules.report import Modes, Report, Spectrum
 from xtalapp.docks.results import ResultsDock, select_mode
+from xtalapp.widgets.choices import choice_enabled
 
 
 @pytest.fixture
@@ -225,8 +227,7 @@ def test_without_phonopy_the_phonopy_rows_are_greyed_and_name_the_extra(
     _open(window, tmp_path, rutile)
     dialog = _dialog(qtbot, window)
     method = dialog.form.widgets["method"]
-    item = method.model().item(method.findData("phonopy"))
-    assert not item.isEnabled()
+    assert not choice_enabled(method, method.findData("phonopy"))
     assert not dialog.form.widgets["supercell"].isEnabled()
     assert dialog.phonopy_note.isVisibleTo(dialog)
     assert "phonons extra" in dialog.phonopy_note.text()
@@ -321,11 +322,14 @@ def test_analytic_is_offered_only_for_an_engine_with_a_hessian(
     _open(window, tmp_path, rutile)
     dialog = _dialog(qtbot, window)
     method = dialog.form.widgets["method"]
-    item = method.model().item(method.findData("analytic"))
+    analytic = method.findData("analytic")
     dialog._select(dialog.engine, "uff")
-    assert not item.isEnabled()
+    assert not choice_enabled(method, analytic)
+    assert "no second derivatives" in method.itemData(
+        analytic, Qt.ToolTipRole)
     dialog._select(dialog.engine, "mace")
-    assert item.isEnabled()
+    assert choice_enabled(method, analytic)
+    assert not method.itemData(analytic, Qt.ToolTipRole)
     dialog.form.set_values({"method": "analytic"})
     assert dialog.method() == "analytic"
     text = dialog.estimate.text()

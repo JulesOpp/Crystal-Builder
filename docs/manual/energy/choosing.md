@@ -68,8 +68,9 @@ engine; its native driver relaxes a cell with DFTB+'s.
 whose metal node UFF has no parameters for, at a cost between a force
 field's and tight binding's.  MACE-MP-MOF0 is fine-tuned on
 frameworks for phonons, carries D3 inside, and knows 26 elements --
-no Cr, Mn, Co or Ni.  The only one of the three that runs on an
-Apple GPU.
+no Cr, Mn, Co or Ni.  uMOF-MH is fine-tuned on twenty thousand
+frameworks with gases in them, carries D4 inside, and is the one for
+adsorption.  The only one of the three that runs on an Apple GPU.
 
 **ORB-v3.**  Among the most accurate on the framework benchmark, but
 that ranking included D3, which the engine does not have: a relaxed
@@ -112,8 +113,9 @@ against another engine.  No dispersion.
    installed, or a **universal potential** if its extra is.  Between
    the universal potentials, the engines' own notes make MatterSim the
    fastest, ORB-v3 the one the framework benchmark (with D3) ranks
-   among the most accurate, and MACE-MP-MOF0 the one fitted to
-   frameworks -- where its 26 elements cover the structure.
+   among the most accurate, MACE-MP-MOF0 the one fitted to frameworks
+   for phonons -- where its 26 elements cover the structure -- and
+   uMOF-MH the one fitted to frameworks with guests in them.
 3. For a volume or a pore size, remember which engines carry
    dispersion ({doc}`dispersion`), and check a relaxed cell against
    another engine or against the experimental cell.

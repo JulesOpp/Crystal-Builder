@@ -174,6 +174,9 @@ CODES: dict[str, Code] = {
     "RENDER_UNAVAILABLE": Code(
         ERROR, "No picture is possible here. Work from inspect(); the "
                "numbers are what the judgement rests on anyway."),
+    "VIEW_SETTING_REFUSED": Code(
+        ERROR, "Nothing was changed. Call view to see the settings and "
+               "their choices, then send only valid ones."),
     # -- the window ----------------------------------------------------
     "WINDOW_BUSY": Code(
         ERROR, "Nothing was changed. If the message says a trajectory "
@@ -190,6 +193,15 @@ CODES: dict[str, Code] = {
                "run folder keeps it. Inspect the structure as it is "
                "now (or open or switch to a document) before running "
                "again."),
+    "AGENT_CHANGES_REVERTED": Code(
+        WARNING, "The person undid or reverted steps you made since your "
+                 "last call; they are no longer in the structure. "
+                 "Inspect it before going on, and do not report those "
+                 "changes as made."),
+    "PERSON_EDITED": Code(
+        INFO, "The person edited the structure, or undid their own "
+              "edits, since your last call. Inspect it before deciding "
+              "anything."),
 }
 
 

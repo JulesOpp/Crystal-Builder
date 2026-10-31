@@ -161,7 +161,7 @@ def build_actions(window):
     add("save_as", "Save &As...", window.save_document_as,
         "Ctrl+Shift+S",
         tip="Save the session under another name")
-    add("export", "&Export...", window.export_dialog,
+    add("export", "&Export...", window.export_dialog, "Ctrl+E",
         tip="Write a file for something else to read -- a CIF, an "
             "XYZ.  One way: it never becomes this document's file")
     add("export_image", "Export &Image...", window.export_image)
@@ -182,7 +182,7 @@ def build_actions(window):
         tip="A folder that structures and their calculations live "
             "in")
     add("new_workspace", "&New workspace...",
-        window.new_workspace_dialog)
+        window.new_workspace_dialog, "Ctrl+Shift+N")
     add("close_tab", "&Close", window.close_current, "Ctrl+W")
     add("close_all_tabs", "Close A&ll", window.close_all_documents,
         "Ctrl+Shift+W",
@@ -485,7 +485,7 @@ def build_actions(window):
                 "of a measurement.  Again to leave the mode."))
 
     add("measure_selection", "&Measure selection",
-        window.measure_selection, "Ctrl+M",
+        window.measure_selection, "Ctrl+Shift+M",
         tip="Measure the selected atoms in the order they were "
             "picked: two a distance, three an angle about the "
             "middle one, four a torsion -- or the length of every "
@@ -593,18 +593,19 @@ def build_actions(window):
         tip="How much of the crystal to draw")
 
     add("single_point", "&Single point energy",
-        window.single_point_energy, "Ctrl+E",
+        window.single_point_energy,
         tip="Energy and per-term breakdown at this geometry")
     add("optimize", "&Optimise geometry", window.optimize_geometry,
-        "Ctrl+Shift+E",
+        "Ctrl+M",
         tip="Relax the structure within its space group")
     add("show_ff", "&Setup and atom types...", window.show_force_field,
         tip="Atom types, electrostatics, and how the run is going")
 
     # DFTB+'s own three, the same shape as UFF's above and kept
-    # deliberately unshortcut'd: Ctrl+E and Ctrl+Shift+E already
-    # mean "run UFF", and a DFTB+ run is launched from its own
-    # panel or the Modules menu rather than a reflex keystroke.
+    # deliberately unshortcut'd: Ctrl+M already means "relax with
+    # the Force Field panel's engine", and a DFTB+ run is launched
+    # from its own panel or the Modules menu rather than a reflex
+    # keystroke.
     add("dftb_single_point", "&Single point energy",
         window.dftb_single_point,
         tip="Energy and per-term breakdown at this geometry, "
@@ -936,14 +937,21 @@ def build_modules_menu(window) -> None:
     menu.setToolTipsVisible(True)
     window._module_actions = []
     window._module_submenus = {}
+    shared = {}
     previous = None
     for module in MODULES:
         if not module.listed:
             continue                    # Blender: File is its way in
-        if previous is not None and module.group != previous:
-            menu.addSeparator()
-        previous = module.group
-        entry = submenu(menu, module.label)
+        entry = shared.get(module.menu) if module.menu else None
+        if entry is None:
+            if previous is not None and module.group != previous:
+                menu.addSeparator()
+            previous = module.group
+            entry = submenu(menu, module.menu or module.label)
+            if module.menu:
+                shared[module.menu] = entry
+        # Every module sharing a submenu names the same one here, so
+        # a test or a refresh asks for it by the module's own name.
         window._module_submenus[module.name] = entry
         for action in module.actions:
             if action.listed:
@@ -969,22 +977,35 @@ def refresh_module_availability(window) -> None:
     true for a plugin's module, which this file has never heard of.
     """
     external.apply_hints(window.settings)
+    sharing = {}
     for name, submenu in window._module_submenus.items():
         if name not in MODULES:                 # pragma: no cover
             continue
-        module = MODULES.get(name)
-        available = module.availability()
-        submenu.setEnabled(bool(available))
-        submenu.setToolTip(module.description if available
-                           else available.reason)
+        sharing.setdefault(id(submenu), (submenu, []))[1].append(
+            MODULES.get(name))
+    for submenu, modules in sharing.values():
+        answers = [module.availability() for module in modules]
+        if len(modules) == 1:
+            submenu.setEnabled(bool(answers[0]))
+            submenu.setToolTip(modules[0].description if answers[0]
+                               else answers[0].reason)
+            continue
+        # A shared submenu is greyed only when nothing in it can run;
+        # a module in it that cannot is greyed entry by entry
+        # (ShellRefresh._refresh_module_actions), its reason the
+        # entries' tooltip.
+        submenu.setEnabled(any(answers))
+        submenu.setToolTip("; ".join(
+            module.label if answer else answer.reason
+            for module, answer in zip(modules, answers, strict=True)))
 
 def module_action(window, module, action):
     """The QAction for one module entry, made once and reused.
 
     An entry with a ``shell`` name is performed by the window
     action of that name -- which is how the three Force Field
-    entries moved into this menu unchanged, keeping Ctrl+E and
-    Ctrl+Shift+E and the panel behind them.  Everything else gets
+    entries moved into this menu unchanged, keeping Ctrl+M and the
+    panel behind them.  Everything else gets
     an action of its own, named ``module.<module>.<action>`` so
     that a keyboard shortcut, a test and the CLI all spell it the
     same way.
@@ -993,7 +1014,7 @@ def module_action(window, module, action):
         return window.actions_[action.shell]
     name = f"module.{module.name}.{action.name}"
     window._module_actions.append((name, action.needs_structure,
-                                   action))
+                                   action, module))
     if name not in window.actions_:
         window.actions_.add(
             name, action.label,

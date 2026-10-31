@@ -13,6 +13,7 @@ what is there now.  What was built:
 | § 4 | Nothing renamed, so nothing in the six files changed | — |
 | § 5 | 2026-10: Structure regrouped with a Bonds and a Building blocks submenu; Select... → Advanced Selection...; Blender in File only; a periodic table beside the element box | `menus.py:build_menus`, `build_toolbar` |
 | § 6 | 2026-10-04, the v1.0 review: sentence case throughout; builders lead Modules; the builders' names say what they build; Mirror the structure beside Reduce to P1; By element beside Same element; the mouse modes are Ctrl+1 to Ctrl+7 | `menus.py:build_menus`, `xtal/modules/*.py` |
+| § 8 | 2026-10-27: a *Carbon builder* submenu (`Module.menu`) holds Fullerene..., Nanotube... and Disordered carbon (ZTC, schwarzite)..., which were *Build a ...* entries of three submenus; registry keys unchanged | `xtal/modules/registry.py`, `menus.py:build_modules_menu`, `docks/modules.py` |
 | § 7 | 2026-10-12: Force Field gains *Frequencies and thermochemistry...* and *IR spectrum...*; the panel a *Thermochemistry...* button; Energy scan gains *Quasi-harmonic free energy...* | `xtal/modules/forcefield.py`, `ff_panel.py`, `xtal/modules/scan.py` |
 
 Nothing was renamed, which is why § 4 cost nothing: every registry key
@@ -94,7 +95,7 @@ rather than something two files happen to produce.
 | 5 | Measure | measure selection, planes |
 | 6 | Symmetry | find, set group, subgroup, standardise, primitive, Wyckoff, merge, invert, P1 |
 | 7 | Cell | edit cell, supercell, slab, Niggli, Delaunay, wrap |
-| 8 | Modules | one submenu per registered module, a separator between `Module.group`s (energy · build · characterise · export) |
+| 8 | Modules | one submenu per registered module -- or per `Module.menu`, which several share (Carbon builder: fullerene, nanotube, graphene, disordered carbon) -- a separator between `Module.group`s (energy · build · characterise · export) |
 | 9 | View | style, show, clear charges and orbital, background, display range, boundary, projection, axis views |
 | 10 | Help | log, feedback, check for updates, about |
 | 11 | Window | one toggle per dock, reset layout |

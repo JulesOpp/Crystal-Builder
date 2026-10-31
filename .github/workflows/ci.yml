@@ -21,8 +21,13 @@ jobs:
     # Except on Intel macOS and Windows, which are the slow runners:
     # at 4000 tests an honest Windows run is 10-12 minutes and an
     # Intel one 13-20, and both caps cancelled green suites at 100 %
-    # on 2026-09-30.  A hang is still caught per test at 180 s.
-    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 30 || matrix.os == 'windows-latest' && 20 || 12 }}
+    # on 2026-09-30.  At 5500 Windows is 17-19 minutes of tests and
+    # two of setup, and 20 cancelled a green run on 2026-10-22, so it
+    # has Intel's 30.  Linux and Apple silicon went from 12 to 15 at
+    # 6100: Ubuntu runs on main were 6.5-11 minutes, and the carbon
+    # builders' PR was cancelled green at 99 % on 2026-10-27.  A hang
+    # is still caught per test at 180 s.
+    timeout-minutes: ${{ (matrix.os == 'macos-15-intel' || matrix.os == 'windows-latest') && 30 || 15 }}
     strategy:
       fail-fast: false
       matrix:
@@ -33,7 +38,7 @@ jobs:
         # the version sweep it used to carry: the bundle is built on
         # one Python, and so is every other row here.
         include:
-          - os: macos-14          # Apple silicon
+          - os: macos-15          # Apple silicon
             python: "3.12"
           - os: macos-15-intel    # Intel.  Not macos-13: that image
             python: "3.12"        # was retired on 2025-12-04 and a
@@ -42,8 +47,12 @@ jobs:
                                   # then fails the run.
           - os: windows-latest
             python: "3.12"
-          - os: ubuntu-latest
-            python: "3.12"
+          - os: ubuntu-24.04      # Not ubuntu-latest: that became
+            python: "3.12"        # 26.04 on 2026-10-19, whose Mesa
+                                  # drew nothing for three of
+                                  # test_vtk_render's pixel checks and
+                                  # ran past the 12-minute cap.  Move
+                                  # on purpose, with those looked at.
     steps:
       - uses: actions/checkout@v7
         with:
@@ -157,7 +166,9 @@ jobs:
   # reference pages are generated from the application and committed,
   # so nothing here needs a display or the application installed.
   manual:
-    runs-on: ubuntu-latest
+    # 24.04 and not latest: the cached TeX packages are a 24.04
+    # install, and restored onto 26.04 they left no mktexlsr.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25   # the backstop for a cold cache on a slow mirror
     steps:
       - uses: actions/checkout@v7
@@ -214,7 +225,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14          # Apple silicon
+          - os: macos-15          # Apple silicon
             label: macos-arm64
             spec: packaging/macos.spec
           - os: macos-15-intel    # Intel.  VTK publishes no

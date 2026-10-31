@@ -352,6 +352,7 @@ class ShellRefresh:
         self.ff_dock.set_document(document)
         self.dftb_dock.set_document(document)
         self.trajectory_dock.set_document(document)
+        self.agent_strip.follow(document)
         self._rebuild_element_menu(document)
         self._refresh_shell()
 
@@ -497,7 +498,12 @@ class ShellRefresh:
                                document.view.show_pores),
                               ("show_scale_bar",
                                document.view.show_scale_bar),
-                              ("depth_cue", document.view.depth_cue)):
+                              ("depth_cue", document.view.depth_cue),
+                              ("orthographic",
+                               document.view.projection
+                               == "orthographic"),
+                              ("labels",
+                               document.view.label_mode != "none")):
             widget = self.actions_[action]
             widget.blockSignals(True)
             widget.setChecked(value)
@@ -529,8 +535,12 @@ class ShellRefresh:
         asks which.
         """
         idle = self.module_worker is None
-        for name, needs_structure, action in self._module_actions:
+        for name, needs_structure, action, module in self._module_actions:
             available = action.availability()
+            # A module with a submenu of its own is greyed there; one
+            # sharing a submenu is greyed here, entry by entry.
+            if module.menu and available:
+                available = module.availability()
             self.actions_.set_enabled(
                 [name], idle and bool(available)
                 and (editable or not needs_structure))

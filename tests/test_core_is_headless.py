@@ -84,9 +84,10 @@ def test_no_core_module_pulls_in_a_gui():
 #: Where the shell may ask for a covalent radius: to *draw* an atom
 #: that size.  Anywhere else it is deciding what is bonded, which is
 #: the core's job -- the MOF preview once did it with a rule of its
-#: own and drew bonds the build would never make.
+#: own and drew bonds the build would never make.  Only the shell is
+#: swept: ``xtal/view/settings.py``'s ``base_radius`` is the core's,
+#: which may ask for any radius.
 RADIUS_FOR_DRAWING = {
-    ("viewport/view_settings.py", "base_radius"),
     ("dialogs/mof_preview.py", "_draw_atom"),
 }
 

@@ -215,6 +215,14 @@ class _PathEdit(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.edit, 1)
         layout.addWidget(button)
+        #: Where such a file comes from, when the parameter says.
+        self.link = None
+        if param.link:
+            text, url = param.link
+            self.link = QLabel(f'<a href="{url}">{text}</a>')
+            self.link.setOpenExternalLinks(True)
+            self.link.setToolTip(url)
+            layout.addWidget(self.link)
 
     def _browse(self) -> None:                      # pragma: no cover
         ask = (QFileDialog.getSaveFileName if self.save

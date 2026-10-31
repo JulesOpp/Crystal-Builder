@@ -23,7 +23,7 @@ calculation should cite the work behind it.  Cite what you used:
 | Periodic electrostatics (Ewald summation) | {cite}`ewald1921` |
 | xTB: GFN1-xTB, GFN2-xTB, GFN-FF | {cite}`grimme2017gfn1`, {cite}`bannwarth2019gfn2`, {cite}`spicher2020gfnff`; the xtb program {cite}`bannwarth2021xtb` |
 | DFTB+ | {cite}`hourahine2020dftbplus`, and the method: {cite}`porezag1995dftb`, {cite}`elstner1998scc`, {cite}`gaus2011dftb3` |
-| MACE, MACE-MP-0, MACE-MP-MOF0 | {cite}`batatia2022mace`, {cite}`batatia2025macemp0`, {cite}`elena2025macemof0` |
+| MACE, MACE-MP-0, MACE-MP-MOF0, uMOF-MH | {cite}`batatia2022mace`, {cite}`batatia2025macemp0`, {cite}`elena2025macemof0`, {cite}`jaffrelot2026umof` |
 | ORB-v3 | {cite}`rhodes2025orbv3` |
 | MatterSim | {cite}`yang2024mattersim` |
 | The machine-learned engines, through ASE | {cite}`larsen2017ase` |

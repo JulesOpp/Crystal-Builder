@@ -76,6 +76,10 @@ class Param:
     #: -- ``"grid"`` for a porosity grid's spacing -- so the form can
     #: say beside it what the structure in front comes to.
     sizes: str = ""
+    #: For ``path``: ``(text, url)`` of where such a file is had, drawn
+    #: as a link beside Browse -- a path nobody can fill without
+    #: knowing where the file comes from.
+    link: tuple = ()
 
     def __post_init__(self):
         if self.kind not in KINDS:

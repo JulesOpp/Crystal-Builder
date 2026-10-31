@@ -42,6 +42,7 @@ from __future__ import annotations
 import functools
 import inspect as pyinspect
 import threading
+from collections.abc import Sequence
 from pathlib import Path
 
 from PySide6.QtCore import QMetaObject, QObject, Qt, QThread, Slot
@@ -49,18 +50,21 @@ from PySide6.QtCore import QMetaObject, QObject, Qt, QThread, Slot
 from xtal.agent.answers import Inspection, VerbResult
 from xtal.agent.capabilities import VERBS
 from xtal.agent.diagnostics import Diagnostic
-from xtal.agent.session import Session
+from xtal.agent.session import PathName, Session, View
 from xtal.agent.tools import HOST_VERBS, NO_SESSION, Host
 
 #: Verbs that change nothing, and so may run while the window is busy:
-#: an assistant waiting for a calculation can still look.
-READ_ONLY = ("inspect", "select")
+#: an assistant waiting for a calculation can still look, and name
+#: what it does next (``checkpoint`` touches no structure).
+READ_ONLY = ("inspect", "select", "checkpoint", "view")
 
 #: Verbs that compute over a copy, off the GUI thread.
 CALCULATIONS = ("energy", "optimize", "run", "thermochemistry")
 
 #: Why a call from the server's thread is refused once it is stopping.
 CLOSING = "the window is closing"
+#: Why a tab playing a trajectory back refuses a change.
+PLAYING = "this tab is playing a trajectory back; nothing was changed"
 #: Why the assistant has no current document though tabs are open.
 CLOSED = ("the document you were working on was closed; open or switch "
           "to one")
@@ -277,6 +281,7 @@ class WindowSession(Session):
         # an undo then an edit leave the depth where it was.
         self._revision = 0
         document.structureChanged.connect(self._changed)
+        self._init_bursts()
 
     def _changed(self, _change) -> None:
         self._revision += 1
@@ -325,6 +330,14 @@ class WindowSession(Session):
         Session._record(self, verb, args, answer)
         self._announce(verb, answer)
 
+    def _noticed(self):
+        """Read on the GUI thread: a calculation's answer is recorded
+        on the server's, and the tab's history is the GUI thread's."""
+        try:
+            return self._bridge.call(lambda: Session._noticed(self))
+        except BridgeClosed:
+            return []
+
     def _announce(self, verb, answer: VerbResult) -> None:
         """The answer in the status bar, while the window is serving:
         the person is watching, and this is where the window says
@@ -341,8 +354,7 @@ class WindowSession(Session):
     def _gate(self) -> str:
         """Why the window cannot take a verb now, or ``""``."""
         if self.document.is_playing:
-            return ("this tab is playing a trajectory back; nothing was "
-                    "changed")
+            return PLAYING
         if self.window.has_running_calculation():
             return "a calculation is running in the window"
         return ""
@@ -364,7 +376,19 @@ class WindowSession(Session):
     def _land(self, verb, command, message, args, notes,
               data) -> VerbResult:
         before = self.n_atoms
-        self.document.run(command)
+        bursting = self._burst_state()
+        # Session._tag seals the tab's stack, which is the document's:
+        # the same seal Document.break_merge makes.
+        self._tag(verb, command)
+        try:
+            self.document.run(command)
+        except BaseException:
+            # Refused before it reached the history (a held tab): the
+            # burst goes on as if it had not been tried.
+            for name, value in bursting.items():
+                setattr(self, name, value)
+            raise
+        self.document.break_merge()
         answer = VerbResult(verb, True, message, undo_label=command.label,
                             atoms_before=before, atoms_after=self.n_atoms,
                             data=dict(data or {}),
@@ -375,22 +399,28 @@ class WindowSession(Session):
     @_served
     def undo(self) -> VerbResult:
         before = self.n_atoms
-        label = self.document.undo()
+        label, told = self._own_move(self.document.undo)
+        if label:
+            self._kept_after_own_move()
         answer = VerbResult(
             "undo", bool(label),
             f"undid {label}" if label else "nothing to undo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("undo", {}, answer)
         return answer
 
     @_served
     def redo(self) -> VerbResult:
         before = self.n_atoms
-        label = self.document.redo()
+        label, told = self._own_move(self.document.redo)
+        if label:
+            self._kept_after_own_move()
         answer = VerbResult(
             "redo", bool(label),
             f"redid {label}" if label else "nothing to redo",
-            atoms_before=before, atoms_after=self.n_atoms)
+            atoms_before=before, atoms_after=self.n_atoms,
+            diagnostics=told)
         self._record("redo", {}, answer)
         return answer
 
@@ -406,9 +436,10 @@ class WindowSession(Session):
         return target
 
     @_served
-    def render(self, path, view="diagonal", size=(800, 600),
-               style: str = "ball_stick", highlight=(),
-               show_cell: bool = True) -> VerbResult:
+    def render(self, path: PathName, view: View = "diagonal",
+               size: tuple[int, int] = (800, 600),
+               style: str | None = None, highlight: Sequence[int] = (),
+               show_cell: bool | None = None) -> VerbResult:
         """The tab's viewport, drawn to a PNG: the person's view, in
         the tab's style and size.  ``view`` other than ``"diagonal"``
         -- an axis, ``[u, v, w]`` or ``{"hkl": [h, k, l]}`` -- turns
@@ -443,6 +474,30 @@ class WindowSession(Session):
                      answer)
         return answer
 
+    # -- the view ----------------------------------------------------
+
+    # Not gated: a calculation holds the structure, not how it is
+    # drawn.  Playback is refused here instead, because it is redrawing
+    # the tab -- and the gate would refuse both.
+    @functools.partial(_served, gated=False)
+    def set_view(self, settings: dict) -> VerbResult:
+        """``Session.set_view`` on the tab's own view, which the Style
+        panel and the scene follow; refused while the tab plays."""
+        if self.document.is_playing:
+            return self._answer_refused(
+                "set_view", {"settings": settings},
+                Diagnostic("WINDOW_BUSY", PLAYING))
+        return Session.set_view(self, settings)
+
+    def _current_view(self) -> dict:
+        # On the GUI thread: ``view`` and ``set_view`` are served there.
+        return self.document.view.to_dict()
+
+    def _apply_view(self, cleaned: dict) -> None:
+        # The Style panel's own path: ``viewChanged`` redraws the scene
+        # and refreshes the panel, and nothing reaches the undo stack.
+        self.document.update_view(**cleaned)
+
     # -- calculations ------------------------------------------------
 
     def energy(self, engine: str = "uff", **options) -> VerbResult:
@@ -466,8 +521,11 @@ class WindowSession(Session):
         calculation, _revision, generation, over = started
         with calculation:
             answer = compute(over)
-        # Recorded by the copy's session, which is not this one; and
-        # not said under a server that is not the one asked.
+        # Recorded by the copy's session, which is not this one: the
+        # tab's must still hear that the assistant was working, or its
+        # next step is measured from before the calculation.
+        self._heard()
+        # Not said under a server that is not the one asked.
         if generation == self._bridge.generation:
             self._announce(verb, answer)
         if verb != "energy":
@@ -488,6 +546,9 @@ class WindowSession(Session):
         busy = self._busy(verb, args)
         if busy is not None:
             return busy
+        # The tab's session hears the call begin, though the copy's
+        # runs it: an optimize lands here, and the gap is to its start.
+        self._hear()
         calculation = AgentCalculation(self.window, verb)
         calculation.start()
         over = Session(self.document.structure.copy(), self.path,
@@ -503,6 +564,7 @@ class WindowSession(Session):
         with calculation:
             relaxed = over._relax(args, options)
         if isinstance(relaxed, VerbResult):
+            self._heard()
             return self._named(relaxed)
         return _Pending(relaxed, revision, generation, over)
 
@@ -741,6 +803,7 @@ class WindowHost(Host):
         held = self._held(path)
         if held is not None:
             self._raise(held)
+            held.close_burst()
             self._current_session = held
             return held
         if not path.exists():
@@ -755,6 +818,7 @@ class WindowHost(Host):
             "open", True, f"opened {document.path.name}",
             atoms_after=session.n_atoms)
         session._record("open", {"path": str(path)}, session.opened)
+        session.close_burst()
         self._current_session = session
         return session
 
@@ -763,6 +827,7 @@ class WindowHost(Host):
         if held is None:
             raise LookupError(f"{path} is not open")
         self._raise(held)
+        held.close_burst()
         self._current_session = held
         return held
 

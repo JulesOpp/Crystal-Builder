@@ -153,7 +153,7 @@ def test_a_theme_change_repaints_what_follows_it(window, rutile_cif,
                                                  monkeypatch):
     document = window.open_path(rutile_cif)
     monkeypatch.setattr("xtalapp.mainwindow.theme_background",
-                        lambda: (1, 2, 3))
+                        lambda dark: (1, 2, 3))
 
     window._follow_theme()
 
@@ -168,7 +168,7 @@ def test_a_theme_change_leaves_a_chosen_colour_alone(window,
     document = window.open_path(rutile_cif)
     window.set_background("black")
     monkeypatch.setattr("xtalapp.mainwindow.theme_background",
-                        lambda: (1, 2, 3))
+                        lambda dark: (1, 2, 3))
 
     window._follow_theme()
 

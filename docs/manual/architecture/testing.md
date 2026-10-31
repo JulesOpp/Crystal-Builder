@@ -156,7 +156,7 @@ viewport passes the whole suite and fails this.
 `v*` and every pull request.  Its jobs:
 
 **test**
-: One job per platform shipped, "and nothing else": `macos-14` (Apple
+: One job per platform shipped, "and nothing else": `macos-15` (Apple
   silicon), `macos-15-intel` and `windows-latest`, each on Python
   3.12, with the extras `gui,build,sketch,pxrd,ase,test` installed.
   The suite runs under `QT_QPA_PLATFORM=offscreen` with
