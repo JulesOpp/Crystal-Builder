@@ -531,8 +531,11 @@ renamed asset is a button that falls back to the release page -- keep
 the names, or change `data-asset` in `site/index.html` with them.
 Publishing a release needs no redeploy; a platform with no asset in
 it says "Coming in the next release". What is written by hand, and
-goes stale, is the *New in* list and the Linux and *Check for
-Updates* "next release" lines: update them in the release commit.
+goes stale, is the *New in* box and the feature sections under it;
+update them in the release commit, from the release notes' new
+section, and merge it just before the tag -- the page deploys on the
+merge, and a *New in* list live while the buttons still fetch the
+old release promises what the download lacks.
 
 ---
 
