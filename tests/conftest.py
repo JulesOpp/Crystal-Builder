@@ -29,6 +29,27 @@ from xtal import Lattice, Structure
 # test has to remember to.
 os.environ.setdefault("XTAL_NO_CONFIRM_CLOSE", "1")
 
+
+def _own_scratch(variable: str, prefix: str) -> str:
+    """A temporary directory of this process's own, named in *variable*.
+
+    Assigned, never ``setdefault``.  An xdist worker inherits the
+    controller's environment, and the controller imports this file
+    first, so ``setdefault`` handed every worker the controller's
+    directory: one settings folder for three workers.  A window
+    fixture names its settings domain after ``tmp_path.name``, which
+    is the same on every worker (``popen-gw0/test_x0``,
+    ``popen-gw2/test_x0``), so a test run on two workers -- a file
+    named twice on the command line is collected twice -- read the
+    first run's last workspace and reopened its tabs.  The pid in the
+    name is what ``test_suite_guards`` checks.
+    """
+    folder = tempfile.mkdtemp(prefix=f"{prefix}{os.getpid()}-")
+    atexit.register(shutil.rmtree, folder, ignore_errors=True)
+    os.environ[variable] = folder
+    return folder
+
+
 # And the same for the log.  ``xtalapp.applog`` writes to the
 # platform's application-data folder -- ~/Library/Application Support
 # on this machine -- and honours this variable ahead of everything
@@ -36,25 +57,19 @@ os.environ.setdefault("XTAL_NO_CONFIRM_CLOSE", "1")
 # today" is exactly the guarantee that expired the last time
 # something in this suite reached the real preferences system and
 # left 278 plists behind.  Set before any import can look.
-_LOGS = tempfile.mkdtemp(prefix="xtal-test-logs-")
-atexit.register(shutil.rmtree, _LOGS, ignore_errors=True)
-os.environ.setdefault("XTAL_LOG_DIR", _LOGS)
+_LOGS = _own_scratch("XTAL_LOG_DIR", "xtal-test-logs-")
 
 # And the folder ``xtalapp.extras`` puts on sys.path, which lives
 # beside the log for the same reason and must not be a real one
 # either: revealing it creates it, and a test that reached that would
 # make a directory in somebody's Application Support.
-_PACKAGES = tempfile.mkdtemp(prefix="xtal-test-packages-")
-atexit.register(shutil.rmtree, _PACKAGES, ignore_errors=True)
-os.environ.setdefault("XTAL_PACKAGES_DIR", _PACKAGES)
+_PACKAGES = _own_scratch("XTAL_PACKAGES_DIR", "xtal-test-packages-")
 
 # And the AI assistant's discovery file, which is there too.  Reading
 # the real one, ``xtal mcp`` in a test would proxy to the developer's
 # own window if it were serving; writing it, a test's server would
 # point their assistant at a window that is about to vanish.
-_APP_DATA = tempfile.mkdtemp(prefix="xtal-test-appdata-")
-atexit.register(shutil.rmtree, _APP_DATA, ignore_errors=True)
-os.environ.setdefault("XTAL_APP_DATA", _APP_DATA)
+_APP_DATA = _own_scratch("XTAL_APP_DATA", "xtal-test-appdata-")
 
 # And the same for the workspace.  The application now *makes* the
 # default workspace on a first run rather than only suggesting it --
@@ -62,9 +77,7 @@ os.environ.setdefault("XTAL_APP_DATA", _APP_DATA)
 # answer with the real default would put a folder of runs in the
 # developer's home directory on every run, which is the plists
 # again with bigger files in it.
-_WORKSPACE = tempfile.mkdtemp(prefix="xtal-test-workspace-")
-atexit.register(shutil.rmtree, _WORKSPACE, ignore_errors=True)
-os.environ.setdefault("XTAL_WORKSPACE_ROOT", _WORKSPACE)
+_WORKSPACE = _own_scratch("XTAL_WORKSPACE_ROOT", "xtal-test-workspace-")
 
 # One BLAS thread per process.  OpenBLAS starts a thread per core in
 # every worker, and its threads spin while they wait, so three xdist
@@ -179,12 +192,10 @@ def _settings_into_a_scratch_directory() -> None:
     constructor, which is what ``XTAL_SETTINGS_DIR`` makes
     ``AppSettings`` do.
     """
-    scratch = tempfile.mkdtemp(prefix="xtal-test-settings-")
-    atexit.register(shutil.rmtree, scratch, ignore_errors=True)
     # Spelled out rather than imported: this file is read before
     # anything else and the headless half of the suite has no Qt to
     # import xtalapp.settings through.
-    os.environ.setdefault("XTAL_SETTINGS_DIR", scratch)
+    scratch = _own_scratch("XTAL_SETTINGS_DIR", "xtal-test-settings-")
     try:
         from PySide6.QtCore import QSettings
     except ImportError:               # the headless half of the suite
