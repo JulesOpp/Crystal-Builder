@@ -18,7 +18,7 @@ something runnable and a green suite, the rule
 
 # Scheduled
 
-## After v1.0 (1.0.x)
+## Owed since 1.0, still open after 1.1
 
 - **CI on Ubuntu 26.04.** `ubuntu-latest` became 26.04 on 2026-10-19,
   and the test matrix and the manual job were pinned to `ubuntu-24.04`
@@ -29,7 +29,8 @@ something runnable and a green suite, the rule
   at those three tests on 26.04's software GL and rebuilding the TeX
   cache (bump its `version`); 24.04 runners are supported into 2028.
 
-Raised by the 2026-10-03 review of `main` and deliberately left out of 1.0:
+Raised by the 2026-10-03 review of `main`, left out of 1.0 and
+not in 1.1:
 
 - **Signing**: a Developer ID for macOS (notarised) and a code-signing
   certificate for Windows.  `docs/PACKAGING.md` has the plan.
@@ -508,8 +509,10 @@ It is a *reporting* gap rather than a merging one: merging drops whole
 sites and a site's own orbit cannot be half-dropped, so the honest fix
 is for the preview to say "Zn1 is 0.06 A off its mirror and the group
 is making three of it" and point at Standardize, not to offer a merge
-that cannot happen.  Wanted with whatever finally reports a site
-sitting just off a special position, which nothing does today.
+that cannot happen.  Find symmetry has reported it since 1.1
+(`SymmetryReport.off_position`: each site off the position the group
+puts it on, by how far, with *snap* offered); the Merge Duplicates
+preview should say the same from the same list.
 
 ## Force fields
 

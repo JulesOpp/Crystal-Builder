@@ -25,9 +25,12 @@ jobs:
     # two of setup, and 20 cancelled a green run on 2026-10-22, so it
     # has Intel's 30.  Linux and Apple silicon went from 12 to 15 at
     # 6100: Ubuntu runs on main were 6.5-11 minutes, and the carbon
-    # builders' PR was cancelled green at 99 % on 2026-10-27.  A hang
-    # is still caught per test at 180 s.
-    timeout-minutes: ${{ (matrix.os == 'macos-15-intel' || matrix.os == 'windows-latest') && 30 || 15 }}
+    # builders' PR was cancelled green at 99 % on 2026-10-27.  Intel
+    # went from 30 to 45 at 6150: its runs were 28 minutes, and the
+    # v1.1.0 tag run was cancelled at the cap on 2026-11-06 with no
+    # test failed, which held back every bundle.  A hang is still
+    # caught per test at 180 s.
+    timeout-minutes: ${{ matrix.os == 'macos-15-intel' && 45 || matrix.os == 'windows-latest' && 30 || 15 }}
     strategy:
       fail-fast: false
       matrix:
