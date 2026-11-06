@@ -34,6 +34,20 @@ def test_no_window_settings_reach_the_real_preferences(tmp_path):
     assert scratch in Path(store.fileName()).parents
 
 
+@pytest.mark.parametrize("variable", [
+    SETTINGS_DIR_ENV, "XTAL_LOG_DIR", "XTAL_PACKAGES_DIR",
+    "XTAL_APP_DATA"])
+def test_each_test_process_has_scratch_folders_of_its_own(variable):
+    """An xdist worker inherits the controller's environment, so a
+    scratch folder set with ``setdefault`` was the controller's and
+    shared by every worker.  Window settings are named after
+    ``tmp_path.name``, the same on every worker, so a test collected
+    twice read the other worker's last workspace and opened a tab
+    nobody asked for (test_open_once, 2026-11-06)."""
+    folder = Path(os.environ[variable])
+    assert f"-{os.getpid()}-" in folder.name
+
+
 # ------------------------------------------- nothing waits for a click
 #
 # Each checks that the guard is in place before calling through it:
