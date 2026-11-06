@@ -38,7 +38,24 @@ def folders(tmp_path):
         shutil.copy(PORMAKE / "topologies" / f"{name}.cgd", nets)
     for name in ("N16", "E14"):
         shutil.copy(PORMAKE / "bbs" / f"{name}.xyz", blocks)
+    # Copies are stamped now, which is too recent to trust (see
+    # `_settled`); PORMAKE's own files are years old.
+    for path in (*nets.iterdir(), *blocks.iterdir(), nets, blocks):
+        _age(path)
     return nets, blocks
+
+
+def _age(path, seconds=3600):
+    """Put a file's or folder's modification time an hour back."""
+    stat = path.stat()
+    os.utime(path, ns=(stat.st_atime_ns,
+                       stat.st_mtime_ns - seconds * 10**9))
+
+
+def _keep_stamp(path, stamp):
+    """Put a modification time back to what it was: what a coarse
+    clock does when two changes land in one tick of it."""
+    os.utime(path, ns=(path.stat().st_atime_ns, stamp))
 
 
 @pytest.fixture
@@ -159,3 +176,42 @@ def test_expanding_a_net_reads_no_file_the_catalogue_already_read(
 
     assert net is not None
     assert "pcu.cgd" not in opened
+
+
+def test_a_file_added_in_the_same_clock_tick_is_found(folders):
+    """A folder's time on NTFS and FAT is coarse, so a file added in
+    the tick of the last listing leaves it unchanged: the Windows job
+    on 2026-11-06 missed a block copied in that way, and so would a
+    picker opened the moment a block was saved."""
+    nets, blocks = folders
+    os.utime(blocks)
+    stamp = blocks.stat().st_mtime_ns
+    assert Catalog((nets,), (blocks,)).building_blocks()
+    shutil.copy(PORMAKE / "bbs" / "N59.xyz", blocks)
+    _keep_stamp(blocks, stamp)
+
+    names = {b.name for b in Catalog((nets,), (blocks,)).building_blocks()}
+
+    assert "N59" in names
+
+
+def test_a_file_rewritten_in_the_same_clock_tick_is_read_again(folders):
+    """Same size and same time, other text: only the clock's
+    resolution separates the two versions."""
+    nets, _ = folders
+    path = nets / "pcu.cgd"
+    os.utime(path)
+    stamp = path.stat().st_mtime_ns
+    text = cat._text(path)
+    path.write_text(text.replace("pcu", "PCU", 1), encoding="utf-8")
+    _keep_stamp(path, stamp)
+
+    assert cat._text(path) != text
+
+
+def test_a_settled_folder_is_listed_once(folders):
+    """Distrusting a fresh stamp must not cost the cache: PORMAKE's
+    folders are old, and the second listing is the first one's."""
+    _, blocks = folders
+
+    assert cat._listing(blocks, "*.xyz") is cat._listing(blocks, "*.xyz")

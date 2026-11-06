@@ -54,6 +54,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import tempfile
+import time
 from dataclasses import dataclass, field, replace
 from functools import lru_cache
 from pathlib import Path
@@ -1212,9 +1213,32 @@ class Catalog:
 # the file's size and modification time -- and each catalogue is handed
 # a copy, so what one catalogue works out or moves stays its own.
 
+#
+# A stamp is only as fine as the file system's clock -- NTFS's folder
+# times and FAT's two seconds -- so a change landing in the same tick
+# as the last read leaves it as it was, and the old listing or text
+# was served: Windows CI missed a block copied into a folder just
+# listed.  A stamp that recent is not trusted, as git treats its
+# "racy" index entries: what was read is kept without one and read
+# again next time, until the stamp is old enough to tell two versions
+# apart.
+
 _LISTINGS: dict = {}
 _PARSED: dict = {}
 _TEXTS: dict = {}
+
+#: How close to now a modification time may be and still be shared by
+#: a change yet to come: FAT's resolution, the coarsest in use.
+RACY_NS = 2 * 10**9
+
+
+def _settled(stamp, mtime_ns: int):
+    """``stamp``, or ``None`` while ``mtime_ns`` is too recent to tell
+    this version from the next; ``None`` equals no stamp, so the next
+    read reads again."""
+    if abs(time.time_ns() - mtime_ns) < RACY_NS:
+        return None
+    return stamp
 
 
 def _text(path: Path) -> str:
@@ -1229,7 +1253,8 @@ def _text(path: Path) -> str:
     stamp = (stat.st_size, stat.st_mtime_ns)
     held = _TEXTS.get(str(path))
     if held is None or held[0] != stamp:
-        held = (stamp, path.read_text(encoding="utf-8"))
+        held = (_settled(stamp, stat.st_mtime_ns),
+                path.read_text(encoding="utf-8"))
         _TEXTS[str(path)] = held
     return held[1]
 
@@ -1241,7 +1266,7 @@ def _listing(directory: Path, pattern: str) -> list[Path]:
     key = (str(directory), pattern)
     held = _LISTINGS.get(key)
     if held is None or held[0] != stamp:
-        held = (stamp, sorted(directory.glob(pattern)))
+        held = (_settled(stamp, stamp), sorted(directory.glob(pattern)))
         _LISTINGS[key] = held
     return held[1]
 
@@ -1257,7 +1282,7 @@ def _parsed(path: Path, reader):
     key = (str(path), reader)
     held = _PARSED.get(key)
     if held is None or held[0] != stamp:
-        held = (stamp, reader(path))
+        held = (_settled(stamp, stat.st_mtime_ns), reader(path))
         _PARSED[key] = held
     return _own_copy(held[1])
 
