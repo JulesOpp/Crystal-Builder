@@ -11,7 +11,10 @@
     var data = navigator.userAgentData;
     var p = ((data && data.platform) || navigator.platform || "").toLowerCase();
     var ua = navigator.userAgent.toLowerCase();
-    if (p.indexOf("mac") >= 0 || ua.indexOf("mac os") >= 0) return "mac";
+    if (p.indexOf("mac") >= 0 || ua.indexOf("mac os") >= 0) {
+      // iPadOS Safari calls itself a Mac; a Mac has no touch screen.
+      return navigator.maxTouchPoints > 1 ? null : "mac";
+    }
     if (p.indexOf("win") >= 0 || ua.indexOf("windows") >= 0) return "windows";
     if (p.indexOf("linux") >= 0 || ua.indexOf("linux") >= 0) {
       return ua.indexOf("android") >= 0 ? null : "linux";
@@ -19,8 +22,32 @@
     return null;
   }
 
-  function highlight() {
-    var mine = detectPlatform();
+  // Browsers say "Mac" on Intel and Apple silicon alike, so a Mac is
+  // highlighted only when Chromium answers which it is; elsewhere both
+  // builds are left as offered, since an Intel Mac handed the arm64
+  // DMG as its own gets a file that will not open.
+  function macArchitecture() {
+    var data = navigator.userAgentData;
+    if (!data || !data.getHighEntropyValues) return Promise.resolve(null);
+    return data.getHighEntropyValues(["architecture"])
+      .then(function (v) { return v.architecture || null; })
+      .catch(function () { return null; });
+  }
+
+  // On an Intel Mac the main button becomes the x86_64 build, and the
+  // smaller link under it the Apple silicon one.
+  function preferIntel() {
+    var box = document.querySelector('.dl[data-platform="mac"]');
+    if (!box) return;
+    var main = box.querySelector(".btn");
+    var alt = box.querySelector(".dl-alt");
+    main.setAttribute("data-asset", "x86_64.dmg");
+    alt.setAttribute("data-asset", "arm64.dmg");
+    box.querySelector(".dl-label").textContent = "Intel Macs";
+    alt.textContent = "Apple silicon Mac? Download the arm64 build";
+  }
+
+  function highlight(mine) {
     if (!mine) return;
     var el = document.querySelector('.dl[data-platform="' + mine + '"]');
     if (el && !el.classList.contains("unavailable")) el.classList.add("primary");
@@ -84,9 +111,17 @@
   }
 
   lightbox();
-  fetch(API, { headers: { Accept: "application/vnd.github+json" } })
+  var mine = detectPlatform();
+  var arch = mine === "mac" ? macArchitecture() : Promise.resolve(null);
+  var release = fetch(API, { headers: { Accept: "application/vnd.github+json" } })
     .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(fill)
-    .catch(function () { /* the static links stand */ })
-    .then(highlight);
+    .catch(function () { return null; /* the static links stand */ });
+  Promise.all([arch, release]).then(function (got) {
+    if (mine === "mac") {
+      if (got[0] === "x86") preferIntel();
+      else if (got[0] !== "arm") mine = null;
+    }
+    if (got[1]) fill(got[1]);
+    highlight(mine);
+  });
 })();

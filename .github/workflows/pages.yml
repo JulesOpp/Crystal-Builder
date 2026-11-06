@@ -1,13 +1,13 @@
 name: pages
 
-# The download page, site/, published to GitHub Pages.  Its own
-# workflow so a page edit is live in a minute rather than waiting on
-# the test matrix; the buttons read the latest release themselves, so
-# publishing a release needs no redeploy.
+# The download page, site/, published to GitHub Pages.  It deploys
+# when a release is published, not when site/ is merged: the release
+# job makes a draft, releases/latest ignores drafts, and a merged page
+# would say "New in" a version while its buttons still served the last
+# one.  Run it by hand for a page-only edit between releases.
 on:
-  push:
-    branches: [main]
-    paths: ["site/**", ".github/workflows/pages.yml"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -15,9 +15,11 @@ permissions:
   pages: write
   id-token: write
 
+# Queued runs still collapse to the newest, but a deploy already
+# running is left to finish rather than cut off halfway.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:

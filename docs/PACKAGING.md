@@ -523,19 +523,20 @@ the whole value of having CI on three platforms already.
 ### The download page
 
 `site/` is the page at <https://julesopp.github.io/Crystal-Builder/>,
-published by `.github/workflows/pages.yml` on any push to `main` that
-touches it. **Its buttons find their files by the suffixes in the
-table above** (`arm64.dmg`, `x86_64.dmg`, `setup.exe`, `.AppImage`,
-read from the latest published release by `site/download.js`), so a
-renamed asset is a button that falls back to the release page -- keep
-the names, or change `data-asset` in `site/index.html` with them.
-Publishing a release needs no redeploy; a platform with no asset in
-it says "Coming in the next release". What is written by hand, and
-goes stale, is the *New in* box and the feature sections under it;
-update them in the release commit, from the release notes' new
-section, and merge it just before the tag -- the page deploys on the
-merge, and a *New in* list live while the buttons still fetch the
-old release promises what the download lacks.
+published by `.github/workflows/pages.yml` when a release is
+published, and by hand (*Run workflow*) for a page-only edit. **Its
+buttons find their files by the suffixes in the table above**
+(`arm64.dmg`, `x86_64.dmg`, `setup.exe`, `.AppImage`, read from the
+latest published release by `site/download.js`), so a renamed asset
+is a button that falls back to the release page -- keep the names, or
+change `data-asset` in `site/index.html` with them. A platform with
+no asset in the release says "Coming in the next release". What is
+written by hand, and goes stale, is the *New in* box and the feature
+sections under it; update them in the release commit, from the
+release notes' new section. Merging it changes nothing on the page:
+it goes live when the draft release is published, never while
+`releases/latest` -- which skips drafts -- still serves the old
+files.
 
 ---
 

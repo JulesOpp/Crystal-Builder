@@ -106,7 +106,9 @@ The first stable release. The 0.x previews were put out to be used
 and argued with, and what their testers found is in here; they have
 been retired in its favour.
 
-## What it does
+## About Crystal Builder
+
+### What it does
 
 - **Structures in and out**: CIF with its bonds, a project
   (`.xtalproj`) that keeps the view, measurements and runs beside the
@@ -153,7 +155,7 @@ been retired in its favour.
 - **Samples to start from**: textbook solids, polymers, and MOFs from
   the COD, under *File ▸ Open Sample*.
 
-## Made to be dependable
+### Made to be dependable
 
 - **Saving never destroys the last good file.** Every file is written
   beside the old one and swapped in only once complete, and an
@@ -173,7 +175,7 @@ been retired in its favour.
 - **Errors are one box at a time**, with *Copy details* and *Send
   feedback…*; a hard crash leaves its stack in `faults.log`.
 
-## Downloads
+### Downloads
 
 | You have | Download |
 |---|---|
@@ -190,11 +192,12 @@ supported.
 
 There is no universal Mac build, and that is not an oversight: VTK
 publishes no universal2 wheel, so the two have to be built separately.
-Pick the one that matches your Mac — About This Mac says which. An
-Intel build cannot be made to run on Apple silicon by Rosetta, which
-translates the other direction.
+Pick the one that matches your Mac — About This Mac says which.
+Rosetta runs the Intel build on Apple silicon, more slowly than the
+native one; the Apple silicon build does not run on an Intel Mac at
+all.
 
-## Opening it the first time
+### Opening it the first time
 
 **The macOS and Windows builds are not code-signed yet**, so both
 operating systems will say so, in the way each of them says it.
@@ -237,7 +240,7 @@ always wins.
 Settings are in `~/.config/CrystalBuilder/CrystalBuilder.conf`; the
 log is in `~/.local/share/CrystalBuilder`.
 
-## File associations
+### File associations
 
 The installer offers `.cif` and `.xtalproj` associations. `.cif` is
 **unticked by default** and macOS registers it as an alternate handler
@@ -252,7 +255,7 @@ On Linux the AppImage makes no menu entry or file associations of its
 own; AppImageLauncher or Gear Lever adds a menu entry, and the file
 types where the integrator installs them.
 
-## What is in the download, and what is not
+### What is in the download, and what is not
 
 Bundled and working, with nothing to install:
 
@@ -298,13 +301,13 @@ offers a folder that is added to the import path at
 start-up, which works for pure-Python packages. Run from Python if you
 need more than that.
 
-## Known issues
+### Known issues
 
 - **The version shown in Help → About is the git tag the build was
   made from.** If it reads `0.0.dev0` or `0.0.0`, the build is broken
   and worth reporting.
 - **The builds are not code-signed** (see *Opening it the first
-  time*). Signing is planned for a 1.0.x release.
+  time*). Signing is planned.
 - **A CIF whose symmetry operations match no tabulated setting** is
   read in the tabulated group its space-group symbol names, and the
   reader says so. Building the group from the file's own operations
@@ -316,18 +319,19 @@ need more than that.
 - **A polymer model is packed, not equilibrated.** Its density and
   contacts are right; its chains have not relaxed at their own scale,
   which takes molecular dynamics this application does not run.
-- **What 1.1 does not do**, so nobody looks for it: adsorption
+- **What it does not do**, so nobody looks for it: adsorption
   (GCMC, Henry coefficients) -- write the CIF, with its charges, for
   RASPA; molecular dynamics with the machine-learned engines (DFTB+'s
   own MD is there); fetching structures from the COD, CoRE MOF or the
   Materials Project; input files for VASP, Quantum ESPRESSO or CP2K
-  beyond the POSCAR. Each is on the list for after 1.0.
+  beyond the POSCAR. Each is on the list for a later
+  release.
 - **Style ▸ Rings refuses a graph too dense to search** -- a
   deposited CIF with its symmetry copies written as sites, or a
   close-packed salt -- and says so in the legend. *Prepare for
   simulation* first.
 
-## Reporting something
+### Reporting something
 
 *Help → Send Feedback…* is the quickest way: it composes the email,
 with the end of the log for a bug, and opens it in your mail client.
