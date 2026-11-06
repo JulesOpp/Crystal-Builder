@@ -35,6 +35,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
 
+from xtal.core.bonding import BondRules
 from xtal.core.structure import Structure
 from xtal.io import FORMATS
 from xtal.io.trajectory import is_multi_frame_xyz
@@ -104,12 +105,25 @@ class DocumentSet:
     def add_document(self, document: Document) -> int:
         document.bonds_follow_geometry = \
             self.window.settings.bonds_follow_geometry
-        if not document.structure.bond_rules:
+        structure = document.structure
+        if not structure.bond_rules:
             # Only when the structure has none of its own: a project
             # carries the rules it was saved with, and a preference
-            # must not overwrite them.
-            document.structure.bond_rules = \
-                self.window.settings.default_bond_rules()
+            # must not overwrite them.  Nor does it when the file
+            # stores a graph -- a project or a perception CIF written
+            # with no rules was perceived under the built-in ones, and
+            # any other rules change its signature, so the stated
+            # bonds would be perceived afresh by distance on open (a
+            # P6 disorder model's six overlapping copies bonded to
+            # one another).  Those rules are written down instead.
+            built_in = BondRules.from_dict({})
+            stored = structure.perceived
+            if stored is not None \
+                    and stored.signature == built_in.signature():
+                structure.bond_rules = built_in.to_dict()
+            else:
+                structure.bond_rules = \
+                    self.window.settings.default_bond_rules()
         if not document.view_is_saved:
             # What Preferences > View defaults says a newly opened
             # structure starts as.  Not applied to a project, which

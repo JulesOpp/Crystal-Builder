@@ -289,6 +289,55 @@ def test_editing_the_defaults_needs_no_structure(dialog, settings,
     settings.set_default_bond_rules(None)
 
 
+def _stated(structure):
+    """``structure`` with a stored graph distance would not give: one
+    perceived bond fewer, under the built-in rules, which is what a
+    project with no rules of its own was perceived under."""
+    from xtal.core import p1
+    from xtal.core.bonding import BondRules
+    structure = structure.copy()
+    structure.bond_rules = {}
+    bonds = bonding.graph(structure).bonds
+    structure.set_perceived(bonds[1:], BondRules.from_dict({}).signature(),
+                            p1.expand(structure))
+    return structure, len(bonds) - 1
+
+
+def test_a_project_s_stored_bonds_survive_a_different_default(
+        window, settings, rutile, tmp_path):
+    """A project written with no rules of its own was perceived under
+    the built-in ones.  Handing it the Preferences' default at open
+    changed the graph's signature, and the stated bonds were thrown
+    away and perceived afresh by distance, with the tab still clean --
+    a P6 disorder model's six overlapping copies came back bonded to
+    one another, 11043 bonds where the file states 2898."""
+    from xtal.io.project import write_project
+    settings.set_default_bond_rules({"allow_metal_metal": True})
+    structure, kept = _stated(rutile)
+    path = write_project(structure, tmp_path / "stated.xtalproj")
+
+    document = window.open_path(path)
+
+    assert len(bonding.graph(document.structure).bonds) == kept
+    assert not document.modified
+    settings.set_default_bond_rules(None)
+
+
+def test_a_structure_with_no_stored_bonds_still_takes_the_default(
+        window, settings, rutile, tmp_path):
+    from xtal.io.cif_writer import write_cif
+    settings.set_default_bond_rules({"scale": 1.4})
+    plain = rutile.copy()
+    plain.bond_rules = {}
+    path = tmp_path / "plain.cif"
+    write_cif(plain, path)
+
+    document = window.open_path(path)
+
+    assert document.structure.bond_rules["scale"] == pytest.approx(1.4)
+    settings.set_default_bond_rules(None)
+
+
 def test_bonds_following_the_geometry_is_the_menu_s_own_setting(
         window, rutile, tmp_path):
     """One setting in two places: the page must tick the menu entry
