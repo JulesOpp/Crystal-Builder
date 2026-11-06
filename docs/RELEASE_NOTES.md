@@ -4,14 +4,105 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
-<!-- Retitle this section with the version when the release is cut:
-"## Crystal Builder <version>". -->
-## New since 1.0
+## Crystal Builder 1.1
+
+Everything since 1.0, released on 2026-10-07. Install it over 1.0;
+your workspaces and preferences carry over.
+
+### New builders
+
+- **Modules ▸ Carbon builder**, from 0D to 3D in one submenu:
+  - **Fullerenes** from their face spirals: every isomer up to C40
+    and the isolated-pentagon ones from C60 to C100, optionally
+    hydrogenated (CnHn), relaxed with UFF.
+  - **Nanotubes** from (n,m) and a length: periodic, or finite with
+    hydrogen-capped ends; carbon or BN; the bond length from covalent
+    radii unless you give one.
+  - **Graphene** of any two elements, any supercell or the
+    rectangular cell, stacked AA, AB, ABC or AA′ as bulk or a slab,
+    and **twisted bilayers** at a commensurate angle, with the
+    nearest angles under the size limit listed for the one you type.
+  - *Disordered carbon…* moves into the same submenu.
+- **Reticular design in the MOF builder**: partitioned pores (pacs),
+  with linkers suggested by the distance they span and new ones
+  invented; zeolitic supertetrahedral frameworks; merged nets; rod
+  SBUs (MOF-74, Ni2Cl2BTDD and Zn(BDP), cut from Co(BDP)'s rod), each
+  rod saying whether its neighbours are one hand or alternate; and a
+  hand-off to TopCryst. Co(BDP) joins the COD samples.
+
+### Calculations
+
+- **Thermochemistry** under any engine (*Force Field ▸
+  Thermochemistry…*): harmonic, quasi-RRHO and ideal-gas free
+  energies from a Gamma-point Hessian (MACE's own where it has one),
+  phonons with phonopy (bundled), an IR spectrum that names the charge
+  model it came from, and the quasi-harmonic F(V, T) over a volume
+  scan. An imaginary mode is counted and never summed, and the
+  summary says so.
+
+### Files and data
+
+- **SHELX `.res` and `.ins` files open** like a CIF, each non-zero
+  PART an atom group, with occupancies and free variables resolved.
+- **Export data…** on every histogram in the Results panel: the pore
+  size distribution as a CSV with its cumulative column, and the
+  carbon builder's ring sizes.
+- A `.xy` file written with decimal commas (`10,00  100,5`) is refused
+  by name instead of read as four columns of nonsense.
+
+### Seeing the structure
+
+- **View ▸ Along (hkl)…** looks straight onto a lattice plane; the
+  dialog stays open so (100), (110), (111) can be stepped through.
+  `xtal render --view "(1,1,0)"` does the same.
+- **Find symmetry** names the sites that sit off the special
+  positions of the group it found, with how far, and offers to snap
+  them on.
+
+### The AI assistant
+
+- **Every change it makes is labelled and can be taken back in one
+  click**: the *Agent changes* strip names its latest request, with
+  Revert, Restore and History, and the assistant is told when you
+  reverted its work or edited in between.
+- **It can read and change how a tab looks**: style, ring filling,
+  Colour by, polyhedra, labels, display range, colours and opacities.
+- **Chat clients such as Claude Desktop get the same playbook** that
+  Claude Code reads, served over MCP.
+
+### Platforms and the window
 
 - **Linux: an AppImage for x86_64 (Ubuntu 22.04+, Debian 12+, Fedora
   36+).** One file: make it executable and double-click it. See
   *Linux* under *Opening it the first time*. With thanks to Jose Ivan
   (@jigonzalez930209).
+- **Help ▸ Check for Updates…** asks GitHub for the latest release
+  and offers to open its page. Nothing is downloaded or installed for
+  you.
+- **Shortcuts** (Ctrl for ⌘ on Windows and Linux): Export is ⌘E,
+  Optimise geometry ⌘M, New workspace ⌘⇧N, and Measure selection
+  moves to ⌘⇧M; Single point energy no longer has one. The workspace chooser answers ⌘N, ⌘O and ⌘Q before
+  any window is open.
+
+### Fixed
+
+- A framework with a bond longer than 6 Å was built but could not be
+  saved (Jose Ivan).
+- Bond lengths in `inspect`, `xtal bonds` and saved projects are
+  measured where the atoms are now, not where they were when the
+  bonds were found.
+- Rietveld with energies says when a free cell has moved its lines
+  out of the peak windows it compiled, and reading the background no
+  longer leaves two steps in the fit's history.
+- Two crashes: one on closing a window (Windows), and one after a
+  dialog refilled a list that had greyed entries.
+- The View menu's Orthographic and Labels ticks follow the tab in
+  front.
+- A project or CIF saved without bond rules of its own opens with
+  the bonds it was saved with, whatever the default rules in
+  Preferences say; it used to be perceived afresh, with the tab still
+  marked clean.
+- rietx is written in lowercase, at its author's request.
 
 ## Crystal Builder 1.0
 
@@ -19,7 +110,9 @@ The first stable release. The 0.x previews were put out to be used
 and argued with, and what their testers found is in here; they have
 been retired in its favour.
 
-## What it does
+## About Crystal Builder
+
+### What it does
 
 - **Structures in and out**: CIF with its bonds, a project
   (`.xtalproj`) that keeps the view, measurements and runs beside the
@@ -66,7 +159,7 @@ been retired in its favour.
 - **Samples to start from**: textbook solids, polymers, and MOFs from
   the COD, under *File ▸ Open Sample*.
 
-## Made to be dependable
+### Made to be dependable
 
 - **Saving never destroys the last good file.** Every file is written
   beside the old one and swapped in only once complete, and an
@@ -86,7 +179,7 @@ been retired in its favour.
 - **Errors are one box at a time**, with *Copy details* and *Send
   feedback…*; a hard crash leaves its stack in `faults.log`.
 
-## Downloads
+### Downloads
 
 | You have | Download |
 |---|---|
@@ -103,11 +196,12 @@ supported.
 
 There is no universal Mac build, and that is not an oversight: VTK
 publishes no universal2 wheel, so the two have to be built separately.
-Pick the one that matches your Mac — About This Mac says which. An
-Intel build cannot be made to run on Apple silicon by Rosetta, which
-translates the other direction.
+Pick the one that matches your Mac — About This Mac says which.
+Rosetta runs the Intel build on Apple silicon, more slowly than the
+native one; the Apple silicon build does not run on an Intel Mac at
+all.
 
-## Opening it the first time
+### Opening it the first time
 
 **The macOS and Windows builds are not code-signed yet**, so both
 operating systems will say so, in the way each of them says it.
@@ -116,11 +210,12 @@ warning is for and how to answer it if you trust where you got the
 file.
 
 **macOS.** Double-clicking gives *"Crystal Builder" cannot be opened
-because the developer cannot be verified*. Right-click (or
-Control-click) the app in Applications and choose **Open**, then
-**Open** again in the dialog. macOS remembers the choice and normal
-double-clicking works afterwards. If the app was quarantined in a way
-that will not clear, the equivalent from a terminal is:
+because the developer cannot be verified*. Close the warning, open
+*System Settings ▸ Privacy & Security*, scroll down to *Security*,
+and click **Open Anyway** beside the message about Crystal Builder,
+then confirm with your password. macOS remembers the choice and
+normal double-clicking works afterwards. If the app was quarantined
+in a way that will not clear, the equivalent from a terminal is:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/Crystal Builder.app"
@@ -149,7 +244,7 @@ always wins.
 Settings are in `~/.config/CrystalBuilder/CrystalBuilder.conf`; the
 log is in `~/.local/share/CrystalBuilder`.
 
-## File associations
+### File associations
 
 The installer offers `.cif` and `.xtalproj` associations. `.cif` is
 **unticked by default** and macOS registers it as an alternate handler
@@ -164,7 +259,7 @@ On Linux the AppImage makes no menu entry or file associations of its
 own; AppImageLauncher or Gear Lever adds a menu entry, and the file
 types where the integrator installs them.
 
-## What is in the download, and what is not
+### What is in the download, and what is not
 
 Bundled and working, with nothing to install:
 
@@ -177,7 +272,9 @@ Bundled and working, with nothing to install:
   measured `.xy` file, and exporting the figure as a vector.
 - **The refinement workbench.** rietx is bundled, so Pawley and
   Rietveld fits need nothing else.
-- **The carbon and polymer builders**, with the monomer library.
+- **The carbon and polymer builders**, with the monomer library and
+  the fullerene isomers.
+- **phonopy**, for phonons and the quasi-harmonic free energy.
 - **The `xtal` program** beside the application, which an AI
   assistant connects through.
 
@@ -208,13 +305,13 @@ offers a folder that is added to the import path at
 start-up, which works for pure-Python packages. Run from Python if you
 need more than that.
 
-## Known issues
+### Known issues
 
 - **The version shown in Help → About is the git tag the build was
   made from.** If it reads `0.0.dev0` or `0.0.0`, the build is broken
   and worth reporting.
 - **The builds are not code-signed** (see *Opening it the first
-  time*). Signing is planned for a 1.0.x release.
+  time*). Signing is planned.
 - **A CIF whose symmetry operations match no tabulated setting** is
   read in the tabulated group its space-group symbol names, and the
   reader says so. Building the group from the file's own operations
@@ -226,18 +323,19 @@ need more than that.
 - **A polymer model is packed, not equilibrated.** Its density and
   contacts are right; its chains have not relaxed at their own scale,
   which takes molecular dynamics this application does not run.
-- **What 1.0 does not do**, so nobody looks for it: adsorption
+- **What it does not do**, so nobody looks for it: adsorption
   (GCMC, Henry coefficients) -- write the CIF, with its charges, for
   RASPA; molecular dynamics with the machine-learned engines (DFTB+'s
   own MD is there); fetching structures from the COD, CoRE MOF or the
   Materials Project; input files for VASP, Quantum ESPRESSO or CP2K
-  beyond the POSCAR. Each is on the list for after 1.0.
+  beyond the POSCAR. Each is on the list for a later
+  release.
 - **Style ▸ Rings refuses a graph too dense to search** -- a
   deposited CIF with its symmetry copies written as sites, or a
   close-packed salt -- and says so in the legend. *Prepare for
   simulation* first.
 
-## Reporting something
+### Reporting something
 
 *Help → Send Feedback…* is the quickest way: it composes the email,
 with the end of the log for a bug, and opens it in your mail client.
