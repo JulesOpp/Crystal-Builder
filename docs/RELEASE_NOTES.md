@@ -98,6 +98,10 @@ your workspaces and preferences carry over.
   dialog refilled a list that had greyed entries.
 - The View menu's Orthographic and Labels ticks follow the tab in
   front.
+- A project or CIF saved without bond rules of its own opens with
+  the bonds it was saved with, whatever the default rules in
+  Preferences say; it used to be perceived afresh, with the tab still
+  marked clean.
 - rietx is written in lowercase, at its author's request.
 
 ## Crystal Builder 1.0
