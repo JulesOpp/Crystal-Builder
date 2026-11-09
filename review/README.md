@@ -10,8 +10,6 @@
 **Written:** 2026-09-18 (reports) and 2026-09-19 (priorities, designs).
 **Against:** `3cd15e2` — v0.2.1, the base of `features/deep-review`.
 **`origin/main` has since moved** to `fb38d25`.
-**Rebased** onto `main` after v1.1.0 on 2026-11-06; the September documents
-still describe `3cd15e2`, not the new base.
 
 ## Read in this order
 
@@ -19,7 +17,6 @@ still describe `3cd15e2`, not the new base.
 |---|---|
 | [REVIEW.md](REVIEW.md) | The synthesis. §4 is what is good, §5 an ordered work plan, §7 the feature ideas. Start here. |
 | [PLAN.md](PLAN.md) | **The ordered work, with measured sizes.** What to act on. |
-| [reports/v1.2-headline.md](reports/v1.2-headline.md) | **What 1.2 should lead with** (2026-11-06, after v1.1.0): Solve, then agent campaigns, adsorption and generation; left-field ideas; export provenance. |
 | [PRIORITIES.md](PRIORITIES.md) | Superseded by PLAN.md — the ordering from Julius's PR verdicts, before the design reading. |
 | [design/](design/) | The reading behind PLAN.md: PORMAKE/MFU-4l, tier-1 specs, registry sizing, licensing. |
 | `design/` | High-level design for the items that needed it before they could be sized. |
