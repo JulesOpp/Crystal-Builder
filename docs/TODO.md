@@ -98,6 +98,163 @@ porous-materials user:
   the remesh's are not in `references.bib`; the carbon, polymer and
   refinement pages' science wants the owner's reading.
 
+## The Pawley step after the PawleyLab comparison
+
+On 2026-11-10 the workbench's Pawley step and PawleyLab 0.2.0 were
+given the same Si and ZSM-5 tasks and screenshotted at every step
+(`JulesWork/pawleylab/gui-compare/REPORT.md`, private).  The engine
+side was fixed the same day on `features/pawley-guards`: a bounded
+cell, runaway cells refused, Le Bail first and the stalled warning.
+PawleyLab is **not** to be included; these are its GUI ideas, built
+our way.  What we already do better and keep: cell boxes driven by
+the space group, esds written `20.087(4)`, start and refined values
+side by side, input errors in the status line with no modal, and run
+folders filed automatically.
+
+What the screenshots showed, and what was measured:
+
+| Seen | Why it matters |
+|---|---|
+| A typed cell is first drawn *after* the fit | Pawley alone finds a cell only from ~0.1 % off; nothing shows the start is wrong before minutes are spent |
+| During a run the plot keeps the previous step's curve | On ZSM-5 a −10 000-count residual from Peaks looked like the Pawley fit failing, for 13 minutes |
+| Only a clock while running | rietx's events give `stage_start` (`index`, `n_stages`, `stage`) and `stage_end` (`rwp`, `status`); measured on rutile, 6 stages and 44 `eval`s; an `eval` has a χ² `cost`, never an Rwp |
+| 163 "overlap too strongly to split" notes and the Le Bail pre-pass Rwp reach `run.log` only | The Result box looks clean when it is not |
+| No export button, and nothing says where `pxrd-pawley-003/` is | PawleyLab's one-button export is the one thing every user of it finds |
+| The Pawley step's Parameters hint is clipped above Fit Pawley | Every screenshot, 05 to 08 |
+| Index on ZSM-5 ran 21 min with the budget off, and **Stop took ~6 min** | The budget is off by design (`_add_budget_switch`: Stop is the other way to end a search); Stop that slow is the fault |
+
+Decisions:
+
+1. **The preview is view state.**  Ticks and a table drawn from the
+   typed cell; nothing goes on the undo stack or into the Document.
+2. **Headless where it can be.**  The lines of a cell and the offset of
+   the found peaks from them are `xtal/powder/` functions with their
+   own tests; the workbench only draws them.
+3. **The Index budget stays off by default.**  The comparison asked to
+   turn it on; the slow Stop is what made that look necessary, and it
+   is fixed instead (Phase 1).  Revisit if Stop cannot be made prompt.
+4. **Export copies; it does not write a second kind of file.**  The run
+   folder's `fit.xy` and `reflections.csv` are already the answer; the
+   button copies them and adds a PNG of the plot, through
+   `xtal/io/atomic.py`.
+
+| Phase | Deliverable | Size |
+|---|---|---|
+| 1 | What is wrong on screen: stale curve, clipped hint, the run's notes, Index Stop | S |
+| 2 | The typed cell drawn before fitting, and how far the peaks are from it | M |
+| 3 | Stage and Rwp while a fit runs | S |
+| 4 | Show the run folder, and Export… | S |
+| 5 | A click names the nearest reflection; Use refined as start | S |
+
+### Phase 1 — What is wrong on screen (`xtalapp/refine/workbench.py`)
+
+- `run_step`: on Fit Pawley / Le Bail, redraw to the observed pattern
+  alone (`plot.show_observed`) before the worker starts, so no other
+  step's curve stands in for this run.  `_redraw` still shows each
+  step's last answer when a step is chosen.
+- The Parameters fold's hint (`_fold("Parameters", ...)`) wraps
+  inside the column instead of clipping: a `_hint` paragraph, and the
+  dock rules (`docks.MAXIMUM_MINIMUM`, no `setMinimumWidth`) kept.
+- `_show_pawley_result`: the fit's `notes` in the Result box, folded
+  into one line per kind -- "163 reflection groups overlap too strongly
+  to split; their sums are determined" -- with the Le Bail pre-pass Rwp
+  and the stalled note first, in `tone.WARNING` where they warn.  The
+  grouping is `xtal/modules/powder.py` (`pawley_note_lines(fit)`),
+  headless.
+- Index Stop: measure where the 6 minutes go (rietx's `CancelToken` is
+  checked between candidates?  `bridge.cancel_token`) on the ZSM-5
+  XRDML with a scratch script; fix it here if it is ours, or raise it
+  upstream with the measurement if it is rietx's.
+- Invariants: a colour nobody chose comes from `xtalapp.widgets.tone`;
+  a panel never holds its column open.
+- Tests (`tests/test_refine_workbench_ui.py`,
+  `tests/test_powder_pawley.py`):
+  `test_fitting_clears_the_previous_steps_curve_from_the_plot`,
+  `test_the_result_box_says_what_the_run_log_says_grouped`,
+  `test_overlap_notes_are_one_line_with_their_count`,
+  `test_a_stopped_index_search_stops_within_seconds` (slow; the
+  number measured above as its bound).
+
+### Phase 2 — The typed cell drawn before fitting (`xtal/powder/pawley.py`, `xtalapp/refine/workbench.py`)
+
+- `pawley.start_lines(cell, space_group, radiation, lo, hi)`: the
+  allowed `(hkl, d, 2θ)` of the typed cell at the primary line, from
+  `bridge.allowed_reflections` / `lattice_lines` (the Index step's
+  `hkl_lines` already does this for a candidate row).
+- `pawley.start_offset(peaks, lines)`: for each ticked peak of the
+  Peaks step, the nearest line and Δ2θ; the median and worst |Δ2θ|,
+  and whether the worst exceeds the peaks' median FWHM.
+- Workbench: any change to the space group or the cell box redraws the
+  second comb (`plot.set_reflections`, named on hover as now) and fills
+  the reflection table with the allowed lines, intensity blank, until
+  a fit replaces them.  With peaks found, a hint line under the cell
+  box: "start cell: peaks within 0.03°, worst 0.21°", in warning tone
+  -- "further than a peak width: the fit may not reach it" -- when the
+  worst offset is over the median FWHM.  Debounced, so typing a cell
+  does not recompute on every key.
+- Invariants: view state only; `xtal/` imports no Qt.
+- Tests: `test_start_lines_are_the_groups_allowed_reflections`
+  (rutile: 110 present, 100 and 001 absent),
+  `test_the_offset_of_rutiles_peaks_from_its_own_cell_is_noise`,
+  `test_a_cell_half_a_percent_off_is_said_to_be_further_than_a_peak_width`,
+  `test_typing_a_cell_draws_its_lines_before_any_fit`,
+  `test_a_fit_replaces_the_previewed_reflections_with_its_own`.
+
+### Phase 3 — Stage and Rwp while a fit runs (`xtal/powder/bridge.py`, `xtal/modules/powder.py`)
+
+- `bridge.pawley(on_stage=...)`: an `events` callable that turns
+  `stage_start` into "stage 3 of 6 (cell)" (`_STAGE_WORDS`) and
+  `stage_end` into its Rwp; Le Bail first counts as its own pass
+  ("Le Bail 3 of 6 ... then Pawley 1 of 6").  `run_pawley` passes it
+  to `job.say`, which the workbench's `_progress` already shows beside
+  the clock: "Pawley, cell (3 of 6), Rwp 8.6 % (2:35)".
+- When the Le Bail pass finishes, its curve is drawn (the pass's
+  `y_calc` through the job's overlay channel, as Rietveld's frames
+  are), so the plot shows something of this run within seconds.
+- Tests: `test_a_pawley_run_says_each_stage_and_its_rwp` (headless,
+  the `job.say` lines on rutile),
+  `test_the_status_line_shows_the_stage_beside_the_clock`.
+
+### Phase 4 — Show the run folder, and Export… (`xtalapp/refine/workbench.py`)
+
+- "Show run folder" beside Apply cell: `QDesktopServices.openUrl` on
+  the run's folder, as `xtalapp/documents.py` does for TopCryst.
+- "Export…": a folder chosen once (remembered in `AppSettings`), and
+  into it `fit.xy`, `reflections.csv` and the plot as `fit.png` (the
+  matplotlib figure's `savefig`), each through `xtal/io/atomic.py`.
+  Named after the pattern, so two exports do not overwrite each other
+  silently -- `settings.confirm_overwrite` is honoured.
+- Tests (the file dialog patched, as conftest requires):
+  `test_export_writes_the_fit_the_reflections_and_a_picture`,
+  `test_the_run_folder_link_names_the_folder_the_run_wrote`.
+
+### Phase 5 — A click names the nearest reflection; Use refined as start (`xtalapp/refine/plot.py`, `workbench.py`)
+
+- A click on the pattern axis (not the tick strip, which hover already
+  names) puts 2θ, d and the nearest fitted reflection with its
+  intensity in the status line: `RefinementPlot.clicked` signal,
+  `reflection_label` reused.
+- "Use refined as start" beside Result: the refined cell into the cell
+  box and the refined profile into the parameter set's values, so a
+  re-run continues from the fit while the shown start stays the
+  person's until pressed.  One click, no undo step (it edits a form,
+  not the Document).
+- Tests: `test_clicking_the_pattern_names_the_nearest_reflection`,
+  `test_use_refined_as_start_puts_the_fit_into_the_cell_box`.
+
+Verification: the comparison's own driver, re-run --
+`GC=$PWD CASE=zsm5 python ../../../.claude/skills/run-app/drive.py
+--scratch scratch/zsm5 --script cb_drive.py` from
+`JulesWork/pawleylab/gui-compare/` -- whose grabs of the
+`refine_workbench` window must now show the typed cell's comb and the
+offset hint before Fit, the stage and Rwp and no Peaks residual mid-run,
+and the grouped notes in the Result box.  The workbench and
+Pawley test files per phase, the full suite once at the end.
+
+Docs: `docs/manual/porosity/refinement.md` (the Pawley entry: preview,
+progress, export), its screenshots refreshed with the manual-writing
+skill; delete this section phase by phase as each ships.
+
 ## The interface stretch
 
 Planned 2026-09-13: one phase per session, in
@@ -892,6 +1049,20 @@ The workbench's parameter set (every value, flag and esd) lives for
 the workbench's life and in each run folder's `parameters.txt`;
 closing the window loses it, and Paste of that file is the way back.
 It belongs in the `.xtalproj` beside the structure it refined.
+
+### A Pawley cell started 1 % off can settle on the wrong cell, unrefused
+
+Measured 2026-11-10 with the guards of `features/pawley-guards`: Si
+from +1 % and +2 % and fluorapatite from +2 % end inside the 2.5 %
+bound at Rwp 65-70 %, and the Le Bail pass before them is as bad
+(69-131 %), so neither the refusal nor `PAWLEY_STALLED` fires.  An
+absolute test would: a whole-pattern Rwp several times Rexp after a
+converged fit is not a cell.  Separately, rietx's Pawley makes every
+intensity a least-squares variable alongside the cell, which is why
+it loses a cell from ~0.1 % off; solving the intensities linearly
+inside each step (variable projection, as PawleyLab's NNLS does) is
+rietx's change to make, and worth raising there with the numbers in
+`JulesWork/pawleylab/compare/REPORT.md`.
 
 ### Pawley over a long 2θ range is minutes, and no better a cell
 
