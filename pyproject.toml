@@ -218,8 +218,11 @@ packages = ["xtal", "xtal.core", "xtal.io", "xtal.commands", "xtal.ff",
 "xtal.mof.library" = ["blocks/*.xyz", "rods/*.xyz", "rods/linkers/*.xyz",
                       "topologies/*.cgd"]
 # The isoreticular linker series as measured, so a suggestion needs no
-# RDKit: scripts/linker_series.py writes it.
-"xtal.mof" = ["data/*.json"]
+# RDKit: scripts/linker_series.py writes it.  And the synthesis
+# precedents (CoRE MOF 2024 joined with SynMOF-ME, their attribution
+# inside), written by scripts/synthesis_precedents.py: From a
+# synthesis has nothing to vote over without them.  200 KB.
+"xtal.mof" = ["data/*.json", "data/precedents.json.gz"]
 # The skill an AI assistant reads to drive this program.  Shipped in
 # the wheel, as rietx ships its own, so `xtal skill install` copies
 # the text that matches the installed API rather than whatever a web

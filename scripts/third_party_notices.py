@@ -87,6 +87,16 @@ HAND = (
      "the NIST Atomic Spectra Database (Kramida, Ralchenko, Reader and "
      "NIST ASD Team) and electron affinities from the PubChem periodic "
      "table (NCBI), written by `scripts/eqeq_table.py`."),
+    ("Synthesis precedents", "CC-BY-4.0 and MIT",
+     "`xtal/mof/data/precedents.json.gz`, written by "
+     "`scripts/synthesis_precedents.py`, is derived from two tables: "
+     "the MOFid annotations of CoRE MOF 2024 (Zhao et al., *Matter* "
+     "8, 102140 (2025); Zenodo 10.5281/zenodo.15055758; CC-BY 4.0), "
+     "and SynMOF-ME's synthesis conditions (Luo et al., *Angew. Chem. "
+     "Int. Ed.* 61, e202200242 (2022); "
+     "github.com/aimat-lab/MOF_Literature_Extraction; MIT).  Only "
+     "refcodes, MOFid SMILES, nets and conditions are kept; no "
+     "structure is shipped."),
 )
 
 

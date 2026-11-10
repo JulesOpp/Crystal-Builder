@@ -664,6 +664,34 @@ Four small things the branch's final review found and did not fix:
 
 ## Modules
 
+### From a synthesis: what the first pass left
+
+Modules ▸ From a synthesis… (`xtal run synthesis.forecast`,
+`xtal/mof/precedent.py`) votes the nearest published syntheses on the
+node and net, over CoRE MOF 2024 joined with SynMOF-ME. It answers
+and builds nothing. Owed:
+- **Test-build what it names**: each voted net that the builder has
+  ("In the builder: yes"), with a catalogue node of the voted metals
+  and the linker as typed, tried with the builder's check and the
+  ones that build offered as one click -- what makes the answer a
+  starting point rather than a table. The node is the hard part:
+  MOFid's node SMILES has to be matched to a catalogue block or a
+  rod, and a rod SBU (MIL-53, MOF-74) is `xtal/mof/rodbuild.py`'s,
+  not PORMAKE's.
+- **A dialog**: the generated form takes linkers as text; the
+  sketcher (`build_molecule.sketch_for`) is the better way to give
+  one, and a list of the voted nets wants a Build button per row.
+- **More precedents**: only 323 of the 7870 have conditions, because
+  SynMOF-ME is 840 syntheses. A larger extraction (the CSD's own
+  synthesis text, or a text-mined set with a licence that allows
+  shipping) slots in as another `precedent.Source`.
+- **Hold out a paper, not a refcode**: the table has no DOI for a CSD
+  entry, so a paper's series of related structures stays in when one
+  of them is tested and the held-out 62 % is generous.
+- **Dimensionality**: CoRE MOF's `structure_dimension` is in the SI
+  table only (1372 structures); the vote could say 2D or 3D for
+  those.
+
 ### Polymers after the packing builder
 
 Raised while planning the polymer builder (2026-10-02), which shipped
