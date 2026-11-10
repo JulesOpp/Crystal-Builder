@@ -1,18 +1,23 @@
 """
 xtal.modules.synthesis
 ======================
-What a synthesis is likely to make, as a registry entry.
+What a synthesis is likely to make, as a registry entry: two actions.
 
-The vote is :mod:`xtal.mof.precedent`; this file is the form, the
-check and the tables.  **It builds nothing**: the answer is which
-nodes and nets the nearest published syntheses formed, each with its
-share and the precedents it stood on, and building one is the MOF
-builder's -- the nets table says which of them the builder has.  So
-the action returns a report and no structure, needs no document and
-leaves no run folder, like :mod:`xtal.modules.net`'s.
+**From a synthesis...** is the vote alone (:mod:`xtal.mof.precedent`):
+which nodes and nets the nearest published syntheses formed, each with
+its share and the precedents it stood on.  A report and no structure,
+no document needed and no run folder, so it answers in a second.
 
-It needs RDKit to read a linker, and the check is ``find_spec``, as
-the molecule builder's is.
+**Build the likely frameworks...** votes and then builds what the vote
+names (:mod:`xtal.mof.candidates`): the typed linker made a block,
+each voted net the builder has filled with catalogue clusters of the
+voted metals, tried best-ranked first for as long as it is given, and
+the best that comes out as the net it was asked to be opens in a new
+tab.  Every row says how to build it again with ``xtal run
+mof.build``, which is why the linker block goes into the workspace's
+``blocks/``.  It needs the MOF builder as well as RDKit.
+
+The checks are ``find_spec``, as the molecule builder's is.
 """
 
 from __future__ import annotations
@@ -60,6 +65,27 @@ PARAMS = (
                "more put it in the first five more often."),
 )
 
+BUILD_PARAMS = (
+    Param("budget", "Time to spend building", kind="float",
+          default=30.0, minimum=1.0, maximum=600.0, decimals=0,
+          suffix=" s",
+          help="Seconds of test builds, best-ranked first; what is "
+               "left is listed untried.  A build is about a second on "
+               "pcu, fcu or tbo and longer on an unusual net, and the "
+               "last one started may finish past the time."),
+)
+
+
+def _can_build() -> Availability:
+    """The vote's needs and the MOF builder's: RDKit and ase."""
+    from xtal.modules import mof
+
+    voted = available()
+    if not voted:
+        return voted
+    return mof.available()
+
+
 #: A comma between two digits is part of a name -- 4,4'-bipyridine,
 #: 1,4-dioxane -- and every other one separates two entries.
 _SEPARATOR = re.compile(r";|\n|(?<!\d),|,(?!\d)")
@@ -81,26 +107,132 @@ def available() -> Availability:
 
 def forecast(job) -> JobResult:
     """Vote the nearest precedents; a report, never a structure."""
-    temperature = str(job.param("temperature", "") or "").strip()
     try:
-        query = precedent.Query.read(
-            job.param("metal", ""), split(job.param("linkers", "")),
-            split(job.param("solvents", "")),
-            float(temperature) if temperature else None)
-        answer = precedent.forecast(
-            query, neighbours=int(job.param("neighbours",
-                                            precedent.NEIGHBOURS)))
+        answer = _vote(job)
     except ValueError as exc:
         # PrecedentError is a ValueError, and so is a temperature that
         # is not a number.
         return JobResult.failure(str(exc))
     job.say(f"voted {len(answer.neighbours)} precedents from "
             f"{answer.source}")
+    return JobResult(message=_said(answer), report=report(answer))
+
+
+def _said(answer: precedent.Forecast) -> str:
     top = answer.nets[0] if answer.nets else None
-    message = (f"Likeliest net {top.value} ({top.share:.0%} of the "
-               f"vote); {answer.novelty.sentence()}"
-               if top else "No precedent close enough named a net.")
-    return JobResult(message=message, report=report(answer))
+    return (f"Likeliest net {top.value} ({top.share:.0%} of the "
+            f"vote); {answer.novelty.sentence()}"
+            if top else "No precedent close enough named a net.")
+
+
+def _vote(job):
+    """The query and the forecast, or the sentence saying why not."""
+    temperature = str(job.param("temperature", "") or "").strip()
+    query = precedent.Query.read(
+        job.param("metal", ""), split(job.param("linkers", "")),
+        split(job.param("solvents", "")),
+        float(temperature) if temperature else None)
+    return precedent.forecast(
+        query, neighbours=int(job.param("neighbours",
+                                        precedent.NEIGHBOURS)))
+
+
+def build_likely(job) -> JobResult:
+    """Vote, then build what the vote names; the best build opens.
+
+    The linker block is written into the workspace's ``blocks/`` when
+    there is a workspace, which is where the MOF builder reads the
+    blocks a person drew -- so each row's parameters rebuild it with
+    ``xtal run mof.build``.  Without one it goes with the run.
+    """
+    from xtal.mof import candidates
+    from xtal.mof.catalog import Catalog
+
+    try:
+        answer = _vote(job)
+        candidates.linker_block(answer.query.linkers[0][0])
+    except ValueError as exc:
+        # PrecedentError and CandidateError are both ValueErrors: a
+        # query that cannot be read and a linker that is not a
+        # carboxylate are both the person's to change.
+        return JobResult.failure(str(exc))
+    job.say(f"voted {len(answer.neighbours)} precedents; building what "
+            f"they name")
+    folder = None
+    if job.folder is not None:
+        from xtal.workspace import Workspace
+
+        workspace = Workspace.find(job.folder.path)
+        if workspace is not None:
+            folder = workspace.blocks
+    if folder is None:
+        job.note("no workspace open, so the linker block is not kept "
+                 "and the rows below cannot be rebuilt by name")
+
+    def catalog_for(blocks):
+        return Catalog.default(also_blocks=(str(blocks),))
+
+    tried = candidates.trial(
+        answer, catalog_for, folder=folder,
+        budget=float(job.param("budget", candidates.BUDGET)),
+        log=job.say, cancelled=lambda: job.cancelled)
+    if job.cancelled:
+        return JobResult.stopped("stopped between builds")
+    best = tried.best
+    voted = report(answer)
+    result = Report(title="Build the likely frameworks",
+                    blocks=_tried(tried) + voted.blocks,
+                    note=voted.note)
+    if best is None:
+        return JobResult(
+            message=f"Nothing the vote names built as asked. "
+                    f"{_said(answer)}",
+            report=result)
+    structure = best.structure
+    candidate = best.candidate
+    structure.meta.setdefault("warnings", []).append(
+        "A starting geometry on a net the nearest precedents formed, "
+        "not a prediction that this is the phase that forms.")
+    return JobResult(
+        message=f"Built {candidate.net} with "
+                f"{', '.join(n for _, n in candidate.nodes)} "
+                f"({best.atoms} atoms), the best-ranked of "
+                f"{sum(a.confirmed for a in tried.attempts)} that "
+                f"built as asked. {_said(answer)}",
+        structure=structure, report=result)
+
+
+def _tried(tried) -> tuple[Table, ...]:
+    rows = [Row.of(
+        a.candidate.net,
+        ", ".join(f"{k}={n}" for k, n in a.candidate.nodes),
+        a.candidate.edge or "none",
+        f"{a.candidate.score:.3f}", a.status,
+        a.atoms or "--", a.candidate.spelled,
+        note=a.verdict)
+        for a in tried.attempts]
+    rows += [Row.of(c.net, ", ".join(f"{k}={n}" for k, n in c.nodes),
+                    c.edge or "none", f"{c.score:.3f}",
+                    "not tried: out of time", "--", c.spelled)
+             for c in tried.untried]
+    linker = tried.linker
+    built = Table(
+        title="Frameworks tried",
+        columns=("Net", "Nodes", "Edges", "Score", "Result", "Atoms",
+                 "Rebuild with xtal run mof.build"),
+        rows=tuple(rows),
+        note=(f"The linker as block {linker.name}: {linker.starred}, "
+              f"its carboxylates the nodes'.  Score is the net's share "
+              f"times the node's.  A build is a starting geometry on a "
+              f"net the precedents formed, not the phase that forms."))
+    if not tried.skipped:
+        return (built,)
+    # A table of its own: a reason is a sentence, and in the column
+    # beside the builds it widened every row to its length.
+    return built, Table(
+        title="Voted, but nothing to try it with",
+        columns=("Net or node", "Why"),
+        rows=tuple(Row.of(s.what, s.why) for s in tried.skipped))
 
 
 def _in_builder() -> set[str] | None:
@@ -204,7 +336,7 @@ SYNTHESIS = Module(
                 "prediction.",
     order=28, group="build",
     check=available,
-    provides=frozenset({"table"}),
+    provides=frozenset({"structure", "table"}),
     actions=(
         Action(name="forecast", label="From a synthesis...",
                tip="The nodes and nets the nearest published "
@@ -213,6 +345,15 @@ SYNTHESIS = Module(
                writes_run_folder=False,
                params=PARAMS,
                run=forecast),
+        Action(name="build", label="Build the likely frameworks...",
+               tip="Vote, then build the nets and nodes the nearest "
+                   "syntheses formed; the best build opens in a new "
+                   "tab",
+               kind="build",
+               needs_structure=False,
+               check=_can_build,
+               params=PARAMS + BUILD_PARAMS,
+               run=build_likely),
     ),
 )
 

@@ -24,7 +24,9 @@ Success is:
   quoted, never asserted;
 - every answer names the precedents it stood on and says how far the
   query is from the nearest;
-- nothing leaves the machine: no network, no third-party service.
+- nothing leaves the machine: no network, no third-party service;
+- what it names can be built: the best of the voted nets and nodes
+  that comes out as asked opens in a tab.
 
 ## Approaches considered
 
@@ -56,7 +58,8 @@ Three units, each testable alone.
 |---|---|---|
 | `scripts/synthesis_precedents.py` | Joins the two downloads into `xtal/mof/data/precedents.json.gz`, then measures the held-out accuracy and prints it | RDKit, the two files named on the command line |
 | `xtal/mof/precedent.py` | Reads a query, scores it against a `Source`, votes | numpy-free; RDKit only to read a typed linker |
-| `xtal/modules/synthesis.py` | The registry entry: form, check, report | the two above |
+| `xtal/mof/candidates.py` | The linker as a block, the candidates, the test builds | the forecast, the catalogue, the MOF builder |
+| `xtal/modules/synthesis.py` | The registry entries: the vote, and the vote then the builds | the three above |
 
 **The table.** One record per CSD refcode *family*: `WIZMAV02` to
 `WIZMAV13` are re-determinations of one compound and were eleven
@@ -101,8 +104,50 @@ naming what was wrong. A solvent that is not recognised is not an
 error; it is left out of the comparison and the answer says so in
 the row a person reads (not a tooltip).
 
-**It builds nothing.** The answer is a report; building a voted net
-is the MOF builder's, and is the first item owed.
+## Building what it names
+
+Build the likely frameworks… (`synthesis.build`,
+`xtal/mof/candidates.py`) votes and then builds. Approaches weighed:
+matching MOFid's node SMILES to a catalogue block atom for atom
+(exact, but two writers draw one cluster two ways, which is why the
+vote counts nodes by their metals), against matching by metals and
+connection count (chosen: the catalogue's carboxylate clusters are
+few enough per metal that the first two tried are nearly always one
+cluster drawn twice). Three steps:
+
+- **The linker as a block.** The typed linker's carboxylic acids
+  become connection points: the carboxyl carbon *becomes* the `X`
+  and its two oxygens go, because in this catalogue the carboxylate
+  is the node's (N16 is Zn4O(CO2)6, E14 the phenylene between).
+  Turning the carbon rather than deleting it keeps a double bond's
+  E or Z, which is stored against its neighbours -- deleting them
+  made fumarate `*C=C*`, as happy to embed cis. Two carboxylates make
+  an edge; three or more an organic node (BTC in tbo), joined to the
+  metal directly. A linker with none is refused by name: a pyridyl or
+  azolate meets its metal in a node the catalogue draws differently.
+  Embedded arms-out as the isoreticular series is, written as
+  `SYN-<hash>.xyz` into the workspace's `blocks/`, where the MOF
+  builder reads the blocks a person draws.
+- **The plan.** Each of the first five voted nets the builder has,
+  with each of the first five voted nodes, filled with **plain**
+  carboxylate clusters -- metals, oxygens and one carbon per
+  connection, no nitrogen -- of exactly the voted metals and the
+  slot's connection count, two per slot at most. Plain only: falling
+  back on any cluster with the right metal put a zinc porphyrin on the
+  first row of Zn + BDC. Ranked by net share times node share. What
+  cannot be tried is said once each: a net the builder lacks, a net
+  with no slot for the linker, a node with no cluster.
+- **The trial.** Built in rank order for 30 s (a parameter), checked
+  between builds; at least one is always built, and the rest are
+  listed untried. Anything PORMAKE raises fails that row and the next
+  is tried. A build counts when the builder reads back the net it
+  asked for; the best is the highest-ranked such build with nothing
+  overlapping, and it opens in a new tab with a warning that it is a
+  starting geometry, not the phase that forms. Every row carries the
+  `xtal run mof.build` parameters that build it again.
+
+The vote alone stays its own action and never imports the builder,
+so it still answers in a second.
 
 ## How well it does
 
@@ -146,3 +191,18 @@ hold out a paper by). 146 is a small sample.
 - **The module and the CLI**: registered, greys out without RDKit,
   returns a report and no structure, each bad query a failed run by
   name, and `xtal run synthesis.forecast` end to end in a subprocess.
+- **Building** (`tests/test_synthesis_build.py`, on forecasts written
+  by hand): carboxylates to points (BDC, BTC, fumarate trans and
+  maleate cis, NH2-BDC), the acid and anion one block, pyridyl,
+  azolate and ester refused; only plain clusters offered; a ditopic
+  linker in the edges, a tritopic one a node beside Cu2 on tbo; best
+  first; each skip said once; a candidate's rebuild line parsed back
+  to its request; a failed build (PORMAKE's own assertion included)
+  one row and the next still tried; the time and Stop leave the rest
+  untried; the best is confirmed and clean. UiO-66 and HKUST-1 from
+  their syntheses end to end, and the window opens the UiO-66 build
+  in a new tab with its BDC block kept (`tests/test_synthesis_ui.py`).
+- **Mutations**: each rule above was broken on purpose once and a
+  test failed for it -- the vote's seven, and the build's six
+  (non-plain clusters, the deleted carboxyl, a zero budget building
+  nothing, worst first, an overlapping best, a narrow `except`).

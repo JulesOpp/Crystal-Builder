@@ -664,23 +664,30 @@ Four small things the branch's final review found and did not fix:
 
 ## Modules
 
-### From a synthesis: what the first pass left
+### From a synthesis: what is still owed
 
-Modules ▸ From a synthesis… (`xtal run synthesis.forecast`,
-`xtal/mof/precedent.py`) votes the nearest published syntheses on the
-node and net, over CoRE MOF 2024 joined with SynMOF-ME. It answers
-and builds nothing. Owed:
-- **Test-build what it names**: each voted net that the builder has
-  ("In the builder: yes"), with a catalogue node of the voted metals
-  and the linker as typed, tried with the builder's check and the
-  ones that build offered as one click -- what makes the answer a
-  starting point rather than a table. The node is the hard part:
-  MOFid's node SMILES has to be matched to a catalogue block or a
-  rod, and a rod SBU (MIL-53, MOF-74) is `xtal/mof/rodbuild.py`'s,
-  not PORMAKE's.
+Modules ▸ From a synthesis… (`xtal run synthesis.forecast`) votes the
+nearest published syntheses on node and net, and Build the likely
+frameworks… (`synthesis.build`) builds what the vote names
+(`xtal/mof/precedent.py`, `xtal/mof/candidates.py`; the design is
+`docs/FROM_A_SYNTHESIS.md`). Owed:
+- **Linkers that are not carboxylates**: a pyridyl, an azolate or a
+  phosphonate is refused by name. Each meets its metal in a node the
+  catalogue draws differently (a ZIF's Zn is a single atom with the
+  imidazolate as the edge's own ends), so each needs its own rule for
+  where the connection point goes and which clusters are plain.
+- **Rod nodes**: MIL-53 and MOF-74 are rod frameworks, built by
+  `xtal/mof/rodbuild.py` and not by PORMAKE, so a vote for them has
+  nothing to try. MOFid gives no rod token to vote on either.
+- **Analogue clusters**: a node whose metals no catalogue cluster
+  has exactly (Hf6 on fcu) is skipped; the Zr6 cluster with the metal
+  swapped, labelled hypothetical, would be the obvious try.
+- **Only the first linker is built**: a mixed-linker synthesis (BDC
+  and DABCO, pillared layers) votes on both and builds with the first.
 - **A dialog**: the generated form takes linkers as text; the
   sketcher (`build_molecule.sketch_for`) is the better way to give
-  one, and a list of the voted nets wants a Build button per row.
+  one, and the tried frameworks want a Build button per row rather
+  than a line to copy.
 - **More precedents**: only 323 of the 7870 have conditions, because
   SynMOF-ME is 840 syntheses. A larger extraction (the CSD's own
   synthesis text, or a text-mined set with a licence that allows
