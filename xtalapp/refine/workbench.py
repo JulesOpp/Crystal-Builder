@@ -123,8 +123,8 @@ GROUPS = {
     "index": (("Search", ("space_groups", "zero_error", "max_volume",
                           "longest_axis", "budget")),
               ("Space groups", ("rank_groups",))),
-    "pawley": (("Method", ("method",)),
-               ("Cell and space group", ("space_group",)),
+    "pawley": (("Method", ("method", "lebail_first")),
+               ("Cell and space group", ("space_group", "cell_range")),
                ("Range and background", ("start", "finish",
                                          "background_terms")),
                ("Iterations", ("max_iterations", "tolerance"))),
@@ -1864,7 +1864,8 @@ class RefinementWorkbench(QMainWindow):
             steps.pawley_summary(fit) if fit is not None
             else "Run a Pawley fit to refine a cell.")
         set_tone(self.pawley_label,
-                 HINT if fit is None or fit.converged else WARNING)
+                 HINT if fit is None or fit.converged and not fit.stalled
+                 else WARNING)
         reason = self._apply_refused()
         self.apply_button.setEnabled(not reason)
         self.apply_button.setToolTip(
@@ -2148,6 +2149,11 @@ class RefinementWorkbench(QMainWindow):
         if self.current_step == "pawley":
             method = self.step_forms["pawley"].values().get("method")
             label = f"Fit {METHODS.get(method, 'Pawley')}"
+        first = self.step_forms["pawley"].widgets.get("lebail_first")
+        if first is not None:
+            # only Pawley has a Le Bail fit to run before it
+            first.setEnabled(self.step_forms["pawley"].values().get(
+                "method", "pawley") == "pawley")
         self.run_button.setText(label)
         self.refine_button.setEnabled(can_run and not running
                                       and self.peaks is not None)

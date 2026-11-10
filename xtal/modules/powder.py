@@ -651,6 +651,14 @@ PAWLEY_PARAMS = (
                "cycles, cheaper over a long range and with no "
                "intensity esds.  The cell, range and parameters are "
                "the same for both."),
+    Param("lebail_first", "Le Bail first", kind="bool", default=True,
+          help="Fit by Le Bail before Pawley and start Pawley from its "
+               "cell and profile.  Pawley alone finds a cell only from "
+               "about 0.1 % off, because its free intensities follow "
+               "misplaced lines; Le Bail finds the lines first, in "
+               "seconds.  A Pawley fit that then ends clearly worse "
+               "than the Le Bail one is said to have stalled.  Only "
+               "read by the Pawley method."),
     Param("cell", "Cell", kind="text", default="",
           help="a b c, or a b c α β γ, in Å and degrees -- a row of "
                "the indexing table, or the open structure's."),
@@ -658,6 +666,13 @@ PAWLEY_PARAMS = (
           help="By symbol or number.  A group with fewer absences "
                "than the true one fits as well and says less; one with "
                "more leaves real lines unfitted."),
+    Param("cell_range", "Cell may move", kind="float", default=2.5,
+          minimum=0.0, maximum=50.0, decimals=2, suffix=" %",
+          help="How far each length may move from the starting cell, "
+               "and each angle by the same fraction of 90°.  A fit "
+               "whose cell reaches that edge is refused: it was still "
+               "running away, not settling.  0 leaves the cell "
+               "unbounded."),
     Param("start", "2θ from", kind="float", default=0.0, minimum=0.0,
           maximum=180.0, decimals=2, suffix=" °",
           help="Where the fit starts (TOPAS start_X).  0 is the start "
@@ -723,6 +738,8 @@ def pawley_options(values: dict):
         size=bool(values.get("size", True)),
         strain=bool(values.get("strain", True)),
         method=str(values.get("method", "pawley") or "pawley"),
+        lebail_first=bool(values.get("lebail_first", True)),
+        cell_range=float(values.get("cell_range", 2.5) or 0.0) / 100.0,
         max_iterations=int(values.get("max_iterations",
                                       DEFAULT_ITERATIONS)),
         tolerance=_tolerance(values, DEFAULT_TOLERANCE))
@@ -772,10 +789,15 @@ def run_pawley(job) -> JobResult:
                f"{a:.5f} {b:.5f} {c:.5f} Å in {fit.space_group}")
     if fit.evaluated:
         message += f" ({EVALUATED_NOTE})"
+    elif fit.stalled:
+        message += " (stalled: worse than its Le Bail fit)"
     elif not fit.converged:
         message += f" ({fit.status}, not converged)"
+    warnings = (("PAWLEY_STALLED", fit.stalled_note),) if fit.stalled \
+        else ()
     return JobResult(message=message, artifacts=tuple(artifacts),
-                     report=pawley_report(fit, data.name), answer=fit)
+                     report=pawley_report(fit, data.name), answer=fit,
+                     warnings=warnings)
 
 
 def pawley_summary(fit) -> str:
@@ -801,6 +823,9 @@ def _status_line(fit) -> str:
     reason it did not converge, or nothing."""
     if getattr(fit, "evaluated", False):
         return "\n" + EVALUATED_NOTE
+    if getattr(fit, "stalled", False):
+        return (f"\nstalled: Rwp above the {100 * fit.lebail_rwp:.2f} % "
+                f"of its Le Bail fit -- fit this cell by Le Bail")
     return "" if fit.converged else f"\n{fit.status}: not converged"
 
 

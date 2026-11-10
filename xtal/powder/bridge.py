@@ -646,11 +646,52 @@ _PAWLEY_LEAVES = ("scale", "positions", "biso", "occupancy",
                   "preferred_orientation")
 
 
+def bound_cell(cell, about, fraction: float) -> None:
+    """Keep rietx's ``cell`` within ``fraction`` of the six numbers
+    ``about``: each length that fraction of itself either way, each
+    angle that fraction of a right angle.
+
+    An unbounded cell is free to run: started 0.5-2 % off, Le Bail
+    took rutile's cell 85 % long and quartz's eleven times, and gave
+    fluorapatite a negative c -- each reported as converged.  A cell
+    that needs to move further than this was not the cell to start
+    from.
+    """
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    for name, centre in zip(names, about, strict=True):
+        edge = getattr(cell, name)
+        reach = fraction * (centre if name in "abc" else 90.0)
+        edge.min = max(float(centre) - reach, 1e-3)
+        edge.max = float(centre) + reach
+        if name not in "abc":
+            edge.max = min(edge.max, 179.0)
+
+
+def bounds_reached(refinement, about, fraction: float,
+                   cell_paths) -> list[str]:
+    """The free cell numbers that finished on the edge of
+    :func:`bound_cell`'s box: a fit that stopped there was still
+    going, and the cell is where the box stopped it, not a minimum."""
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    phase = refinement.structure.phases[0]
+    out = []
+    for name, centre in zip(names, about, strict=True):
+        path = f"phases.0.cell.{name}"
+        if path not in cell_paths:
+            continue
+        value = float(getattr(phase.cell, name).value)
+        reach = fraction * (centre if name in "abc" else 90.0)
+        if abs(value - float(centre)) >= 0.999 * reach:
+            out.append(name)
+    return out
+
+
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            *, start: ps.ParameterSet, cell_free: bool = True,
            hold_cell=(), folder: Path | None = None, cancel=None,
            mode: str = "pawley", iterations: int | None = None,
-           tolerance: float | None = None):
+           tolerance: float | None = None,
+           cell_range: float | None = None, bounds_about=None):
     """``(refinement, result, parameters)``: a Pawley fit of one cell to
     ``data``, or with ``mode="lebail"`` a Le Bail fit over the same
     plan.
@@ -666,13 +707,23 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     ``iterations=0`` is an evaluation (:func:`evaluation`), whose
     intensities are still found -- they are not parameters -- and
     whose set comes back with no esds.
+
+    ``cell_range`` is how far the cell may move (:func:`bound_cell`),
+    about ``bounds_about`` or else the cell given; ``None`` leaves it
+    unbounded.  A fit whose cell finished on that edge, or that is no
+    cell at all, is refused rather than reported: it stopped where the
+    box or the arithmetic stopped it, not at a minimum.
     """
     from rietx.schemas.structure import lebail_scaffold
 
+    about = tuple(float(v) for v in (bounds_about or cell))
     structure = lebail_scaffold(space_group, tuple(cell), name="pawley")
+    if cell_range:
+        bound_cell(structure.phases[0].cell, about, cell_range)
     ins = _with_background(radiation, start.background_terms)
     refinement = rx.Refinement(structure, ins, history=False)
     started = _started(refinement, start, radiation, _PAWLEY_GROUPS)
+    cell_paths = []
     if iterations == 0:
         chosen = evaluation()
     else:
@@ -688,9 +739,42 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
                      plan=chosen, cancel=cancel)
     except (ValueError, KeyError) as exc:
         raise PowderError(f"rietx refused the fit: {exc}") from None
+    _refuse_runaway(refinement, about, cell_range, cell_paths)
     return refinement, result, _finished(
         started, refinement, None if iterations == 0 else result,
         _PAWLEY_GROUPS)
+
+
+def _refuse_runaway(refinement, about, fraction, cell_paths) -> None:
+    """Raise if the fitted cell is no cell, or stopped on its bounds."""
+    from xtal.core.lattice import Lattice
+
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    phase = refinement.structure.phases[0]
+    values = [float(getattr(phase.cell, n).value) for n in names]
+    try:
+        bad = min(values[:3]) <= 0 or not all(
+            0 < v < 180 for v in values[3:]) or not \
+            Lattice.from_parameters(*values).volume > 0
+    except (ValueError, ArithmeticError):
+        bad = True
+    if bad or not all(math.isfinite(v) for v in values):
+        raise PowderError(
+            "the cell ran away -- the fit ended at "
+            + " ".join(f"{v:.4g}" for v in values)
+            + ", which is no cell.  Start from a cell closer to the "
+              "pattern's")
+    if not fraction:
+        return
+    hit = bounds_reached(refinement, about, fraction, cell_paths)
+    if hit:
+        start = " ".join(f"{v:.5g}" for v in about)
+        raise PowderError(
+            f"the cell ran to the edge of the {100 * fraction:g} % it "
+            f"may move ({', '.join(hit)}), so the fit stopped there "
+            f"rather than at a minimum.  The starting cell ({start}) "
+            f"is too far from the pattern's: index it again, or start "
+            f"closer")
 
 
 def reflections(refinement):

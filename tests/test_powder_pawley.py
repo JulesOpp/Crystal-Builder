@@ -258,3 +258,91 @@ def test_pawley_at_zero_cycles_finds_intensities_and_moves_nothing(
     assert fit.reflections
     assert 0.0 < fit.rwp < 0.5
     assert all(row.esd is None for row in fit.parameters)
+
+
+@pytest.fixture(scope="module")
+def quartz_data(tmp_path_factory):
+    """A rietx pattern of the conftest quartz, 15-80 degrees: the case
+    where Pawley alone loses its cell from 0.2 % off."""
+    from tests.conftest import _quartz
+    from xtal.powder import bridge
+
+    two_theta = np.arange(15.0, 80.0, 0.02)
+    y = bridge.predict(_quartz(), Radiation("cu"), two_theta)
+    counts = np.random.default_rng(0).poisson(y / y.max() * 5000 + 100)
+    return PowderData(two_theta, counts.astype(float))
+
+
+#: The conftest quartz's cell, 0.3 % long on every length.
+QUARTZ_OFF = (4.9134 * 1.003, 4.9134 * 1.003, 5.4052 * 1.003,
+              90.0, 90.0, 120.0)
+
+
+def test_pawley_alone_loses_a_cell_started_a_few_parts_per_thousand_off(
+        quartz_data):
+    """Why Le Bail goes first: every intensity a variable, the lines
+    misplaced, and the cell stops 0.3 % out at Rwp 15 % against 10.
+    If rietx learns to find this cell alone, the box can go."""
+    fit = pawley(quartz_data, Radiation("cu"), QUARTZ_OFF, "P3221",
+                 PawleyOptions(lebail_first=False))
+    assert fit.lebail_rwp is None
+    assert fit.cell[0] > 4.92
+    assert fit.rwp > 0.13
+
+
+def test_le_bail_first_finds_the_cell_pawley_alone_loses(quartz_data):
+    """The default: a Le Bail fit over the same plan places the lines,
+    and Pawley starts from its cell and profile and finishes below
+    it."""
+    fit = pawley(quartz_data, Radiation("cu"), QUARTZ_OFF, "P3221")
+    assert fit.cell[0] == pytest.approx(4.9134, abs=3e-4)
+    assert fit.cell[2] == pytest.approx(5.4052, abs=3e-4)
+    assert fit.rwp < fit.lebail_rwp < 0.12
+    assert not fit.stalled
+    assert any("started from a Le Bail fit" in n for n in fit.notes)
+
+
+def test_a_le_bail_fit_runs_no_le_bail_before_itself(rutile_xy_shared):
+    fit = pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+                 INDEXED, "P42/mnm", PawleyOptions(method="lebail"))
+    assert fit.lebail_rwp is None and not fit.stalled
+
+
+def test_a_cell_that_runs_away_is_refused_not_converged(rutile_xy_shared):
+    """Unbounded, Le Bail took rutile from 1 % off to a cell 85 % long
+    and called it converged.  Bounded, the cell meets the edge of the
+    box, and a fit that stopped there was still going."""
+    with pytest.raises(PowderError, match="ran to the edge of the 2.5 %"):
+        pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+               (4.594 * 1.01, 4.594 * 1.01, 2.959 * 1.01), "P42/mnm",
+               PawleyOptions(method="lebail"))
+
+
+def test_the_cell_moves_only_as_far_as_it_is_allowed(rutile_xy_shared):
+    """Indexing's cell is 2e-4 out; a box of 1e-4 cannot reach the
+    answer, and the fit says so rather than handing back its edge."""
+    with pytest.raises(PowderError, match="0.01 %"):
+        pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+               (4.594 * 1.0005, 4.594 * 1.0005, 2.959 * 1.0005),
+               "P42/mnm", PawleyOptions(cell_range=1e-4))
+
+
+def test_a_pawley_fit_worse_than_its_le_bail_fit_says_it_stalled(
+        fit, rutile_xy_shared, monkeypatch):
+    """ZSM-5's Pawley ended at Rwp 26 % after a Le Bail fit of 7 % and
+    rietx called it converged.  Free intensities can always match
+    partitioned ones, so a fit that does not has stalled -- said in the
+    result box, the run's message and, for an assistant, by code."""
+    from xtal.modules import powder as steps
+    from xtal.modules.job import Job
+    from xtal.powder import pawley as module
+
+    stalled = dataclasses.replace(fit, lebail_rwp=fit.rwp / 2)
+    assert stalled.stalled and not fit.stalled
+    assert "stalled" in steps.pawley_summary(stalled)
+    monkeypatch.setattr(module, "pawley", lambda *a, **k: stalled)
+    result = steps.run_pawley(Job(params={
+        "xy": str(rutile_xy_shared), "cell": INDEXED,
+        "space_group": "136"}))
+    assert result.ok and "stalled" in result.message
+    assert [code for code, _said in result.warnings] == ["PAWLEY_STALLED"]

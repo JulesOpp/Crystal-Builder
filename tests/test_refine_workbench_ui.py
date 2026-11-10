@@ -1347,6 +1347,22 @@ def test_the_kbeta_flag_starts_off_and_le_bail_is_a_pawley_method(bench):
     assert bench.values("pawley")["method"] == "lebail"
 
 
+def test_le_bail_first_is_ticked_and_only_pawley_offers_it(bench):
+    """Le Bail first is on unless unticked, and greyed under the Le
+    Bail method, which has no Le Bail fit to run before itself.  The
+    cell's box starts at 2.5 %."""
+    form = bench.step_forms["pawley"]
+    bench.steps.setCurrentRow(2)
+    assert bench.values("pawley")["lebail_first"] is True
+    assert bench.values("pawley")["cell_range"] == pytest.approx(2.5)
+    assert form.widgets["lebail_first"].isEnabled()
+    form.set_values({"method": "lebail"})
+    assert not form.widgets["lebail_first"].isEnabled()
+    form.set_values({"method": "pawley", "lebail_first": False})
+    assert form.widgets["lebail_first"].isEnabled()
+    assert bench.values("pawley")["lebail_first"] is False
+
+
 def test_a_peak_can_be_moved_and_resized_by_hand_before_refining(
         bench, rutile_xy):
     """A better start for Refine peaks than the one found: the numbers

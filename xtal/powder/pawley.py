@@ -26,13 +26,15 @@ an open structure, or starting a structure from it, is the window's
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, Radiation
 
-__all__ = ["DEFAULT_ITERATIONS", "DEFAULT_TOLERANCE", "EVALUATED",
-           "METHODS", "PawleyFit", "PawleyOptions", "Reflection",
+__all__ = ["DEFAULT_CELL_RANGE", "DEFAULT_ITERATIONS",
+           "DEFAULT_TOLERANCE", "EVALUATED", "METHODS", "STALLED_RATIO",
+           "PawleyFit", "PawleyOptions", "Reflection",
            "cell_fits_structure", "parse_cell", "parse_hold", "pawley"]
 
 #: rietx's own: a stage's most iterations, and the relative fall in χ²
@@ -44,6 +46,19 @@ DEFAULT_TOLERANCE = 1e-9
 #: A fit's status when it ran no cycles: evaluated at the values it
 #: was handed, nothing moved and nothing to converge.
 EVALUATED = "evaluated"
+
+#: How far a cell may move from where it started, as a fraction of
+#: each length (and of a right angle, for an angle).  Bounded, a cell
+#: that wanders off is stopped at the edge and refused; unbounded,
+#: Le Bail started 0.5-2 % off took rutile 85 % long and gave
+#: fluorapatite a negative c, both "converged".
+DEFAULT_CELL_RANGE = 0.025
+
+#: A Pawley fit whose Rwp is this many times its own Le Bail pass's has
+#: stalled: free intensities can always do at least as well as
+#: partitioned ones, so a fit worse than that stopped with its lines
+#: misplaced.  ZSM-5 ended at 26 % against Le Bail's 7 %.
+STALLED_RATIO = 1.1
 
 #: How a whole-pattern fit without atoms finds its intensities, by
 #: rietx's mode name.
@@ -69,7 +84,17 @@ class PawleyOptions:
     way, so the two are compared on one footing.  ``max_iterations``
     and ``tolerance`` are every stage's (TOPAS's iters and
     convergence criterion); 0 iterations evaluates at the values
-    given, fitting nothing.
+    given, fitting nothing.  ``cell_range`` is how far the cell may
+    move from the one given, a fraction of each length
+    (``DEFAULT_CELL_RANGE``); 0 leaves it unbounded.
+
+    ``lebail_first`` runs a Le Bail fit over the same plan before a
+    Pawley one and starts Pawley from its cell and profile.  A Pawley
+    fit makes every intensity a variable, and with the lines misplaced
+    those shrink where the lines are not and the cell stops moving: it
+    found quartz from 0.1 % off and not from 0.2 %.  Le Bail finds the
+    lines in seconds, and its Rwp is the bar the Pawley fit must clear
+    (``STALLED_RATIO``).
     """
 
     start: float | None = None
@@ -83,6 +108,8 @@ class PawleyOptions:
     method: str = "pawley"
     max_iterations: int = DEFAULT_ITERATIONS
     tolerance: float = DEFAULT_TOLERANCE
+    cell_range: float = DEFAULT_CELL_RANGE
+    lebail_first: bool = True
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The rietx groups freed, in the bridge's words.
@@ -148,10 +175,31 @@ class PawleyFit:
     method: str = "pawley"
     #: the set after the fit, for the next run to start from
     parameters: object = None
+    #: the Rwp of the Le Bail pass a Pawley fit started from, or None
+    lebail_rwp: float | None = None
 
     @property
     def converged(self) -> bool:
         return self.status in ("converged", EVALUATED)
+
+    @property
+    def stalled(self) -> bool:
+        """A Pawley fit that ended clearly worse than the Le Bail pass
+        before it: stopped with its lines misplaced, whatever rietx's
+        status says."""
+        return self.lebail_rwp is not None and \
+            self.rwp > STALLED_RATIO * self.lebail_rwp
+
+    @property
+    def stalled_note(self) -> str:
+        """What to say of a stalled fit, or ``""``."""
+        if not self.stalled:
+            return ""
+        return (f"Pawley ended at Rwp {100 * self.rwp:.2f} %, worse than "
+                f"the {100 * self.lebail_rwp:.2f} % of the Le Bail fit "
+                f"it started from: it stalled with its lines misplaced, "
+                f"and its cell is not to be trusted.  Fit this cell by "
+                f"Le Bail instead")
 
     @property
     def evaluated(self) -> bool:
@@ -239,11 +287,28 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     if not isinstance(cell, str):
         cell = " ".join(str(float(v)) for v in cell)
     start = bridge.start_from(parameters, options, radiation, window)
+    given = parse_cell(cell)
+    common = dict(hold_cell=options.hold_cell,
+                  cancel=bridge.cancel_token(cancel),
+                  iterations=options.max_iterations,
+                  tolerance=options.tolerance,
+                  cell_range=options.cell_range or None,
+                  bounds_about=given)
+    lebail_rwp = None
+    begin = given
+    if options.method == "pawley" and options.lebail_first \
+            and options.max_iterations != 0:
+        first, found, start = bridge.pawley(
+            window, radiation, given, symbol, start=start,
+            folder=None if folder is None else Path(folder) / "lebail",
+            mode="lebail", **common)
+        lebail_rwp = float(found.statistics.rwp)
+        begin = tuple(float(getattr(first.structure.phases[0].cell,
+                                    n).value)
+                      for n in ("a", "b", "c", "alpha", "beta", "gamma"))
     refinement, result, after = bridge.pawley(
-        window, radiation, parse_cell(cell), symbol, start=start,
-        hold_cell=options.hold_cell, folder=folder, mode=options.method,
-        cancel=bridge.cancel_token(cancel),
-        iterations=options.max_iterations, tolerance=options.tolerance)
+        window, radiation, begin, symbol, start=start, folder=folder,
+        mode=options.method, **common)
     evaluated = options.max_iterations == 0
     refined = refinement.structure.phases[0].cell
     names = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -254,7 +319,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         return float(found.value) if found is not None else 0.0
 
     stats = result.statistics
-    return PawleyFit(
+    fitted = PawleyFit(
         cell=tuple(float(getattr(refined, n).value) for n in names),
         cell_esd=tuple(0.0 if evaluated
                        else float(getattr(refined, n).stderr or 0.0)
@@ -273,7 +338,13 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
             "instrument.geometry.sample_displacement"),
         refined={} if evaluated else bridge.refined_values(result),
         notes=[d.message for d in result.diagnostics],
-        method=options.method, parameters=after)
+        method=options.method, parameters=after, lebail_rwp=lebail_rwp)
+    if lebail_rwp is not None:
+        fitted.notes.insert(0, f"started from a Le Bail fit over the same "
+                               f"plan, Rwp {100 * lebail_rwp:.2f} %")
+    if fitted.stalled:
+        fitted.notes.insert(0, fitted.stalled_note)
+    return fitted
 
 
 def cell_fits_structure(fit: PawleyFit, structure, *,

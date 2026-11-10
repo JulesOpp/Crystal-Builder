@@ -137,7 +137,16 @@ Pawley / Le Bail
   numbers the group leaves free are the choices; the form shows the
   free numbers only and derives the rest, so a tetragonal *a = b* is
   never typed twice.  The result is the R factors, the refined cell
-  with esds and the reflection list.  **A wider range is not a better
+  with esds and the reflection list.  **Le Bail first**, ticked by
+  default, runs a Le Bail fit over the same plan before a Pawley one
+  and starts Pawley from its cell: Pawley alone loses a cell started
+  more than about 0.1 % off, because its free intensities follow the
+  misplaced lines, and Le Bail places the lines in seconds.  A Pawley
+  fit that then ends clearly worse than its Le Bail fit is said to
+  have **stalled**, in warning tone, and its cell is not to be trusted.
+  **Cell may move** bounds the cell, 2.5 % of each length by default;
+  a fit whose cell reaches that edge is refused rather than reported,
+  because it was still running away.  **A wider range is not a better
   cell**: every reflection is one more free intensity, and a
   framework's reflections crowd with angle.  On a 14 × 17 Å cell, 4-30°
   was 35 reflections and a second; 4-60° was 199 and more than two
