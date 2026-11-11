@@ -274,6 +274,8 @@ class RefinementWorkbench(QMainWindow):
         self.worker: ModuleWorker | None = None
         self._folder = None
         self._entry = None
+        #: the run folder the Pawley step's answer was written into
+        self.pawley_folder: Path | None = None
         self.module = MODULES.get("pxrd")
         #: the numbers every fitting step starts from, one set for all
         #: of them; ``_parameters_own`` once a run or a person has
@@ -669,6 +671,16 @@ class RefinementWorkbench(QMainWindow):
         buttons = QHBoxLayout()
         buttons.addWidget(self.apply_button)
         buttons.addWidget(self.new_button)
+        self.folder_button = QPushButton("Show run folder")
+        self.folder_button.clicked.connect(self.show_run_folder)
+        self.export_button = QPushButton("Export...")
+        self.export_button.setToolTip(
+            "fit.xy, reflections.csv and the plot as a PNG, named after "
+            "the pattern, into a folder of your choosing")
+        self.export_button.clicked.connect(lambda: self.export_fit())
+        files = QHBoxLayout()
+        files.addWidget(self.folder_button)
+        files.addWidget(self.export_button)
         explain = _hint(
             "A Pawley or Le Bail fit has no atoms: it refines a cell, "
             "and each reflection's intensity is found from the pattern "
@@ -690,7 +702,7 @@ class RefinementWorkbench(QMainWindow):
                 self._fold("Iterations", form.part("Iterations")),
                 self._parameters_section("pawley"),
                 self._fold("Result", self.pawley_label,
-                           self.pawley_notes, buttons),
+                           self.pawley_notes, buttons, files),
                 self._fold("About", explain, _hint(PAWLEY_RANGE_NOTE),
                            _hint(CELL_TO_STRUCTURE_NOTE), open_=False))
 
@@ -1421,6 +1433,8 @@ class RefinementWorkbench(QMainWindow):
             self._fill_cells()
         elif step == "pawley" and answer and not result.cancelled:
             self.pawley, self._previewing = answer, False
+            self.pawley_folder = self._folder.path \
+                if self._folder is not None else None
             if not answer.evaluated:
                 self._take_parameters(answer.parameters)
             self._draw_pawley()
@@ -2007,6 +2021,13 @@ class RefinementWorkbench(QMainWindow):
             reason or "Put this cell on the open structure, fractional "
                       "coordinates kept: one undo step")
         self.new_button.setEnabled(fit is not None)
+        self.export_button.setEnabled(fit is not None)
+        folder = self.pawley_folder
+        self.folder_button.setEnabled(folder is not None
+                                      and folder.is_dir())
+        self.folder_button.setToolTip(
+            str(folder) if folder is not None
+            else "A fit run in a workspace is filed in a run folder")
 
     def _show_pawley_notes(self, fit) -> None:
         layout = self.pawley_notes.layout()
@@ -2026,6 +2047,95 @@ class RefinementWorkbench(QMainWindow):
         layout = self.pawley_notes.layout()
         return [layout.itemAt(k).widget().text()
                 for k in range(layout.count())]
+
+    def show_run_folder(self) -> None:
+        """The folder the fit wrote, in the system's file browser."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        if self.pawley_folder is not None:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.pawley_folder)))
+
+    def export_fit(self, folder=None) -> list[Path]:
+        """The fit's ``fit.xy`` and ``reflections.csv`` copied out of
+        its run folder, and the plot as a PNG, into ``folder`` (asked
+        for, starting where the last export went).  Each is named after
+        the pattern and written through :mod:`xtal.io.atomic`.  The
+        files written; none when asked not to overwrite."""
+        fit = self.pawley
+        if fit is None:
+            return []
+        settings = getattr(self.window_, "settings", None)
+        if folder is None:
+            start = settings.refine_export_directory if settings \
+                is not None else ""
+            folder = QFileDialog.getExistingDirectory(
+                self, "Export the fit into", start or str(Path.home()))
+            if not folder:
+                return []
+        folder = Path(folder)
+        if settings is not None:
+            settings.refine_export_directory = str(folder)
+        stem = f"{self.data.name if self.data is not None else 'pattern'}" \
+            f"-{fit.method}"
+        targets = {"fit.xy": folder / f"{stem}.xy",
+                   "reflections.csv": folder / f"{stem}-reflections.csv"}
+        if self.plot.figure is not None:
+            targets["fit.png"] = folder / f"{stem}.png"
+        if not self._may_overwrite([t for t in targets.values()
+                                    if t.exists()]):
+            return []
+        return self._write_export(fit, targets)
+
+    def _may_overwrite(self, existing) -> bool:
+        """Preferences' *confirm overwrite*, as Save File honours it:
+        asked once for all of them, and only about files that exist."""
+        settings = getattr(self.window_, "settings", None)
+        if not existing or settings is None \
+                or not settings.confirm_overwrite:
+            return True
+        from PySide6.QtWidgets import QMessageBox
+
+        names = "\n".join(path.name for path in existing)
+        answer = QMessageBox.question(
+            self, "Export",
+            f"Overwrite these?\n\n{names}\n\nIn: {existing[0].parent}",
+            QMessageBox.Yes | QMessageBox.No)
+        return answer == QMessageBox.Yes
+
+    def _write_export(self, fit, targets: dict) -> list[Path]:
+        import shutil
+
+        from xtal.io.atomic import replacing
+
+        writers = {"fit.xy": lambda path: steps._write_fit(
+                       path, fit, f"{fit.method_name} fit"),
+                   "reflections.csv": lambda path:
+                       steps._write_reflections(path, fit)}
+        if self._previewing or self.current_step != "pawley":
+            # the picture is of the fit, whatever was in front
+            self._draw_pawley()
+        written = []
+        try:
+            for name, target in targets.items():
+                source = self.pawley_folder / name \
+                    if self.pawley_folder is not None else None
+                with replacing(target) as partial:
+                    if name == "fit.png":
+                        self.plot.figure.savefig(partial, dpi=200,
+                                                 format="png")
+                    elif source is not None and source.is_file():
+                        shutil.copyfile(source, partial)
+                    else:
+                        writers[name](partial)
+                written.append(target)
+        except OSError as exc:
+            self.say(f"could not export: {exc}", warn=True)
+            return written
+        self.say(f"exported {', '.join(p.name for p in written)} to "
+                 f"{targets['fit.xy'].parent}")
+        return written
 
     def _apply_refused(self) -> str:
         from xtal.powder.pawley import cell_fits_structure
@@ -2171,7 +2281,9 @@ class RefinementWorkbench(QMainWindow):
         row = self._chosen_auto_row()
         if row is None or row.fit is None:
             return
-        self.pawley = row.fit
+        # not the Pawley step's run: Export writes this fit's files
+        # afresh rather than copy another fit's out of that folder
+        self.pawley, self.pawley_folder = row.fit, None
         self._fill_reflections()
         self._show_pawley_result()
         self.step_forms["pawley"].set_values(

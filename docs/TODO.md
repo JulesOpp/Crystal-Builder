@@ -159,19 +159,6 @@ scrolled down shows the paragraph whole (`cb/zsm5/06`).  Owed:
   `test_a_stopped_index_search_stops_within_seconds` (slow; the
   number measured as its bound).
 
-### Phase 4 — Show the run folder, and Export… (`xtalapp/refine/workbench.py`)
-
-- "Show run folder" beside Apply cell: `QDesktopServices.openUrl` on
-  the run's folder, as `xtalapp/documents.py` does for TopCryst.
-- "Export…": a folder chosen once (remembered in `AppSettings`), and
-  into it `fit.xy`, `reflections.csv` and the plot as `fit.png` (the
-  matplotlib figure's `savefig`), each through `xtal/io/atomic.py`.
-  Named after the pattern, so two exports do not overwrite each other
-  silently -- `settings.confirm_overwrite` is honoured.
-- Tests (the file dialog patched, as conftest requires):
-  `test_export_writes_the_fit_the_reflections_and_a_picture`,
-  `test_the_run_folder_link_names_the_folder_the_run_wrote`.
-
 ### Phase 5 — A click names the nearest reflection; Use refined as start (`xtalapp/refine/plot.py`, `workbench.py`)
 
 - A click on the pattern axis (not the tick strip, which hover already

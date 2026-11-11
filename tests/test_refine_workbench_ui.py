@@ -1649,3 +1649,66 @@ def test_the_status_line_shows_the_stage_beside_the_clock(
                         r"Rwp \d+\.\d\d % \(\d+:\d\d\)$")
     assert any(staged.match(text) for text in shown), shown
     assert drawn[0] is True
+
+
+@needs_rietx
+def test_export_writes_the_fit_the_reflections_and_a_picture(
+        bench, qtbot, rutile_xy, tmp_path, monkeypatch):
+    """Copies of the run folder's files, named after the pattern so a
+    second pattern's export does not overwrite the first's."""
+    from PySide6.QtWidgets import QFileDialog
+
+    bench.load_pattern(rutile_xy)
+    assert not bench.export_button.isEnabled()
+    assert _run_pawley(bench, qtbot).ok
+    assert bench.export_button.isEnabled()
+    out = tmp_path / "out"
+    out.mkdir()
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory",
+                        lambda *a, **k: str(out))
+    written = bench.export_fit()
+    stem = f"{bench.data.name}-pawley"
+    names = {p.name for p in written}
+    assert {f"{stem}.xy", f"{stem}-reflections.csv"} <= names
+    assert (out / f"{stem}.xy").read_bytes() == \
+        (bench.pawley_folder / "fit.xy").read_bytes()
+    assert (out / f"{stem}-reflections.csv").read_text().startswith(
+        "h,k,l,d,two_theta")
+    if bench.plot.available:
+        assert (out / f"{stem}.png").read_bytes()[:4] == b"\x89PNG"
+    assert not list(out.glob("*.partial*"))
+    assert bench.window_.settings.refine_export_directory == str(out)
+
+
+@needs_rietx
+def test_export_asks_before_overwriting_only_when_preferences_say_so(
+        bench, qtbot, rutile_xy, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    assert bench.export_fit(tmp_path)
+    assert bench.export_fit(tmp_path)          # silent by default
+    bench.window_.settings.confirm_overwrite = True
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: QMessageBox.No)
+    assert bench.export_fit(tmp_path) == []
+
+
+@needs_rietx
+def test_the_run_folder_link_names_the_folder_the_run_wrote(
+        bench, qtbot, rutile_xy, monkeypatch):
+    from PySide6.QtGui import QDesktopServices
+
+    bench.load_pattern(rutile_xy)
+    assert not bench.folder_button.isEnabled()
+    assert _run_pawley(bench, qtbot).ok
+    folder = bench.pawley_folder
+    assert (folder / "fit.xy").is_file()
+    assert bench.folder_button.isEnabled()
+    assert bench.folder_button.toolTip() == str(folder)
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl",
+                        lambda url: opened.append(url.toLocalFile()))
+    bench.folder_button.click()
+    assert opened == [str(folder)]
