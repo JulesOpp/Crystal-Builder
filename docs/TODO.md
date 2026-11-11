@@ -163,18 +163,16 @@ here; to raise with rietx, with these numbers,
 and Decision 3 (the budget off by default) to revisit if it stays.
 `test_a_stopped_index_search_stops_within_seconds` waits on that.
 
-Verification: the comparison's own driver, re-run --
-`GC=$PWD CASE=zsm5 python ../../../.claude/skills/run-app/drive.py
---scratch scratch/zsm5 --script cb_drive.py` from
-`JulesWork/pawleylab/gui-compare/` -- whose grabs of the
-`refine_workbench` window must now show the typed cell's comb and the
-offset hint before Fit, the stage and Rwp and no Peaks residual mid-run,
-and the grouped notes in the Result box.  The workbench and
-Pawley test files per phase, the full suite once at the end.
-
-Docs: `docs/manual/porosity/refinement.md` (the Pawley entry: preview,
-progress, export), its screenshots refreshed with the manual-writing
-skill; delete this section phase by phase as each ships.
+Phases 1-5 shipped 2026-11-11 and were checked on ZSM-5 in the window
+(a copy of the comparison's driver with Index skipped): the start's
+comb and the offset hint before Fit, the Le Bail curve at 3 s, the
+stage beside the clock.  The hint warned (worst 0.24°, past the 0.13°
+median width) on the very start Le Bail first then fitted, so the worst
+peak may be too harsh a test on a pattern with impurity or noise peaks
+in use -- a median, or the worst of the strong lines, to try.  The
+manual's Pawley entry is written; its figure
+(`refinement-workbench.png`) is not of the Pawley step and was not
+refreshed.
 
 ## The interface stretch
 
