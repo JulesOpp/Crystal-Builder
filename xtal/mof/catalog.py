@@ -81,6 +81,17 @@ class CatalogError(ValueError):
 #: both ways and the index list is the one that is always there.
 CONNECTION = "X"
 
+#: A net whose shortest edge is longer than this is taken to be drawn
+#: in Angstrom, and PORMAKE is handed it rescaled to a shortest edge
+#: of one.  Its scaler fits dot products normalised to about one but
+#: starts from the file's own cell, so a net drawn round a crystal
+#: (sph-MOF-4's, 11.5 and 19.6 A edges) starts hundreds of times off
+#: its targets and settles with every 12-c cluster's edges
+#: relabelled: N419 fit 0.11 A before the scaler and 1.12 after, its
+#: carboxylates aimed between the linkers.  Every shipped net has its
+#: shortest edge between 0.31 and 1.0, so none is touched.
+ANGSTROM_EDGE = 2.0
+
 
 # ======================================================================
 #  WHERE THE DATABASE IS
@@ -660,12 +671,40 @@ class Topology:
 
         reader = midpoints.reader(
             pormake, lambda: midpoints.edge_ends(self.entry()))
-        if not self.text:
+        text = self.unit_text()
+        if text is None and not self.text:
             return reader(str(self.path))
         with tempfile.TemporaryDirectory(prefix="xtal-net-") as folder:
             path = Path(folder) / f"{self.name}.cgd"
-            path.write_text(self.text, encoding="utf-8")
+            path.write_text(text or self.text, encoding="utf-8")
             return reader(str(path))
+
+    def shortest_edge(self) -> float:
+        """The shortest edge as the file draws it, in its cell's units."""
+        net, frac = self.placement()
+        matrix = np.asarray(self.lattice().matrix, dtype=float)
+        return min(float(np.linalg.norm(
+            (frac[e.j] + np.asarray(e.image) - frac[e.i]) @ matrix))
+            for e in net.edges)
+
+    def unit_text(self) -> str | None:
+        """The ``.cgd`` rescaled to a shortest edge of one, or ``None``
+        when it is drawn at that scale already (see
+        :data:`ANGSTROM_EDGE`).
+
+        Only the cell changes: the nodes and edges are fractional, and
+        the framework's own cell comes from its blocks, never from
+        this one.
+        """
+        entry = self.entry()
+        if not entry.cell or len(entry.cell) != 6:
+            return None
+        shortest = self.shortest_edge()
+        if shortest <= ANGSTROM_EDGE:
+            return None
+        cell = tuple(v / shortest for v in entry.cell[:3]) + tuple(
+            entry.cell[3:])
+        return write_cgd_string([replace(entry, cell=cell)])
 
     @property
     def is_layer(self) -> bool:
