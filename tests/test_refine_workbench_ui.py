@@ -1712,3 +1712,48 @@ def test_the_run_folder_link_names_the_folder_the_run_wrote(
                         lambda url: opened.append(url.toLocalFile()))
     bench.folder_button.click()
     assert opened == [str(folder)]
+
+
+@needs_rietx
+def test_clicking_the_pattern_names_the_nearest_reflection(
+        bench, qtbot, rutile_xy):
+    from types import SimpleNamespace
+
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    if not bench.plot.available:
+        pytest.skip("needs matplotlib")
+    bench.plot._on_press(SimpleNamespace(inaxes=bench.plot.axes,
+                                         xdata=27.47))
+    said = bench.status.text()
+    assert said.startswith("2θ 27.470°, d 3.24")
+    assert "nearest (1 1 0)  27.4" in said and ", I " in said
+    # a click below, on the comb, is hover's and says nothing new
+    bench.plot._on_press(SimpleNamespace(inaxes=bench.plot.strip,
+                                         xdata=36.1))
+    assert bench.status.text() == said
+
+
+@needs_rietx
+def test_use_refined_as_start_puts_the_fit_into_the_cell_box(
+        bench, qtbot, rutile_xy):
+    """The start shown stays the person's until they ask: a re-run
+    then continues from the fit.  A form, so no undo step."""
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot, cell="4.5948 4.5948 2.9572").ok
+    assert bench.cell_box.numbers()[0] == pytest.approx(4.5948)
+    fit = bench.pawley
+    bench.parameter_table.reset()
+    bench.use_refined()
+    assert bench.cell_box.numbers()[0] == pytest.approx(fit.cell[0],
+                                                        abs=1e-5)
+    assert bench.cell_box.numbers()[2] == pytest.approx(fit.cell[2],
+                                                        abs=1e-5)
+    for row in fit.parameters:
+        if row.value is not None and row.name in bench.parameters:
+            assert bench.parameters[row.name].value == pytest.approx(
+                row.value)
+    qtbot.waitUntil(lambda: not bench._preview_timer.isActive(),
+                    timeout=5000)
+    # the fit's own cell typed back is the fit, not a preview
+    assert bench.reflection_table.item(0, 6).text() != ""

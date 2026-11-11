@@ -90,6 +90,7 @@ from xtalapp.refine.parameters import ParameterTable
 from xtalapp.refine.pareto_plot import ParetoPlots
 from xtalapp.refine.plot import (
     RefinementPlot,
+    click_label,
     reflection_label,
     reflection_labels,
 )
@@ -300,6 +301,7 @@ class RefinementWorkbench(QMainWindow):
         self.steps.setMaximumWidth(140)
 
         self.plot = RefinementPlot()
+        self.plot.clicked.connect(self._on_plot_clicked)
         self.table = _table(PEAK_HEADERS)
         self.table.itemChanged.connect(self._on_use_changed)
         for column, _key in PEAK_EDITS.items():
@@ -678,7 +680,15 @@ class RefinementWorkbench(QMainWindow):
             "fit.xy, reflections.csv and the plot as a PNG, named after "
             "the pattern, into a folder of your choosing")
         self.export_button.clicked.connect(lambda: self.export_fit())
+        self.use_refined_button = QPushButton("Use refined as start")
+        self.use_refined_button.setToolTip(
+            "The refined cell and group into the boxes above, and the "
+            "fit's parameters into the table, so the next fit "
+            "continues from this one.  The start shown stays yours "
+            "until this is pressed.")
+        self.use_refined_button.clicked.connect(self.use_refined)
         files = QHBoxLayout()
+        files.addWidget(self.use_refined_button)
         files.addWidget(self.folder_button)
         files.addWidget(self.export_button)
         explain = _hint(
@@ -2022,6 +2032,8 @@ class RefinementWorkbench(QMainWindow):
                       "coordinates kept: one undo step")
         self.new_button.setEnabled(fit is not None)
         self.export_button.setEnabled(fit is not None)
+        self.use_refined_button.setEnabled(fit is not None
+                                           and not fit.evaluated)
         folder = self.pawley_folder
         self.folder_button.setEnabled(folder is not None
                                       and folder.is_dir())
@@ -2047,6 +2059,32 @@ class RefinementWorkbench(QMainWindow):
         layout = self.pawley_notes.layout()
         return [layout.itemAt(k).widget().text()
                 for k in range(layout.count())]
+
+    def use_refined(self) -> None:
+        """The fit's cell, group and set as the next fit's start: a
+        form edited, not the Document, so no undo step."""
+        fit = self.pawley
+        if fit is None:
+            return
+        self.step_forms["pawley"].set_values(
+            {"space_group": fit.space_group})
+        self.cell_box.set_value(fit.cell)
+        if fit.parameters is not None:
+            self._take_parameters(fit.parameters)
+        self.say("the refined cell and parameters are the next fit's "
+                 "start")
+
+    def _shown_reflections(self):
+        """The reflections behind the curve in front, for a click."""
+        step = self.current_step
+        if step == "pawley":
+            return self.start_lines if self._previewing \
+                or self.pawley is None else self.pawley.reflections
+        fit = {"rietveld": self.rietveld, "energy": self.energy}.get(step)
+        return getattr(fit, "reflections", None) or []
+
+    def _on_plot_clicked(self, two_theta: float) -> None:
+        self.say(click_label(two_theta, self._shown_reflections()))
 
     def show_run_folder(self) -> None:
         """The folder the fit wrote, in the system's file browser."""

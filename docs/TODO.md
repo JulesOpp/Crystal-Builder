@@ -146,32 +146,22 @@ Decisions:
 | 4 | Show the run folder, and Export… | S |
 | 5 | A click names the nearest reflection; Use refined as start | S |
 
-### Phase 1 — What is wrong on screen (`xtalapp/refine/workbench.py`)
+### Index Stop is rietx's, and is owed upstream
 
-The stale curve and the grouped notes shipped; the "clipped"
-Parameters hint was the scroll area's edge, not a wrap -- the column
-scrolled down shows the paragraph whole (`cb/zsm5/06`).  Owed:
-
-- Index Stop: measure where the 6 minutes go (rietx's `CancelToken` is
-  checked between candidates?  `bridge.cancel_token`) on the ZSM-5
-  XRDML with a scratch script; fix it here if it is ours, or raise it
-  upstream with the measurement if it is rietx's.
-  `test_a_stopped_index_search_stops_within_seconds` (slow; the
-  number measured as its bound).
-
-### Phase 5 — A click names the nearest reflection; Use refined as start (`xtalapp/refine/plot.py`, `workbench.py`)
-
-- A click on the pattern axis (not the tick strip, which hover already
-  names) puts 2θ, d and the nearest fitted reflection with its
-  intensity in the status line: `RefinementPlot.clicked` signal,
-  `reflection_label` reused.
-- "Use refined as start" beside Result: the refined cell into the cell
-  box and the refined profile into the parameter set's values, so a
-  re-run continues from the fit while the shown start stays the
-  person's until pressed.  One click, no undo step (it edits a form,
-  not the Document).
-- Tests: `test_clicking_the_pattern_names_the_nearest_reflection`,
-  `test_use_refined_as_start_puts_the_fit_into_the_cell_box`.
+Measured 2026-11-11 on the ZSM-5 XRDML (115 peaks, budget off, a
+scratch script): Stop at 90 s, in the trigonal search, ended the run
+in 5.5 s; Stop at 900 s, in triclinic trial and error, took **99 s**.
+Our token is set the instant Stop is pressed (`bridge.cancel_token`);
+the 99 s are three rietx loops that do not read it --
+`trial_error._search_system` checks it once per base set and then
+scores every assignment of that set (~35 s, in `engines.assign_lines`),
+`engines.dedup_candidates` (~35 s, `reduce.equal_reduced`), and the
+consensus FOM panel (~20 s, `fom.lattice_reflections`).  The
+comparison's six minutes were not reproduced; the same loops over a
+longer candidate list would explain them, unmeasured.  Nothing to fix
+here; to raise with rietx, with these numbers,
+and Decision 3 (the budget off by default) to revisit if it stays.
+`test_a_stopped_index_search_stops_within_seconds` waits on that.
 
 Verification: the comparison's own driver, re-run --
 `GC=$PWD CASE=zsm5 python ../../../.claude/skills/run-app/drive.py
