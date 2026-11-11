@@ -18,7 +18,13 @@ import pytest
 
 from xtal import Lattice, Structure
 from xtal.core.site import Site
-from xtalapp.viewport.builder import VACANCY_COLOR, build_scene
+from xtalapp.viewport.builder import (
+    PIE_MERIDIANS,
+    PIE_PARALLELS,
+    VACANCY_COLOR,
+    _pie_mesh,
+    build_scene,
+)
 from xtalapp.viewport.scene import view_basis
 from xtalapp.viewport.view_settings import ViewSettings
 
@@ -234,3 +240,68 @@ def test_a_split_site_is_two_sites_and_not_one_pie():
     # because each of the two sites is drawn half empty
     assert len(shares) == 2
     assert shares[VACANCY_COLOR] == pytest.approx(0.5, abs=0.01)
+
+
+def _one_wedge_at_a_time(plan, cart):
+    """The pies as they were built before the wedges were batched:
+    each wedge meshed on its own and appended, the arrays the
+    batched builder has to reproduce bit for bit."""
+    local, centres, faces, colors, normals = [], [], [], [], []
+    base = 0
+    for row, lo, hi, color, radius in plan:
+        meridians = max(2, int(np.ceil((hi - lo) * PIE_MERIDIANS)))
+        phi = np.linspace(lo, hi, meridians + 1) * 2.0 * np.pi
+        theta = np.linspace(0.0, np.pi, PIE_PARALLELS + 1)
+        sin_t, cos_t = np.sin(theta), np.cos(theta)
+        verts = np.stack(
+            [np.outer(sin_t, np.cos(phi)),
+             np.outer(sin_t, np.sin(phi)),
+             np.repeat(cos_t[:, None], meridians + 1, axis=1)],
+            axis=-1).reshape(-1, 3)
+        local.append(verts * radius)
+        centres.append(np.tile(np.asarray(cart[row], float),
+                               (len(verts), 1)))
+        normals.append(verts)
+        r, c = np.meshgrid(np.arange(PIE_PARALLELS),
+                           np.arange(meridians), indexing="ij")
+        a = (r * (meridians + 1) + c).ravel() + base
+        b, cc, d = a + 1, a + meridians + 1, a + meridians + 2
+        quads = np.concatenate([np.stack([a, cc, b], axis=1),
+                                np.stack([b, cc, d], axis=1)])
+        faces.append(quads)
+        colors.append(np.tile(np.asarray(color, np.uint8),
+                              (len(quads), 1)))
+        base += len(verts)
+    return (np.concatenate(local).astype(np.float32),
+            np.concatenate(centres).astype(np.float32),
+            np.concatenate(faces).astype(int),
+            np.concatenate(colors).astype(np.uint8),
+            np.concatenate(normals).astype(np.float32))
+
+
+def test_batched_wedges_are_the_wedges_built_one_at_a_time():
+    """The wedges are meshed once per shape and copied to every site,
+    because meshing each on its own -- and finding where its vertices
+    start by adding up every wedge before it -- took five seconds to
+    draw a 4000-atom framework with half its sites half empty, on
+    every rebuild.  What reaches the renderer must not have changed:
+    the same vertices, faces, colours and normals, in the same
+    order."""
+    vacancy = VACANCY_COLOR
+    plan = [(0, 0.0, 0.6, (200, 100, 50), 1.1),
+            (0, 0.6, 1.0, (40, 200, 90), 1.1),
+            (1, 0.0, 0.5, (255, 0, 0), 0.7),
+            (1, 0.5, 1.0, vacancy, 0.7),
+            (2, 0.0, 0.5, (255, 0, 0), 0.7),
+            (2, 0.5, 1.0, vacancy, 0.7),
+            (3, 0.0, 0.13, (0, 0, 255), 0.5),
+            (3, 0.13, 1.0, vacancy, 0.5),
+            (4, 0.0, 0.5 / 1.2, (9, 9, 9), 1.3),
+            (4, 0.5 / 1.2, 1.0, (90, 90, 90), 1.3)]
+    cart = np.array([[0.0, 0.0, 0.0], [1.5, 2.0, 2.5], [9.0, 0.5, 3.0],
+                     [4.0, 4.0, 4.0], [7.1, 1.2, 8.3]])
+    expected = _one_wedge_at_a_time(plan, cart)
+    got = _pie_mesh(plan, cart)
+    for want, have in zip(expected, got, strict=True):
+        assert have.dtype == want.dtype
+        assert np.array_equal(have, want)
