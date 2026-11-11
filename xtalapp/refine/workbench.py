@@ -159,6 +159,10 @@ _NOT_IN_FORM = {
                  "occupancy"),
     "energy": ("engine",), "pareto": ("engine",)}
 
+#: How long typing in the Pawley cell must pause before its lines are
+#: drawn again, in milliseconds.
+PREVIEW_DELAY_MS = 250
+
 #: The steps that fit, and so start from the parameter set and show it.
 _FITS = ("pawley", "rietveld", "energy", "pareto", "auto")
 
@@ -258,6 +262,15 @@ class RefinementWorkbench(QMainWindow):
         self._framed = False
         self._running = ""
         self._cell_rows: list = []
+        #: the typed start's lines (``pawley.start_lines``), drawn and
+        #: tabled until a fit replaces them -- view state, never the
+        #: Document's
+        self.start_lines: list = []
+        self._previewing = False
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(PREVIEW_DELAY_MS)
+        self._preview_timer.timeout.connect(self._preview_start)
         self.worker: ModuleWorker | None = None
         self._folder = None
         self._entry = None
@@ -627,6 +640,19 @@ class RefinementWorkbench(QMainWindow):
         group.layout().addRow(self.cell_box)
         form.widgets["space_group"].textChanged.connect(
             self.cell_box.set_space_group)
+        #: how far the found peaks are from the typed start's lines
+        self.start_hint = _Paragraph("")
+        set_tone(self.start_hint, HINT)
+        self.start_hint.setVisible(False)
+        group.layout().addRow(self.start_hint)
+        # typing a cell is a key at a time: the lines follow once it
+        # pauses, not on every digit
+        self.cell_box.changed.connect(self._schedule_preview)
+        form.widgets["space_group"].textChanged.connect(
+            self._schedule_preview)
+        for name in ("start", "finish"):
+            form.widgets[name].valueChanged.connect(
+                self._schedule_preview)
         self.pawley_label = _result_label()
         #: what the run said, one line a kind (``pawley_note_lines``)
         self.pawley_notes = QWidget()
@@ -1050,6 +1076,7 @@ class RefinementWorkbench(QMainWindow):
         self._fill_table()
         self._fill_cells()
         self._fill_reflections()
+        self._schedule_preview()
         self._fill_auto()
         self._show_pawley_result()
         self._show_rietveld_result()
@@ -1274,6 +1301,9 @@ class RefinementWorkbench(QMainWindow):
                             structure.lattice.matrix.copy())
             self._framed = False
         if name == "pawley":
+            # the run reads the form as it is now; a preview still due
+            # would land after a quick fit and be taken for a new start
+            self._preview_timer.stop()
             # The pattern alone until this run has something to show:
             # left up, the Peaks step's -10 000-count residual on ZSM-5
             # read as this fit failing, for the thirteen minutes it ran.
@@ -1383,13 +1413,14 @@ class RefinementWorkbench(QMainWindow):
             self.peaks, self.cells = answer, None
             self._show_peaks()
             self._fill_cells()
+            self._schedule_preview()
         elif step == "index" and answer is not None:
             # Stop keeps what the search reached; that is the point
             # of stopping a search that already looks right.
             self.cells = answer
             self._fill_cells()
         elif step == "pawley" and answer and not result.cancelled:
-            self.pawley = answer
+            self.pawley, self._previewing = answer, False
             if not answer.evaluated:
                 self._take_parameters(answer.parameters)
             self._draw_pawley()
@@ -1718,6 +1749,7 @@ class RefinementWorkbench(QMainWindow):
                                  self.peaks.curves())
         self.say(f"{self.peaks.n_used} of {len(self.peaks.peaks)} "
                  f"lines in use for indexing")
+        self._schedule_preview()
 
     def _on_peak_edited(self, item) -> None:
         """A number typed into the peak table: the line moved or resized
@@ -1853,16 +1885,97 @@ class RefinementWorkbench(QMainWindow):
         fit = self.pawley
         self._show_fit(fit)
 
+    def _schedule_preview(self, *_args) -> None:
+        self._preview_timer.start()
+
+    def _preview_start(self) -> None:
+        """The typed start's lines in the table and under the plot, and
+        how far the found peaks are from them: Pawley alone finds a
+        cell only from about 0.1 % off, and drawn only after the fit, a
+        wrong start cost the minutes the fit took to show it."""
+        from xtal.powder.pawley import start_lines, start_offset
+
+        lines, values = [], {}
+        if self.data is not None:
+            values = self._values("pawley")
+            try:
+                lo, hi = self.data.window(values.get("start") or None,
+                                          values.get("finish") or None
+                                          ).range
+                lines = start_lines(values["cell"],
+                                    values["space_group"],
+                                    steps.radiation_of(values), lo, hi)
+            except (PowderError, ValueError, RuntimeError):
+                # half a cell or a group still being typed: no lines,
+                # and the run says what is wrong if it is pressed
+                lines = []
+        self.start_lines = lines
+        # the fit's own cell typed back (Automatic's chosen row puts it
+        # there) is the fit, not a new start
+        self._previewing = not self._is_fits_start(values)
+        offset = start_offset(self.peaks, lines) \
+            if lines and self.peaks is not None else None
+        if offset is None:
+            self.start_hint.setVisible(False)
+        else:
+            text = (f"start cell: peaks within {offset.median:.2f}°, "
+                    f"worst {offset.worst:.2f}°")
+            if offset.far:
+                text += (" -- further than a peak width "
+                         f"({offset.width:.2f}°): the fit may not "
+                         "reach it")
+            self.start_hint.setText(text)
+            set_tone(self.start_hint, WARNING if offset.far else HINT)
+            self.start_hint.setVisible(True)
+        self._fill_reflections()
+        if self.current_step == "pawley" and self.worker is None:
+            if self._previewing:
+                self._draw_start()
+            else:
+                self._draw_pawley()
+
+    def _is_fits_start(self, values: dict) -> bool:
+        from xtal.powder import bridge
+        from xtal.powder.pawley import parse_cell
+
+        fit = self.pawley
+        if fit is None or not values:
+            return False
+        try:
+            typed = parse_cell(values["cell"])
+            group = bridge.space_group_named(values["space_group"])
+        except (PowderError, ValueError, RuntimeError):
+            return False
+        return group == fit.space_group and all(
+            abs(a - b) < 1e-4 for a, b in zip(typed, fit.cell,
+                                              strict=True))
+
+    def _draw_start(self) -> None:
+        """The pattern, the peaks found and the start's lines under
+        them -- a peak with no line beneath it is seen at once."""
+        if self.data is None:
+            return
+        self.plot.show_observed(self.data.two_theta, self.data.intensity,
+                                label=self.data.name)
+        if self.peaks is not None:
+            self.plot.set_ticks(self.peaks.ticks)
+        self.plot.set_reflections(
+            [r.two_theta for r in self.start_lines],
+            reflection_labels(self.start_lines))
+
     def _fill_reflections(self) -> None:
-        rows = self.pawley.reflections if self.pawley is not None \
-            else []
+        if self._previewing or self.pawley is None:
+            rows = self.start_lines
+        else:
+            rows = self.pawley.reflections
         self.reflection_table.setRowCount(len(rows))
         for r, reflection in enumerate(rows):
             h, k, m = reflection.hkl
+            fitted = reflection.multiplicity > 0
             cells = (str(h), str(k), str(m), f"{reflection.d:.5f}",
                      f"{reflection.two_theta:.4f}",
-                     str(reflection.multiplicity),
-                     f"{reflection.intensity:.2f}")
+                     str(reflection.multiplicity) if fitted else "",
+                     f"{reflection.intensity:.2f}" if fitted else "")
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(text)
                 item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1962,8 +2075,11 @@ class RefinementWorkbench(QMainWindow):
         elif step == "pareto":
             self._show_pareto_result()
             self._draw_pareto_row()
-        elif step == "pawley" and self.pawley is not None:
-            self._draw_pawley()
+        elif step == "pawley" and self.worker is None:
+            if self.pawley is not None and not self._previewing:
+                self._draw_pawley()
+            else:
+                self._draw_start()
         elif step == "auto" and self.auto is not None:
             self._draw_auto_row()
         elif step in ("peaks", "index") and self.peaks is not None:

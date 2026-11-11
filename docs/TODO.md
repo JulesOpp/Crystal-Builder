@@ -159,31 +159,6 @@ scrolled down shows the paragraph whole (`cb/zsm5/06`).  Owed:
   `test_a_stopped_index_search_stops_within_seconds` (slow; the
   number measured as its bound).
 
-### Phase 2 — The typed cell drawn before fitting (`xtal/powder/pawley.py`, `xtalapp/refine/workbench.py`)
-
-- `pawley.start_lines(cell, space_group, radiation, lo, hi)`: the
-  allowed `(hkl, d, 2θ)` of the typed cell at the primary line, from
-  `bridge.allowed_reflections` / `lattice_lines` (the Index step's
-  `hkl_lines` already does this for a candidate row).
-- `pawley.start_offset(peaks, lines)`: for each ticked peak of the
-  Peaks step, the nearest line and Δ2θ; the median and worst |Δ2θ|,
-  and whether the worst exceeds the peaks' median FWHM.
-- Workbench: any change to the space group or the cell box redraws the
-  second comb (`plot.set_reflections`, named on hover as now) and fills
-  the reflection table with the allowed lines, intensity blank, until
-  a fit replaces them.  With peaks found, a hint line under the cell
-  box: "start cell: peaks within 0.03°, worst 0.21°", in warning tone
-  -- "further than a peak width: the fit may not reach it" -- when the
-  worst offset is over the median FWHM.  Debounced, so typing a cell
-  does not recompute on every key.
-- Invariants: view state only; `xtal/` imports no Qt.
-- Tests: `test_start_lines_are_the_groups_allowed_reflections`
-  (rutile: 110 present, 100 and 001 absent),
-  `test_the_offset_of_rutiles_peaks_from_its_own_cell_is_noise`,
-  `test_a_cell_half_a_percent_off_is_said_to_be_further_than_a_peak_width`,
-  `test_typing_a_cell_draws_its_lines_before_any_fit`,
-  `test_a_fit_replaces_the_previewed_reflections_with_its_own`.
-
 ### Phase 3 — Stage and Rwp while a fit runs (`xtal/powder/bridge.py`, `xtal/modules/powder.py`)
 
 - `bridge.pawley(on_stage=...)`: an `events` callable that turns

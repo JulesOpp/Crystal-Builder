@@ -379,3 +379,57 @@ def test_the_le_bail_pass_and_a_stall_come_before_rietxs_notes(fit):
     assert texts[1].startswith("Le Bail pass first: Rwp ")
     assert texts[2] == "something (and 1 more like it)"
 
+
+#: The cell the rutile pattern was simulated from.
+RUTILE = (4.5940, 4.5940, 2.9590, 90.0, 90.0, 90.0)
+
+
+@pytest.fixture(scope="module")
+def rutile_peaks(rutile_xy_shared):
+    from xtal.powder.peaks import fit_peaks
+
+    return fit_peaks(PowderData.from_xy(rutile_xy_shared),
+                     Radiation("cu"))
+
+
+def test_start_lines_are_the_groups_allowed_reflections():
+    """Drawn before any fit, so a person sees what the start predicts:
+    the group's absences included, or a line would stand where no peak
+    can be."""
+    from xtal.powder.pawley import start_lines
+
+    lines = start_lines(RUTILE, "P42/mnm", Radiation("cu"), 20.0, 80.0)
+    hkls = {r.hkl for r in lines}
+    assert (1, 1, 0) in hkls
+    assert (1, 0, 0) not in hkls and (0, 0, 1) not in hkls
+    first = next(r for r in lines if r.hkl == (1, 1, 0))
+    assert first.two_theta == pytest.approx(27.43, abs=0.02)
+    assert all(20.0 <= r.two_theta <= 80.0 for r in lines)
+    assert [r.two_theta for r in lines] == sorted(
+        r.two_theta for r in lines)
+
+
+def test_the_offset_of_rutiles_peaks_from_its_own_cell_is_noise(
+        rutile_peaks):
+    from xtal.powder.pawley import start_lines, start_offset
+
+    lo, hi = rutile_peaks.two_theta[0], rutile_peaks.two_theta[-1]
+    offset = start_offset(rutile_peaks, start_lines(
+        RUTILE, "P42/mnm", Radiation("cu"), lo, hi))
+    assert offset.peaks == rutile_peaks.n_used
+    assert offset.median < 0.01
+    assert not offset.far
+
+
+def test_a_cell_half_a_percent_off_is_said_to_be_further_than_a_peak_width(
+        rutile_peaks):
+    """Pawley alone loses a cell started a few parts per thousand off;
+    the hint is there to say so before the minutes are spent."""
+    from xtal.powder.pawley import start_lines, start_offset
+
+    lo, hi = rutile_peaks.two_theta[0], rutile_peaks.two_theta[-1]
+    off = tuple(v * 1.005 for v in RUTILE[:3]) + RUTILE[3:]
+    offset = start_offset(rutile_peaks, start_lines(
+        off, "P42/mnm", Radiation("cu"), lo, hi))
+    assert offset.far
+    assert offset.worst > offset.width

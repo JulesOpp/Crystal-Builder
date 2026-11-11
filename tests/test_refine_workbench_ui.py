@@ -1577,3 +1577,54 @@ def test_the_result_box_says_what_the_run_log_says_grouped(
         "3 reflection groups overlap too strongly to split: their "
         "summed intensities are determined, the split between the "
         "lines is not"]
+
+
+def _typed_start(bench, qtbot, cell, group="P42/mnm"):
+    bench.steps.setCurrentRow(2)
+    bench.step_forms["pawley"].set_values({"space_group": group})
+    bench.cell_box.set_value(cell)
+    qtbot.waitUntil(lambda: not bench._preview_timer.isActive(),
+                    timeout=5000)
+
+
+@needs_rietx
+def test_typing_a_cell_draws_its_lines_before_any_fit(
+        bench, qtbot, rutile_xy):
+    """Pawley alone finds a cell only from about 0.1 % off; the start's
+    lines under the found peaks show a wrong one before the minutes
+    are spent, and the hint says how wrong."""
+    _run_peaks(bench, qtbot, rutile_xy)
+    _typed_start(bench, qtbot, "4.594 4.594 2.959")
+    assert bench.pawley is None
+    rows = bench.reflection_table.rowCount()
+    assert rows == len(bench.start_lines) > 10
+    hkls = {tuple(int(bench.reflection_table.item(r, c).text())
+                  for c in range(3)) for r in range(rows)}
+    assert (1, 1, 0) in hkls and (1, 0, 0) not in hkls
+    # nothing has fitted an intensity yet
+    assert bench.reflection_table.item(0, 6).text() == ""
+    if bench.plot.available:
+        positions, labels = bench.plot._combs[1]
+        assert len(positions) == rows
+        assert labels[0].startswith("(1 1 0)")
+    assert not bench.start_hint.isHidden()
+    assert bench.start_hint.text().startswith("start cell: peaks within")
+    assert "further" not in bench.start_hint.text()
+    _typed_start(bench, qtbot, "4.617 4.617 2.974")
+    assert "further than a peak width" in bench.start_hint.text()
+
+
+@needs_rietx
+def test_a_fit_replaces_the_previewed_reflections_with_its_own(
+        bench, qtbot, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    _typed_start(bench, qtbot, "4.5948 4.5948 2.9572")
+    assert bench.reflection_table.item(0, 6).text() == ""
+    assert _run_pawley(bench, qtbot).ok
+    assert bench.reflection_table.rowCount() == \
+        len(bench.pawley.reflections)
+    assert bench.reflection_table.item(0, 6).text() != ""
+    assert int(bench.reflection_table.item(0, 5).text()) > 0
+    # a new start typed after the fit is a preview again
+    _typed_start(bench, qtbot, "4.60 4.60 2.96")
+    assert bench.reflection_table.item(0, 6).text() == ""

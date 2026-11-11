@@ -50,7 +50,8 @@ from xtal.powder.data import (
 from xtal.powder.parameters import B_PER_U, site_biso, site_labels
 
 __all__ = ["RIETVELD_PRESETS", "PatternTerm", "apply_phase",
-           "cancel_token", "extinction_classes", "fit", "free_cell_paths",
+           "cancel_token", "cell_reflections", "extinction_classes",
+           "fit", "free_cell_paths",
            "held_paths", "index_pattern", "instrument", "lattice_lines",
            "pattern", "start_from", "starting_parameters",
            "observed_peak", "pattern_term", "pawley", "peak_list",
@@ -798,8 +799,18 @@ def allowed_reflections(structure, radiation: Radiation,
                         two_theta_min: float, two_theta_max: float):
     """``[(hkl, d, two_theta), ...]`` of :func:`lines_of`, in order of
     angle: what a tick is when a person points at it."""
-    cell = gemmi.UnitCell(*structure.lattice.parameters)
-    group = gemmi.find_spacegroup_by_name(space_group_symbol(structure))
+    return cell_reflections(structure.lattice.parameters,
+                            space_group_symbol(structure), radiation,
+                            two_theta_min, two_theta_max)
+
+
+def cell_reflections(cell, symbol: str, radiation: Radiation,
+                     two_theta_min: float, two_theta_max: float):
+    """:func:`allowed_reflections` of a cell and a group's extended
+    symbol (:func:`space_group_named`) rather than a structure: the
+    lines a typed Pawley start puts down."""
+    cell = gemmi.UnitCell(*(float(v) for v in cell))
+    group = gemmi.find_spacegroup_by_name(symbol)
     wavelength = emission_lines(radiation)[0][0]
     s_max = min(math.sin(math.radians(two_theta_max) / 2.0), 1.0)
     ops = group.operations()

@@ -34,8 +34,9 @@ from xtal.powder.data import PowderData, PowderError, Radiation
 
 __all__ = ["DEFAULT_CELL_RANGE", "DEFAULT_ITERATIONS",
            "DEFAULT_TOLERANCE", "EVALUATED", "METHODS", "STALLED_RATIO",
-           "PawleyFit", "PawleyOptions", "Reflection",
-           "cell_fits_structure", "parse_cell", "parse_hold", "pawley"]
+           "PawleyFit", "PawleyOptions", "Reflection", "StartOffset",
+           "cell_fits_structure", "parse_cell", "parse_hold", "pawley",
+           "start_lines", "start_offset"]
 
 #: rietx's own: a stage's most iterations, and the relative fall in χ²
 #: its last stage stops at -- so the boxes at their defaults change
@@ -351,6 +352,78 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     if fitted.stalled:
         fitted.notes.insert(0, fitted.stalled_note)
     return fitted
+
+
+def start_lines(cell, space_group: str, radiation: Radiation,
+                lo: float, hi: float) -> list[Reflection]:
+    """The reflections the typed start allows between ``lo`` and
+    ``hi``, at the primary line, before any fit: what a person checks
+    a start against.  Pawley alone finds a cell only from about 0.1 %
+    off, and drawn only after the fit, a wrong start cost minutes to
+    discover.  Multiplicity 0 and intensity NaN: nothing has fitted
+    them.  ``cell`` is six numbers or text :func:`parse_cell` reads.
+    """
+    from xtal.powder import bridge
+
+    if isinstance(cell, str):
+        cell = parse_cell(cell)
+    symbol = bridge.space_group_named(space_group)
+    return [Reflection(hkl, d, two_theta, 0, float("nan"))
+            for hkl, d, two_theta in bridge.cell_reflections(
+                cell, symbol, radiation, lo, hi)]
+
+
+@dataclass(frozen=True)
+class StartOffset:
+    """How far the peaks in use are from a start's lines, in 2θ.
+
+    ``median`` and ``worst`` are each peak's distance to its nearest
+    line; ``width`` the peaks' median FWHM.  ``far`` is the worst
+    beyond a peak width: a line that far off sits on another peak's
+    flank, and the fit may not walk it back.
+    """
+
+    median: float
+    worst: float
+    width: float
+    peaks: int
+
+    @property
+    def far(self) -> bool:
+        return self.worst > self.width
+
+
+def start_offset(peaks, lines) -> StartOffset | None:
+    """:class:`StartOffset` of ``peaks`` (a
+    :class:`~xtal.powder.peaks.PeakFit`, the lines in use) from
+    ``lines`` (:func:`start_lines`); ``None`` with either empty.
+
+    A line is matched at every emission line the peaks were fitted
+    with, not the primary alone: rietx leaves some Kα2 shoulders in use
+    as peaks of their own, and rutile's at 62.93° is 0.17° -- five
+    widths -- from the nearest Kα1 line of the very cell it came from.
+    """
+    used = [p for p in peaks.peaks if p.use]
+    waves = [float(w) for w, _weight in (peaks.emission or ())] \
+        or [float(peaks.wavelength)]
+    d = np.array([float(r.d) for r in lines])
+    at = np.sort(np.concatenate([
+        2.0 * np.degrees(np.arcsin(np.clip(w / (2.0 * d), 0.0, 1.0)))
+        for w in waves])) if d.size else d
+    if not used or not at.size:
+        return None
+    x = np.array([p.two_theta for p in used])
+    k = np.clip(np.searchsorted(at, x), 1, at.size - 1) if at.size > 1 \
+        else np.zeros(x.size, dtype=int)
+    near = np.abs(x - at[k])
+    if at.size > 1:
+        near = np.minimum(near, np.abs(x - at[k - 1]))
+    widths = [p.fwhm for p in used if p.fwhm > 0]
+    return StartOffset(median=float(np.median(near)),
+                       worst=float(near.max()),
+                       width=float(np.median(widths)) if widths
+                       else float("inf"),
+                       peaks=len(used))
 
 
 def cell_fits_structure(fit: PawleyFit, structure, *,
