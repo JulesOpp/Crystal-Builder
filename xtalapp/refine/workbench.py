@@ -1967,12 +1967,14 @@ class RefinementWorkbench(QMainWindow):
                 self._draw_pawley()
 
     def _is_fits_start(self, values: dict) -> bool:
-        from xtal.powder import bridge
-        from xtal.powder.pawley import parse_cell
-
         fit = self.pawley
         if fit is None or not values:
             return False
+        # only after a fit: with no rietx there is none, and the form
+        # still previews its start cell while the cell is typed
+        from xtal.powder import bridge
+        from xtal.powder.pawley import parse_cell
+
         try:
             typed = parse_cell(values["cell"])
             group = bridge.space_group_named(values["space_group"])
