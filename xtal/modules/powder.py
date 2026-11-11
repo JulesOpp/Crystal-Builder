@@ -44,7 +44,8 @@ __all__ = ["DATA_PARAMS", "ENERGY_PARAMS", "INDEX_PARAMS",
            "PARAMETERS_PARAM", "PARETO_PARAMS", "PAWLEY_PARAMS",
            "PEAK_PARAMS", "REFINE",
            "RIETVELD_PARAMS", "STEPS", "STEP_PARAMS",
-           "energy_refines_note", "radiation_of", "refined_notes",
+           "energy_refines_note", "pawley_note_lines", "radiation_of",
+           "refined_notes",
            "run_energy", "run_index", "run_pareto", "run_pawley",
            "run_peaks", "run_rietveld"]
 
@@ -812,6 +813,53 @@ def pawley_summary(fit) -> str:
             f"   Rexp {100 * fit.rexp:.2f} %   GoF {fit.gof:.3f}\n"
             f"{cell}\nV {fit.volume:.2f} Å³, {fit.space_group}"
             + _status_line(fit))
+
+
+#: rietx's code for a group of reflections a Pawley fit cannot split.
+OVERLAP_CODE = "PAWLEY_OVERLAP_UNRESOLVED"
+
+
+def pawley_note_lines(fit) -> list[tuple[str, bool]]:
+    """What the run said, as the result box shows it: ``(line, warns)``.
+
+    The stalled note and the Le Bail pass's Rwp first, then rietx's
+    diagnostics one line a kind.  ZSM-5 gave 163 "overlap too strongly
+    to split" notes, one per group, which reached ``run.log`` only --
+    listed in the box they would bury the one that matters, and left
+    out the box looked clean when it was not.
+    """
+    lines: list[tuple[str, bool]] = []
+    if getattr(fit, "stalled", False):
+        lines.append((fit.stalled_note, True))
+    lebail = getattr(fit, "lebail_rwp", None)
+    if lebail is not None:
+        lines.append((f"Le Bail pass first: Rwp {100 * lebail:.2f} %",
+                      False))
+    found = list(getattr(fit, "diagnostics", None) or ())
+    if not found:
+        # a fit made before diagnostics were kept: its notes as they are
+        lead = len(lines)
+        return lines + [(note, False) for note in
+                        dict.fromkeys(fit.notes[lead:])]
+    kinds: dict[str, list] = {}
+    for code, level, message in found:
+        kinds.setdefault(code, []).append((level, message))
+    for code, said in kinds.items():
+        warns = any(level in ("warning", "error") for level, _m in said)
+        if code == OVERLAP_CODE:
+            n = len(said)
+            lines.append((
+                f"{n} reflection group{'s' if n != 1 else ''} "
+                f"overlap{'s' if n == 1 else ''} too strongly to split: "
+                f"{'its' if n == 1 else 'their'} summed intensit"
+                f"{'y is' if n == 1 else 'ies are'} determined, the "
+                f"split between the lines is not", warns))
+        elif len(said) == 1:
+            lines.append((said[0][1], warns))
+        else:
+            lines.append((f"{said[0][1]} (and {len(said) - 1} more like "
+                          f"it)", warns))
+    return lines
 
 
 #: What a result says of a run of zero cycles.

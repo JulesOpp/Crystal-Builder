@@ -1536,3 +1536,44 @@ def test_hovering_a_rietveld_tick_names_its_reflection(
     assert plot.hovered.startswith("(")
     assert f"{first.two_theta:.2f}°" in plot.hovered
     assert "Å" in plot.hovered
+
+
+@needs_rietx
+def test_fitting_clears_the_previous_steps_curve_from_the_plot(
+        bench, qtbot, rutile_xy):
+    """On ZSM-5 the Peaks step's -10 000-count residual stayed up for
+    the thirteen minutes Pawley ran, and read as the fit failing."""
+    _run_peaks(bench, qtbot, rutile_xy)
+    if not bench.plot.available:
+        pytest.skip("needs matplotlib")
+    assert "calculated" in bench.plot.traces
+    bench.steps.setCurrentRow(2)
+    bench.step_forms["pawley"].set_values({"space_group": "P42/mnm"})
+    bench.cell_box.set_value("4.5948 4.5948 2.9572")
+    with qtbot.waitSignal(bench.stepFinished, timeout=60000):
+        bench.run_step()
+        assert bench.plot.traces == ["observed"]
+    assert "calculated" in bench.plot.traces
+
+
+@needs_rietx
+def test_the_result_box_says_what_the_run_log_says_grouped(
+        bench, qtbot, rutile_xy):
+    """The Le Bail pass's Rwp and rietx's notes reached run.log only,
+    so the result box looked clean when it was not."""
+    bench.load_pattern(rutile_xy)
+    result = _run_pawley(bench, qtbot)
+    assert result.ok, result.message
+    lines = bench.pawley_note_texts
+    assert lines[0].startswith("Le Bail pass first: Rwp ")
+    log = "".join(path.read_text(encoding="utf-8") for path in
+                  bench._entry_for().path.rglob("*.log"))
+    assert "started from a Le Bail fit" in log
+    bench.pawley = dataclasses.replace(
+        bench.pawley, lebail_rwp=None, diagnostics=[(
+            "PAWLEY_OVERLAP_UNRESOLVED", "info", "...")] * 3)
+    bench._show_pawley_result()
+    assert bench.pawley_note_texts == [
+        "3 reflection groups overlap too strongly to split: their "
+        "summed intensities are determined, the split between the "
+        "lines is not"]

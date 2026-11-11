@@ -628,6 +628,11 @@ class RefinementWorkbench(QMainWindow):
         form.widgets["space_group"].textChanged.connect(
             self.cell_box.set_space_group)
         self.pawley_label = _result_label()
+        #: what the run said, one line a kind (``pawley_note_lines``)
+        self.pawley_notes = QWidget()
+        notes = QVBoxLayout(self.pawley_notes)
+        notes.setContentsMargins(0, 0, 0, 0)
+        notes.setSpacing(2)
         self.apply_button = QPushButton("Apply cell to the structure")
         self.apply_button.clicked.connect(self.apply_cell)
         self.new_button = QPushButton("New structure from this cell")
@@ -658,7 +663,8 @@ class RefinementWorkbench(QMainWindow):
                            form.part("Range and background")),
                 self._fold("Iterations", form.part("Iterations")),
                 self._parameters_section("pawley"),
-                self._fold("Result", self.pawley_label, buttons),
+                self._fold("Result", self.pawley_label,
+                           self.pawley_notes, buttons),
                 self._fold("About", explain, _hint(PAWLEY_RANGE_NOTE),
                            _hint(CELL_TO_STRUCTURE_NOTE), open_=False))
 
@@ -1267,6 +1273,13 @@ class RefinementWorkbench(QMainWindow):
             self._before = (structure.frac.copy(),
                             structure.lattice.matrix.copy())
             self._framed = False
+        if name == "pawley":
+            # The pattern alone until this run has something to show:
+            # left up, the Peaks step's -10 000-count residual on ZSM-5
+            # read as this fit failing, for the thirteen minutes it ran.
+            self.plot.show_observed(self.data.two_theta,
+                                    self.data.intensity,
+                                    label=self.data.name)
         job = Job(structure=structure, params=values, folder=folder,
                   label=f"pxrd.{name}", given=self._given(name))
         worker = ModuleWorker(self.module, action, job)
@@ -1866,12 +1879,32 @@ class RefinementWorkbench(QMainWindow):
         set_tone(self.pawley_label,
                  HINT if fit is None or fit.converged and not fit.stalled
                  else WARNING)
+        self._show_pawley_notes(fit)
         reason = self._apply_refused()
         self.apply_button.setEnabled(not reason)
         self.apply_button.setToolTip(
             reason or "Put this cell on the open structure, fractional "
                       "coordinates kept: one undo step")
         self.new_button.setEnabled(fit is not None)
+
+    def _show_pawley_notes(self, fit) -> None:
+        layout = self.pawley_notes.layout()
+        while layout.count():
+            layout.takeAt(0).widget().deleteLater()
+        lines = steps.pawley_note_lines(fit) if fit is not None else []
+        for text, warns in lines:
+            line = _Paragraph(text)
+            line.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            set_tone(line, WARNING if warns else HINT)
+            layout.addWidget(line)
+        self.pawley_notes.setVisible(bool(lines))
+
+    @property
+    def pawley_note_texts(self) -> list[str]:
+        """The result box's note lines, for a test."""
+        layout = self.pawley_notes.layout()
+        return [layout.itemAt(k).widget().text()
+                for k in range(layout.count())]
 
     def _apply_refused(self) -> str:
         from xtal.powder.pawley import cell_fits_structure

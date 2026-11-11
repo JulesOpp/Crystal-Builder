@@ -148,32 +148,16 @@ Decisions:
 
 ### Phase 1 — What is wrong on screen (`xtalapp/refine/workbench.py`)
 
-- `run_step`: on Fit Pawley / Le Bail, redraw to the observed pattern
-  alone (`plot.show_observed`) before the worker starts, so no other
-  step's curve stands in for this run.  `_redraw` still shows each
-  step's last answer when a step is chosen.
-- The Parameters fold's hint (`_fold("Parameters", ...)`) wraps
-  inside the column instead of clipping: a `_hint` paragraph, and the
-  dock rules (`docks.MAXIMUM_MINIMUM`, no `setMinimumWidth`) kept.
-- `_show_pawley_result`: the fit's `notes` in the Result box, folded
-  into one line per kind -- "163 reflection groups overlap too strongly
-  to split; their sums are determined" -- with the Le Bail pre-pass Rwp
-  and the stalled note first, in `tone.WARNING` where they warn.  The
-  grouping is `xtal/modules/powder.py` (`pawley_note_lines(fit)`),
-  headless.
+The stale curve and the grouped notes shipped; the "clipped"
+Parameters hint was the scroll area's edge, not a wrap -- the column
+scrolled down shows the paragraph whole (`cb/zsm5/06`).  Owed:
+
 - Index Stop: measure where the 6 minutes go (rietx's `CancelToken` is
   checked between candidates?  `bridge.cancel_token`) on the ZSM-5
   XRDML with a scratch script; fix it here if it is ours, or raise it
   upstream with the measurement if it is rietx's.
-- Invariants: a colour nobody chose comes from `xtalapp.widgets.tone`;
-  a panel never holds its column open.
-- Tests (`tests/test_refine_workbench_ui.py`,
-  `tests/test_powder_pawley.py`):
-  `test_fitting_clears_the_previous_steps_curve_from_the_plot`,
-  `test_the_result_box_says_what_the_run_log_says_grouped`,
-  `test_overlap_notes_are_one_line_with_their_count`,
   `test_a_stopped_index_search_stops_within_seconds` (slow; the
-  number measured above as its bound).
+  number measured as its bound).
 
 ### Phase 2 — The typed cell drawn before fitting (`xtal/powder/pawley.py`, `xtalapp/refine/workbench.py`)
 

@@ -346,3 +346,36 @@ def test_a_pawley_fit_worse_than_its_le_bail_fit_says_it_stalled(
         "space_group": "136"}))
     assert result.ok and "stalled" in result.message
     assert [code for code, _said in result.warnings] == ["PAWLEY_STALLED"]
+
+
+def test_overlap_notes_are_one_line_with_their_count(fit):
+    """ZSM-5's fit said "overlap too strongly to split" 163 times, one
+    group each.  The result box says it once, with the count; another
+    kind keeps its own line, and a warning is marked as one."""
+    from xtal.modules import powder as steps
+
+    overlap = ("PAWLEY_OVERLAP_UNRESOLVED", "info",
+               "2 reflections overlap too strongly to split: ...")
+    bound = ("BOUND_HIT", "warning", "a hit its bound")
+    noisy = dataclasses.replace(
+        fit, lebail_rwp=None, diagnostics=[overlap] * 163 + [bound])
+    lines = steps.pawley_note_lines(noisy)
+    assert lines[0] == (
+        "163 reflection groups overlap too strongly to split: their "
+        "summed intensities are determined, the split between the "
+        "lines is not", False)
+    assert lines[1] == ("a hit its bound", True)
+    assert len(lines) == 2
+
+
+def test_the_le_bail_pass_and_a_stall_come_before_rietxs_notes(fit):
+    from xtal.modules import powder as steps
+
+    stalled = dataclasses.replace(
+        fit, lebail_rwp=fit.rwp / 2,
+        diagnostics=[("X", "info", "something")] * 2)
+    texts = [text for text, _warns in steps.pawley_note_lines(stalled)]
+    assert texts[0] == stalled.stalled_note
+    assert texts[1].startswith("Le Bail pass first: Rwp ")
+    assert texts[2] == "something (and 1 more like it)"
+

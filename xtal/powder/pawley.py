@@ -177,6 +177,10 @@ class PawleyFit:
     parameters: object = None
     #: the Rwp of the Le Bail pass a Pawley fit started from, or None
     lebail_rwp: float | None = None
+    #: rietx's diagnostics as ``(code, level, message)``: ``notes`` has
+    #: their messages, and these are what groups a hundred of one kind
+    #: into a line (``xtal.modules.powder.pawley_note_lines``)
+    diagnostics: list = field(default_factory=list)
 
     @property
     def converged(self) -> bool:
@@ -338,6 +342,8 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
             "instrument.geometry.sample_displacement"),
         refined={} if evaluated else bridge.refined_values(result),
         notes=[d.message for d in result.diagnostics],
+        diagnostics=[(str(d.code), str(d.level), d.message)
+                     for d in result.diagnostics],
         method=options.method, parameters=after, lebail_rwp=lebail_rwp)
     if lebail_rwp is not None:
         fitted.notes.insert(0, f"started from a Le Bail fit over the same "
