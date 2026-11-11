@@ -159,21 +159,6 @@ scrolled down shows the paragraph whole (`cb/zsm5/06`).  Owed:
   `test_a_stopped_index_search_stops_within_seconds` (slow; the
   number measured as its bound).
 
-### Phase 3 — Stage and Rwp while a fit runs (`xtal/powder/bridge.py`, `xtal/modules/powder.py`)
-
-- `bridge.pawley(on_stage=...)`: an `events` callable that turns
-  `stage_start` into "stage 3 of 6 (cell)" (`_STAGE_WORDS`) and
-  `stage_end` into its Rwp; Le Bail first counts as its own pass
-  ("Le Bail 3 of 6 ... then Pawley 1 of 6").  `run_pawley` passes it
-  to `job.say`, which the workbench's `_progress` already shows beside
-  the clock: "Pawley, cell (3 of 6), Rwp 8.6 % (2:35)".
-- When the Le Bail pass finishes, its curve is drawn (the pass's
-  `y_calc` through the job's overlay channel, as Rietveld's frames
-  are), so the plot shows something of this run within seconds.
-- Tests: `test_a_pawley_run_says_each_stage_and_its_rwp` (headless,
-  the `job.say` lines on rutile),
-  `test_the_status_line_shows_the_stage_beside_the_clock`.
-
 ### Phase 4 — Show the run folder, and Export… (`xtalapp/refine/workbench.py`)
 
 - "Show run folder" beside Apply cell: `QDesktopServices.openUrl` on

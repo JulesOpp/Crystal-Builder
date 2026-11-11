@@ -433,3 +433,27 @@ def test_a_cell_half_a_percent_off_is_said_to_be_further_than_a_peak_width(
         off, "P42/mnm", Radiation("cu"), lo, hi))
     assert offset.far
     assert offset.worst > offset.width
+
+
+def test_a_pawley_run_says_each_stage_and_its_rwp(rutile_xy_shared):
+    """A ZSM-5 fit is thirteen minutes, and a clock alone could not
+    tell a run that is getting somewhere from one that is not.  rietx
+    has an Rwp only where a stage ends, so that is what is said."""
+    from xtal.modules import powder as steps
+    from xtal.modules.job import Job
+    from xtal.powder.pawley import PawleyPass
+
+    said, passes = [], []
+    job = Job(params={"xy": str(rutile_xy_shared), "cell": INDEXED,
+                      "space_group": "P42/mnm"},
+              on_progress=said.append, on_update=passes.append)
+    assert steps.run_pawley(job).ok
+    first = [s for s in said if s.startswith("Le Bail first, ")]
+    then = [s for s in said if s.startswith("Pawley, ")]
+    assert first and then and said.index(first[-1]) < said.index(then[0])
+    assert then[0].startswith("Pawley, background (1 of ")
+    assert any(" cell (" in s and ", Rwp " in s for s in then)
+    assert then[-1].endswith(" %")
+    assert [p.method for p in passes] == ["lebail"]
+    assert isinstance(passes[0], PawleyPass)
+    assert len(passes[0].y_calc) == len(passes[0].two_theta) > 100

@@ -1477,6 +1477,14 @@ class RefinementWorkbench(QMainWindow):
     def _on_frame(self, frame) -> None:
         """One moment of a running fit: the curve redrawn in place and
         the atoms moved, neither of them an edit."""
+        if self._running == "pawley":
+            # the Le Bail pass a Pawley fit starts from, drawn the
+            # moment it ends: something of this run within seconds,
+            # where the rest may take minutes
+            if self.current_step == "pawley":
+                self.plot.show_fit(frame.two_theta, frame.y_obs,
+                                   frame.y_calc, frame.y_background)
+            return
         if self._running not in (*_REFINES_ATOMS, "auto") \
                 or self.document is None:
             return

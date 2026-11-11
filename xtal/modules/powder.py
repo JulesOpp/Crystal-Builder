@@ -768,7 +768,7 @@ def run_pawley(job) -> JobResult:
         job.say(f"{method} fit of {cell} in {group}")
         fit = pawley(data, radiation, cell, group, options,
                      parameters=start, cancel=job.cancel,
-                     folder=job.path)
+                     folder=job.path, say=job.say, on_pass=job.update)
     except PowderStopped:
         return JobResult.stopped(f"{method} fit stopped")
     except PowderError as exc:

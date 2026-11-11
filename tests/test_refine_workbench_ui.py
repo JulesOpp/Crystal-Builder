@@ -1628,3 +1628,24 @@ def test_a_fit_replaces_the_previewed_reflections_with_its_own(
     # a new start typed after the fit is a preview again
     _typed_start(bench, qtbot, "4.60 4.60 2.96")
     assert bench.reflection_table.item(0, 6).text() == ""
+
+
+@needs_rietx
+def test_the_status_line_shows_the_stage_beside_the_clock(
+        bench, qtbot, rutile_xy, monkeypatch):
+    """And the Le Bail pass is drawn as it ends, before the fit is."""
+    import re
+
+    bench.load_pattern(rutile_xy)
+    shown, drawn = [], []
+    say = bench.say
+    monkeypatch.setattr(bench, "say", lambda text, warn=False: (
+        shown.append(text), say(text, warn)))
+    show_fit = bench.plot.show_fit
+    monkeypatch.setattr(bench.plot, "show_fit", lambda *a, **k: (
+        drawn.append(bench.worker is not None), show_fit(*a, **k)))
+    assert _run_pawley(bench, qtbot).ok
+    staged = re.compile(r"^Pawley, [a-zA-Z ]+ \(\d of \d\), "
+                        r"Rwp \d+\.\d\d % \(\d+:\d\d\)$")
+    assert any(staged.match(text) for text in shown), shown
+    assert drawn[0] is True

@@ -34,7 +34,8 @@ from xtal.powder.data import PowderData, PowderError, Radiation
 
 __all__ = ["DEFAULT_CELL_RANGE", "DEFAULT_ITERATIONS",
            "DEFAULT_TOLERANCE", "EVALUATED", "METHODS", "STALLED_RATIO",
-           "PawleyFit", "PawleyOptions", "Reflection", "StartOffset",
+           "PawleyFit", "PawleyOptions", "PawleyPass", "Reflection",
+           "StartOffset",
            "cell_fits_structure", "parse_cell", "parse_hold", "pawley",
            "start_lines", "start_offset"]
 
@@ -266,9 +267,42 @@ def parse_hold(text) -> tuple[str, ...]:
     return tuple(out)
 
 
+@dataclass(frozen=True)
+class PawleyPass:
+    """A pass that finished inside a fit -- the Le Bail fit a Pawley
+    fit starts from -- with the curve to draw while the rest runs."""
+
+    method: str
+    rwp: float
+    two_theta: np.ndarray
+    y_obs: np.ndarray
+    y_calc: np.ndarray
+    y_background: np.ndarray
+
+
+def _stage_teller(say, name: str):
+    """``on_stage`` for :func:`bridge.pawley` that says each stage as
+    "Pawley, cell (3 of 6), Rwp 8.60 %" -- the Rwp the last stage
+    ended at, since rietx has none in between."""
+    if say is None:
+        return None
+    last = [None]
+
+    def tell(words, k, n, rwp):
+        if rwp is not None:
+            last[0] = rwp
+        text = f"{name}, {words} ({k} of {n})"
+        if last[0] is not None:
+            text += f", Rwp {100 * last[0]:.2f} %"
+        say(text)
+
+    return tell
+
+
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            options: PawleyOptions | None = None, *, parameters=None,
-           cancel=None, folder=None) -> PawleyFit:
+           cancel=None, folder=None, say=None,
+           on_pass=None) -> PawleyFit:
     """Fit ``cell`` (six numbers, or text :func:`parse_cell` reads) in
     ``space_group`` to ``data``.
 
@@ -280,6 +314,10 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     ``cancel`` is a job's :class:`~xtal.modules.job.Cancellation`;
     Stop raises :class:`~xtal.powder.data.PowderStopped`, because half
     a Pawley fit is not a cell anybody should apply.
+
+    ``say`` is told each stage as it starts and ends, and ``on_pass``
+    is handed a :class:`PawleyPass` when the Le Bail pass ends -- both
+    from the fitting thread.
     """
     from xtal.powder import bridge
 
@@ -306,14 +344,21 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         first, found, start = bridge.pawley(
             window, radiation, given, symbol, start=start,
             folder=None if folder is None else Path(folder) / "lebail",
-            mode="lebail", **common)
+            mode="lebail", on_stage=_stage_teller(say, "Le Bail first"),
+            **common)
         lebail_rwp = float(found.statistics.rwp)
+        if on_pass is not None:
+            on_pass(PawleyPass(
+                "lebail", lebail_rwp, np.asarray(found.two_theta),
+                np.asarray(found.y_obs), np.asarray(found.y_calc),
+                np.asarray(found.y_background)))
         begin = tuple(float(getattr(first.structure.phases[0].cell,
                                     n).value)
                       for n in ("a", "b", "c", "alpha", "beta", "gamma"))
     refinement, result, after = bridge.pawley(
         window, radiation, begin, symbol, start=start, folder=folder,
-        mode=options.method, **common)
+        mode=options.method,
+        on_stage=_stage_teller(say, METHODS[options.method]), **common)
     evaluated = options.max_iterations == 0
     refined = refinement.structure.phases[0].cell
     names = ("a", "b", "c", "alpha", "beta", "gamma")

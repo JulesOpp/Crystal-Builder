@@ -692,7 +692,8 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            hold_cell=(), folder: Path | None = None, cancel=None,
            mode: str = "pawley", iterations: int | None = None,
            tolerance: float | None = None,
-           cell_range: float | None = None, bounds_about=None):
+           cell_range: float | None = None, bounds_about=None,
+           on_stage=None):
     """``(refinement, result, parameters)``: a Pawley fit of one cell to
     ``data``, or with ``mode="lebail"`` a Le Bail fit over the same
     plan.
@@ -714,6 +715,11 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     unbounded.  A fit whose cell finished on that edge, or that is no
     cell at all, is refused rather than reported: it stopped where the
     box or the arithmetic stopped it, not at a minimum.
+
+    ``on_stage(words, k, n, rwp)`` is called from the fitting thread as
+    stage ``k`` of ``n`` starts (``rwp`` None) and ends (its Rwp):
+    rietx says a stage's Rwp only at its end, and between the two
+    there is only a chi-squared nobody reads.
     """
     from rietx.schemas.structure import lebail_scaffold
 
@@ -737,13 +743,38 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         chosen = _plan(stages, iterations, tolerance)
     try:
         result = fit(refinement, data, folder=folder, mode=mode,
-                     plan=chosen, cancel=cancel)
+                     plan=chosen, cancel=cancel,
+                     events=_stage_events(on_stage))
     except (ValueError, KeyError) as exc:
         raise PowderError(f"rietx refused the fit: {exc}") from None
     _refuse_runaway(refinement, about, cell_range, cell_paths)
     return refinement, result, _finished(
         started, refinement, None if iterations == 0 else result,
         _PAWLEY_GROUPS)
+
+
+def _stage_events(on_stage):
+    """rietx's ``stage_start`` and ``stage_end`` events as
+    ``on_stage(words, k, n, rwp)``; ``None`` with nobody listening.
+    The start carries the stage's place (1-based) and the end its Rwp
+    alone, so the end is told the place its start gave."""
+    if on_stage is None:
+        return None
+    place = [0, 0]
+
+    def events(event):
+        kind = event.get("kind")
+        body = event.get("data", {})
+        stage = str(body.get("stage", ""))
+        words = _STAGE_WORDS.get(stage, stage)
+        if kind == "stage_start":
+            place[:] = [int(body.get("index", 0)),
+                        int(body.get("n_stages", 0))]
+            on_stage(words, *place, None)
+        elif kind == "stage_end" and body.get("rwp") is not None:
+            on_stage(words, *place, float(body["rwp"]))
+
+    return events
 
 
 def _refuse_runaway(refinement, about, fraction, cell_paths) -> None:
