@@ -57,6 +57,29 @@ MAX_RADIUS = 6.5
 #: towards the viewer.  Where a net picture starts and goes back to.
 DEFAULT_ROTATION = np.vstack([_VIEW, np.cross(_VIEW[0], _VIEW[1])])
 
+#: How far a bond or an edge sits from the text colour towards the
+#: background.  Far enough to stay behind the atoms, near enough to
+#: read in either theme.
+LINE_FADE = 0.4
+
+
+def line_colour(palette) -> QColor:
+    """The colour bonds and net edges are drawn in, under ``palette``.
+
+    It was the palette's *Mid*, which is the colour of a frame and was
+    chosen for one: in a dark theme it is a dark grey a few steps off
+    the near-black base, and a block's bonds all but vanished there
+    while somebody was trying to tell two blocks apart by them.  A mix
+    of the text colour towards the base keeps the same distance from
+    the background whichever way round the theme is.
+    """
+    text = palette.color(palette.ColorRole.Text)
+    base = palette.color(palette.ColorRole.Base)
+    return QColor(*(round(a + (b - a) * LINE_FADE)
+                    for a, b in ((text.red(), base.red()),
+                                 (text.green(), base.green()),
+                                 (text.blue(), base.blue()))))
+
 
 def _project(points: np.ndarray, view=_VIEW) -> np.ndarray:
     """Cartesian points to the plane of the page, seen through
@@ -234,7 +257,7 @@ def _draw_bonds(painter, block, points, connections, palette) -> None:
     -- the block's own bond section, the bonds it will be built with.
     Deciding here, from distances, drew bonds the build never makes.
     """
-    colour = palette.color(palette.ColorRole.Mid)
+    colour = line_colour(palette)
     for i, j in block.bond_pairs():
         dashed = (i in connections or j in connections
                   or "X" in (block.symbols[i], block.symbols[j]))
@@ -407,8 +430,7 @@ class NetPreview(_Preview):
             return False
         cart, orbits, _lines = self._drawing
         points, ends = self.screen_points(rect)
-        painter.setPen(QPen(self.palette().color(
-            self.palette().ColorRole.Mid), 1.3))
+        painter.setPen(QPen(line_colour(self.palette()), 1.3))
         for start, stop in ends:
             painter.drawLine(QPointF(*start), QPointF(*stop))
         for index in range(len(cart)):
