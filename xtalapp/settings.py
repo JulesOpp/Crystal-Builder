@@ -195,6 +195,17 @@ class AppSettings:
     def last_directory(self, value) -> None:
         self._q.setValue("last_directory", str(value))
 
+    @property
+    def refine_export_directory(self) -> str:
+        """Where the refinement workbench's Export... last wrote, ``""``
+        before it has: a fit is exported to the same place each time,
+        not wherever a structure was last opened from."""
+        return str(self._q.value("refine/export_directory", ""))
+
+    @refine_export_directory.setter
+    def refine_export_directory(self, value) -> None:
+        self._q.setValue("refine/export_directory", str(value))
+
     # -- the MOF builder's own folders ---------------------------------
     #
     # PORMAKE's database is a folder of ``.cgd`` nets and a folder of

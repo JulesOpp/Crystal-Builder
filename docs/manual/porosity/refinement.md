@@ -137,7 +137,16 @@ Pawley / Le Bail
   numbers the group leaves free are the choices; the form shows the
   free numbers only and derives the rest, so a tetragonal *a = b* is
   never typed twice.  The result is the R factors, the refined cell
-  with esds and the reflection list.  **A wider range is not a better
+  with esds and the reflection list.  **Le Bail first**, ticked by
+  default, runs a Le Bail fit over the same plan before a Pawley one
+  and starts Pawley from its cell: Pawley alone loses a cell started
+  more than about 0.1 % off, because its free intensities follow the
+  misplaced lines, and Le Bail places the lines in seconds.  A Pawley
+  fit that then ends clearly worse than its Le Bail fit is said to
+  have **stalled**, in warning tone, and its cell is not to be trusted.
+  **Cell may move** bounds the cell, 2.5 % of each length by default;
+  a fit whose cell reaches that edge is refused rather than reported,
+  because it was still running away.  **A wider range is not a better
   cell**: every reflection is one more free intensity, and a
   framework's reflections crowd with angle.  On a 14 × 17 Å cell, 4-30°
   was 35 reflections and a second; 4-60° was 199 and more than two
@@ -146,6 +155,27 @@ Pawley / Le Bail
   step (refused when the structure does not fit it), and **New structure
   from this cell** starts an empty one in that cell and group, filed in
   the workspace.
+
+  **The start is drawn before the fit.**  Typing a cell or a group puts
+  its allowed reflections in the table (no intensity yet) and as the
+  red comb under the found peaks' green one, so a peak with no line
+  beneath it shows a wrong start before any minutes are spent.  With
+  peaks found, a line under the cell says how far they are from the
+  start's lines -- *start cell: peaks within 0.01°, worst 0.04°* -- in
+  warning tone once the worst is further than a peak width, where the
+  fit may not reach it.  While the fit runs the plot shows the pattern
+  alone, then the Le Bail pass's curve as soon as it ends, and the
+  status line names the stage and the Rwp the last one ended at:
+  *Pawley, cell (3 of 6), Rwp 9.50 % (2:35)*.  The Result box gives the
+  run's notes one line a kind -- the Le Bail pass's Rwp, and how many
+  reflection groups overlap too strongly to split, whose sums are
+  determined and whose shares are not.  **Use refined as start** puts
+  the refined cell and parameters into the form for a further fit;
+  until it is pressed the start shown stays yours.  **Show run folder**
+  opens the folder the fit was filed in, and **Export...** copies its
+  `fit.xy` and `reflections.csv` and a PNG of the plot, named after the
+  pattern, into a folder you choose.  A click on the pattern names the
+  2θ, its d and the nearest reflection with its intensity.
 
 Rietveld
 : The structure's own atoms fitted to the whole pattern.  Atoms move

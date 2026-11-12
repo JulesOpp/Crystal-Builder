@@ -3878,6 +3878,13 @@
        "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and parameters are the same for both."
       },
       {
+       "name": "lebail_first",
+       "label": "Le Bail first",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Fit by Le Bail before Pawley and start Pawley from its cell and profile.  Pawley alone finds a cell only from about 0.1 % off, because its free intensities follow misplaced lines; Le Bail finds the lines first, in seconds.  A Pawley fit that then ends clearly worse than the Le Bail one is said to have stalled.  Only read by the Pawley method."
+      },
+      {
        "name": "cell",
        "label": "Cell",
        "accepts": "text",
@@ -3890,6 +3897,13 @@
        "accepts": "text",
        "default": "",
        "help": "By symbol or number.  A group with fewer absences than the true one fits as well and says less; one with more leaves real lines unfitted."
+      },
+      {
+       "name": "cell_range",
+       "label": "Cell may move",
+       "accepts": "float, 0 to 50 %",
+       "default": "2.5",
+       "help": "How far each length may move from the starting cell, and each angle by the same fraction of 90°.  A fit whose cell reaches that edge is refused: it was still running away, not settling.  0 leaves the cell unbounded."
       },
       {
        "name": "start",
@@ -4109,6 +4123,20 @@
        "accepts": "one of Pawley, Le Bail",
        "default": "pawley",
        "help": "How each reflection's intensity is found.  Pawley makes every intensity a least-squares variable, with esds; Le Bail re-partitions the observed pattern between cycles, cheaper over a long range and with no intensity esds.  The cell, range and parameters are the same for both."
+      },
+      {
+       "name": "pawley_lebail_first",
+       "label": "Le Bail first",
+       "accepts": "bool",
+       "default": "True",
+       "help": "Fit by Le Bail before Pawley and start Pawley from its cell and profile.  Pawley alone finds a cell only from about 0.1 % off, because its free intensities follow misplaced lines; Le Bail finds the lines first, in seconds.  A Pawley fit that then ends clearly worse than the Le Bail one is said to have stalled.  Only read by the Pawley method."
+      },
+      {
+       "name": "pawley_cell_range",
+       "label": "Cell may move",
+       "accepts": "float, 0 to 50 %",
+       "default": "2.5",
+       "help": "How far each length may move from the starting cell, and each angle by the same fraction of 90°.  A fit whose cell reaches that edge is refused: it was still running away, not settling.  0 leaves the cell unbounded."
       },
       {
        "name": "pawley_start",
