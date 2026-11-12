@@ -394,7 +394,10 @@ def resolved(entry: CgdEntry) -> tuple[Net, np.ndarray, str]:
 
 
 def _settings(entry: CgdEntry) -> list[str]:
-    if entry.dimension == 2 or ":" in entry.group:
+    # A group with one origin has no ":2" for gemmi to find, and the
+    # ValueError it raises is not the RcsrError resolved() catches.
+    if (entry.dimension == 2 or ":" in entry.group
+            or not _two_origins(entry.group)):
         return [entry.group]
     return [entry.group, f"{entry.group}:2", f"{entry.group}:1"]
 

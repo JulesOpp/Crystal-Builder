@@ -12,7 +12,7 @@ import pytest
 
 from xtal.analysis import rcsr
 from xtal.analysis.rcsr import PLANE_GROUPS, expand, plane_group_operations
-from xtal.io.cgd import read_cgd
+from xtal.io.cgd import read_cgd, read_cgd_string
 
 #: Nets whose invariants RCSR publishes and everyone in the field
 #: knows.  Wrong here means wrong everywhere.
@@ -49,6 +49,23 @@ def test_a_plane_group_has_the_order_it_should(symbol):
 def test_a_group_that_is_not_a_plane_group_is_refused():
     with pytest.raises(rcsr.RcsrError):
         plane_group_operations("p5mm")
+
+
+@pytest.mark.parametrize("group", ["Pm-3n", "P432"])
+def test_a_net_that_fails_in_a_one_origin_group_is_refused(group):
+    """A group with one origin has no ``:2`` for gemmi to look up, and
+    trying one escaped as a bare ValueError -- the crash a 1.1.0 user
+    sent in for a Pm-3n net -- instead of the net's own refusal."""
+    entry = read_cgd_string(f"""CRYSTAL
+  NAME bad
+  GROUP {group}
+  CELL 4 4 4 90 90 90
+  NODE 1 5 0 0 0
+  EDGE 0 0 0 1 0 0
+END
+""").entries[0]
+    with pytest.raises(rcsr.RcsrError):
+        rcsr.resolved(entry)
 
 
 # ====================================================== known net values
