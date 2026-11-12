@@ -4,6 +4,46 @@ Build, manipulate, analyse and export crystal structures. Read and
 write CIF, edit symmetry and bonding, run a force field, DFTB+ or
 Zeo++ on the result.
 
+## Crystal Builder 1.1.1
+
+Fixes and a better Pawley step, over 1.1.0. Install it over 1.1;
+your workspaces and preferences carry over.
+
+### Powder refinement
+
+- **The Pawley step holds its cell.** The cell is bounded (2.5 % by
+  default, *Cell may move*), a fit that runs away is refused rather
+  than reported as converged, and Le Bail goes first.
+- While a Pawley fit runs, each stage is named with its Rwp, the Le
+  Bail pass is drawn the moment it ends, and the last step's curve
+  is no longer left standing in for the fit.
+- The lines a typed cell and space group allow are drawn under the
+  found peaks before fitting.
+- *Show run folder*, *Export…* (the fit, its reflections and the
+  plot), a click on the pattern naming the nearest reflection, and
+  *Use refined as start*.
+
+### MOF builder
+
+- The C–C from a carboxylate to its linker is stated aromatic, so a
+  relaxation no longer turns the carboxylates out of the ring plane.
+- A net drawn in Ångström (one exported from a crystal) is rescaled
+  before it is built, rather than settling with its edges relabelled.
+- Bonds and net edges in the block and net previews stand clear of a
+  dark theme.
+
+### Fixed
+
+- Building on a net in a space group with one origin choice
+  (Pm-3n, P432, …) is refused with a reason rather than crashing.
+- A closed tab lets its structure and undo history go; every closed
+  tab used to keep them in memory.
+- The Net panel prints each point symbol under its own vertex.
+- Occupancy pies on a large disordered framework redraw several
+  times faster.
+- The MOF builder finds a block saved a moment before the picker
+  opened.
+
 ## Crystal Builder 1.1
 
 Everything since 1.0, released on 2026-10-07. Install it over 1.0;
