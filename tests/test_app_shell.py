@@ -32,10 +32,12 @@ class StubViewport(QWidget):
         self.rebuilds = 0
         self.resets = 0
         self.axis_views = []
-        document.structureChanged.connect(lambda _c: self._rebuild())
+        # Bound methods, as the real viewport has: a lambda holding
+        # self would keep a closed tab's document alive.
+        document.structureChanged.connect(self._rebuild)
         document.viewChanged.connect(self._rebuild)
 
-    def _rebuild(self):
+    def _rebuild(self, *_change):
         self.rebuilds += 1
 
     def reset_view(self):
@@ -642,6 +644,34 @@ def test_new_and_close_documents(window, rutile_cif):
     assert window.tabs.count() == 0
     assert window.current_document() is None
     assert not window.actions_["save"].isEnabled()
+
+
+def test_a_closed_tab_lets_its_document_go(window, rutile_cif, qtbot):
+    """A closed tab's crystal and undo history are freed with it.
+
+    A lambda connected to one of the document's own signals and holding
+    the document makes a cycle through the C++ connection, which the
+    garbage collector cannot see: every tab ever closed stayed in
+    memory, 150 MB for a disordered 4000-atom MOF, and on a machine
+    already in swap closing one paged all of it back in.
+    """
+    import weakref
+
+    document = window.open_path(rutile_cif)
+    document.apply(lambda s: s.wrap_sites(), Change.POSITIONS)
+    document.undo()
+    gone = weakref.ref(document)
+    del document
+    window.new_document()
+
+    window.close_document(0)
+    window.autosaver.tick()
+    # The tab's widget goes by deleteLater, which only a running event
+    # loop delivers.
+    qtbot.wait(50)
+    gc.collect()
+
+    assert gone() is None
 
 
 def test_closing_a_modified_document_asks_first(window, rutile_cif,

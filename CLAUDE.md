@@ -768,7 +768,12 @@ stress case).
   naming both blocks -- the verdict, an *Atoms overlap* report row,
   the new tab's notice, and `BUILD_OVERLAP` for an agent -- and never
   a refusal. Recalculate Bonds is still how a person asks for
-  distance instead.
+  distance instead. **The C-C from a carboxylate to its linker is
+  stated aromatic** (`build.state_carboxylate_links`,
+  `bonding.carboxylate_links`), as Set Bond Type would: inferred, it
+  is single, and UFF turns the carboxylates out of the ring plane.
+  Only to a flat, three-coordinate carbon -- an aromatic bond makes
+  both ends resonant.
 - **An interpenetrated framework carries the bonds its copies had,
   and the detector says whether it worked.**
   `xtal/analysis/interpenetrate.py` enumerates rather than theorises

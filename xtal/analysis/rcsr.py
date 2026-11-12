@@ -839,8 +839,9 @@ class Identification:
             out.append(f"coordination sequence  {walk}")
             if symbols[index]:
                 out.append(f"point symbol           {symbols[index]}")
-        if not many and self.fingerprint.symbols and not symbols[0]:
-            out.append("point symbol           "
+        if self.fingerprint.symbols and not any(symbols):
+            label = "point symbols" if many else "point symbol "
+            out.append(f"{label}          "
                        + ", ".join(self.fingerprint.symbols))
         return out
 
@@ -854,13 +855,19 @@ class Identification:
 
 
 def _padded(fingerprint: Fingerprint) -> tuple[str, ...]:
-    """Point symbols lined up with sequences, when there are as many.
+    """Point symbols lined up with sequences, from the vertices that
+    have them.
 
-    A net can have two vertices with different walks and the same
-    symbol, and then there is nothing to line up -- so the symbols are
-    reported on their own rather than being paired up wrongly.
+    Never by zipping the two sets: they are sorted apart, and that put
+    sph-MOF-4's 12-c symbol under a 3-c vertex.  A fingerprint without
+    its pairs -- one read back from the catalogue -- has nothing to
+    line up beyond a single walk, so its symbols are reported on their
+    own rather than being paired up wrongly.
     """
-    if len(fingerprint.symbols) == len(fingerprint.sequences):
+    if fingerprint.pairs:
+        return tuple(", ".join(symbols)
+                     for _walk, symbols in fingerprint.pairs)
+    if len(fingerprint.sequences) == 1 == len(fingerprint.symbols):
         return fingerprint.symbols
     return ("",) * len(fingerprint.sequences)
 

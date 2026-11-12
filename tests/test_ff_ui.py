@@ -221,6 +221,25 @@ def test_the_panel_empties_when_there_is_no_document(window):
     assert not window.ff_dock.widget().isEnabled()
 
 
+def test_the_type_table_lets_go_of_a_tab_it_is_not_showing(
+        opened, rutile, monkeypatch):
+    """Moving to another tab while the panel is out of sight empties it.
+
+    Hidden, the table is not refilled for the new tab, and its rows
+    went on holding the old one: closing that tab freed nothing, its
+    crystal and undo history pinned by a panel nobody was looking at.
+    """
+    window, document = opened
+    dock = window.ff_dock
+    assert dock.table.document is document
+    monkeypatch.setattr(type(dock), "_out_of_sight", lambda self: True)
+
+    window.add_document(Document(rutile))
+
+    assert dock.table.document is None
+    assert dock.table.rowCount() == 0
+
+
 def test_a_single_point_fills_the_report_and_changes_nothing(opened):
     window, document = opened
     dock = window.ff_dock
