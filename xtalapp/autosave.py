@@ -35,6 +35,7 @@ keep one and autosaves nothing.
 from __future__ import annotations
 
 import logging
+import weakref
 from datetime import datetime
 from pathlib import Path
 
@@ -75,11 +76,12 @@ class Autosaver(QObject):
 
     def watch(self, document) -> None:
         """Called for every document the window takes on."""
+        # Held weakly, for the reason DocumentSet.add_document gives.
+        ref = weakref.ref(document)
         document.historyChanged.connect(
-            lambda d=document: self._pending.add(d))
+            lambda: self._pending.add(ref()))
         document.modifiedChanged.connect(
-            lambda modified, d=document: None if modified
-            else self.forget(d))
+            lambda modified: None if modified else self.forget(ref()))
 
     def path_for(self, document) -> Path | None:
         workspace = self.window.workspace

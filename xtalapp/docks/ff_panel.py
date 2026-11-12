@@ -559,6 +559,11 @@ class ForceFieldDock(QDockWidget):
     def set_document(self, document) -> None:
         if self.is_running:
             self.stop()
+        if document is not self.document:
+            # Out of sight, or for an engine with no types, the table
+            # is not refilled, and its rows would go on holding a tab
+            # that may be closing -- crystal, undo history and all.
+            self.table.fill(None)
         self.document = document
         self.plot.clear()
         self.report.setPlainText("")

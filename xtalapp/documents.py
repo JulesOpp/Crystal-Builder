@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import os
+import weakref
 from pathlib import Path
 
 from PySide6.QtWidgets import QDialog, QFileDialog, QMessageBox
@@ -144,8 +145,12 @@ class DocumentSet:
             viewport.show_types = self.window._show_atom_types
         self.documents.append(document)
         index = self.tabs.addTab(viewport, document.title)
+        # Weakly: a slot holding the document it is connected to is a
+        # cycle through C++ that no collector sees, and a closed tab
+        # kept its crystal and its undo history for good.
+        held = weakref.ref(document)
         document.titleChanged.connect(
-            lambda title, d=document: self.window._on_title_changed(d, title))
+            lambda title: self.window._on_title_changed(held(), title))
         document.structureChanged.connect(self.window._on_structure_changed)
         document.viewChanged.connect(self.window._on_view_changed)
         document.selectionChanged.connect(self.window._on_selection_changed)
