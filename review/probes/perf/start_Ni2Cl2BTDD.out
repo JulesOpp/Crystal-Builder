@@ -1,0 +1,3 @@
+opened Ni2Cl2BTDD.cif: 40 sites, 1 tab(s)
+open
+eval ok: print("open")
