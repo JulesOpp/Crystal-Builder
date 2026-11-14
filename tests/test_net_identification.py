@@ -212,6 +212,30 @@ def test_a_one_periodic_net_is_not_looked_up(rcsr_catalogue):
     assert "2- and 3-periodic" in found.sentence()
 
 
+def test_each_point_symbol_is_printed_under_its_own_vertex(
+        rcsr_catalogue):
+    """sph-MOF-4's net (3,3,12-c).  The symbols were zipped onto the
+    walks in two separate sort orders, so the panel put the 12-c
+    vertex's 4^6.6^51.8^9 -- 66 angles -- under a 3-c vertex, which
+    has three."""
+    from pathlib import Path
+
+    from xtal.io.cgd import read_cgd
+
+    entry = read_cgd(Path(__file__).parent / "data"
+                     / "sph-mof-4.cgd").entries[0]
+    found = rcsr.identify(rcsr.expand(entry), rcsr_catalogue,
+                          keyed=False)
+    lines = found.invariant_lines()
+    blocks = [lines[i:i + 3] for i in range(0, len(lines), 3)]
+    assert len(blocks) == 3
+    for head, _walk, symbol in blocks:
+        n = int(head.split("-")[0])
+        angles = sum(int(term.split("^")[1]) if "^" in term else 1
+                     for term in symbol.split()[-1].split("."))
+        assert angles == n * (n - 1) // 2, (head, symbol)
+
+
 def test_nothing_drawn_is_not_an_answer(rcsr_catalogue):
     plain = Structure.from_arrays(Lattice.cubic(5.0), ["Zn"],
                                   [[0.0, 0.0, 0.0]], space_group="P1")

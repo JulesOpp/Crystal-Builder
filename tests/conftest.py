@@ -596,6 +596,10 @@ def _rutile() -> Structure:
 def quartz() -> Structure:
     """alpha-SiO2, P3_221 (#154).  Si sits on the 3a special position
     (x, 0, 2/3) -- the multiplicity is 3, not 6."""
+    return _quartz()
+
+
+def _quartz() -> Structure:
     return Structure.from_arrays(
         Lattice.from_parameters(4.9134, 4.9134, 5.4052, 90, 90, 120),
         ["Si", "O"],

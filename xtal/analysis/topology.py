@@ -146,6 +146,13 @@ class Fingerprint:
     periodicity: int
     sequences: tuple[tuple[int, ...], ...]
     symbols: tuple[str, ...]
+    #: Which symbols each walk's vertices have, for saying them under
+    #: the right vertex.  The two sets above are sorted apart, and
+    #: zipping them put sph-MOF-4's 12-c symbol under a 3-c vertex.
+    #: Never compared and never in the token: the catalogue does not
+    #: hold it, and two fingerprints are the same without it.
+    pairs: tuple[tuple[tuple[int, ...], tuple[str, ...]], ...] = field(
+        default=(), compare=False)
 
     def token(self) -> str:
         """The catalogue's key: one line, stable across versions."""
@@ -373,12 +380,15 @@ class Net:
         key = ("fingerprint", depth)
         if key in self._cache:
             return self._cache[key]
-        sequences, symbols = set(), set()
+        by_walk: dict = {}
         for vertex in self.representatives():
-            sequences.add(self.coordination_sequence(vertex, depth))
-            symbols.add(self.point_symbol(vertex))
-        out = Fingerprint(self.periodicity(), tuple(sorted(sequences)),
-                          tuple(sorted(symbols)))
+            walk = self.coordination_sequence(vertex, depth)
+            by_walk.setdefault(walk, set()).add(self.point_symbol(vertex))
+        symbols = set().union(*by_walk.values()) if by_walk else set()
+        out = Fingerprint(self.periodicity(), tuple(sorted(by_walk)),
+                          tuple(sorted(symbols)),
+                          tuple((walk, tuple(sorted(by_walk[walk])))
+                                for walk in sorted(by_walk)))
         self._cache[key] = out
         return out
 

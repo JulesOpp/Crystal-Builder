@@ -1179,6 +1179,36 @@ def test_a_clean_build_carries_the_same_bonds_perception_would(
 
 @needs_builder
 @pytest.mark.slow
+def test_a_built_mof_states_its_carboxylate_linker_bonds_aromatic(
+        tmp_path, catalog):
+    """Inferred single, the C-C bond from each carboxylate to its ring
+    takes UFF's single-bond torsion and length, and a relaxed MOF-5
+    turns its carboxylates out of the ring plane.  The build states
+    all six of the cell's at 1.5, Set Bond Type's kind of answer, and
+    adds no bond the graph did not have."""
+    from xtal.core import bonding, p1
+
+    outcome = build(BuildRequest.parse("pcu", "N16", "E14"), tmp_path,
+                    catalog)
+    structure = outcome.structure
+    cell = bonding.graph(structure)
+    orders = bonding.orders(structure)
+    symbols = p1.expand(structure).elements
+    links = bonding.carboxylate_links(structure)
+    stated = [b for b in structure.bonds
+              if b.stated and b.order == bonding.AROMATIC_ORDER]
+
+    assert len(links) == len(stated) == 6
+    assert all(symbols[cell.bonds[k].i] == symbols[cell.bonds[k].j]
+               == "C" for k in links)
+    assert all(orders[k] == bonding.AROMATIC_ORDER for k in links)
+    fresh = structure.copy()
+    fresh.clear_perceived()
+    assert len(bonding.graph(fresh).bonds) == len(cell.bonds)
+
+
+@needs_builder
+@pytest.mark.slow
 def test_a_filed_build_opens_with_the_graph_it_was_built_with(
         tmp_path, phenyl_catalog, monkeypatch):
     """The workspace copy is the document.  Written without its graph

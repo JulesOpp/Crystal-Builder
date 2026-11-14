@@ -50,7 +50,8 @@ from xtal.powder.data import (
 from xtal.powder.parameters import B_PER_U, site_biso, site_labels
 
 __all__ = ["RIETVELD_PRESETS", "PatternTerm", "apply_phase",
-           "cancel_token", "extinction_classes", "fit", "free_cell_paths",
+           "cancel_token", "cell_reflections", "extinction_classes",
+           "fit", "free_cell_paths",
            "held_paths", "index_pattern", "instrument", "lattice_lines",
            "pattern", "start_from", "starting_parameters",
            "observed_peak", "pattern_term", "pawley", "peak_list",
@@ -646,11 +647,53 @@ _PAWLEY_LEAVES = ("scale", "positions", "biso", "occupancy",
                   "preferred_orientation")
 
 
+def bound_cell(cell, about, fraction: float) -> None:
+    """Keep rietx's ``cell`` within ``fraction`` of the six numbers
+    ``about``: each length that fraction of itself either way, each
+    angle that fraction of a right angle.
+
+    An unbounded cell is free to run: started 0.5-2 % off, Le Bail
+    took rutile's cell 85 % long and quartz's eleven times, and gave
+    fluorapatite a negative c -- each reported as converged.  A cell
+    that needs to move further than this was not the cell to start
+    from.
+    """
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    for name, centre in zip(names, about, strict=True):
+        edge = getattr(cell, name)
+        reach = fraction * (centre if name in "abc" else 90.0)
+        edge.min = max(float(centre) - reach, 1e-3)
+        edge.max = float(centre) + reach
+        if name not in "abc":
+            edge.max = min(edge.max, 179.0)
+
+
+def bounds_reached(refinement, about, fraction: float,
+                   cell_paths) -> list[str]:
+    """The free cell numbers that finished on the edge of
+    :func:`bound_cell`'s box: a fit that stopped there was still
+    going, and the cell is where the box stopped it, not a minimum."""
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    phase = refinement.structure.phases[0]
+    out = []
+    for name, centre in zip(names, about, strict=True):
+        path = f"phases.0.cell.{name}"
+        if path not in cell_paths:
+            continue
+        value = float(getattr(phase.cell, name).value)
+        reach = fraction * (centre if name in "abc" else 90.0)
+        if abs(value - float(centre)) >= 0.999 * reach:
+            out.append(name)
+    return out
+
+
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            *, start: ps.ParameterSet, cell_free: bool = True,
            hold_cell=(), folder: Path | None = None, cancel=None,
            mode: str = "pawley", iterations: int | None = None,
-           tolerance: float | None = None):
+           tolerance: float | None = None,
+           cell_range: float | None = None, bounds_about=None,
+           on_stage=None):
     """``(refinement, result, parameters)``: a Pawley fit of one cell to
     ``data``, or with ``mode="lebail"`` a Le Bail fit over the same
     plan.
@@ -666,13 +709,28 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     ``iterations=0`` is an evaluation (:func:`evaluation`), whose
     intensities are still found -- they are not parameters -- and
     whose set comes back with no esds.
+
+    ``cell_range`` is how far the cell may move (:func:`bound_cell`),
+    about ``bounds_about`` or else the cell given; ``None`` leaves it
+    unbounded.  A fit whose cell finished on that edge, or that is no
+    cell at all, is refused rather than reported: it stopped where the
+    box or the arithmetic stopped it, not at a minimum.
+
+    ``on_stage(words, k, n, rwp)`` is called from the fitting thread as
+    stage ``k`` of ``n`` starts (``rwp`` None) and ends (its Rwp):
+    rietx says a stage's Rwp only at its end, and between the two
+    there is only a chi-squared nobody reads.
     """
     from rietx.schemas.structure import lebail_scaffold
 
+    about = tuple(float(v) for v in (bounds_about or cell))
     structure = lebail_scaffold(space_group, tuple(cell), name="pawley")
+    if cell_range:
+        bound_cell(structure.phases[0].cell, about, cell_range)
     ins = _with_background(radiation, start.background_terms)
     refinement = rx.Refinement(structure, ins, history=False)
     started = _started(refinement, start, radiation, _PAWLEY_GROUPS)
+    cell_paths = []
     if iterations == 0:
         chosen = evaluation()
     else:
@@ -685,12 +743,70 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         chosen = _plan(stages, iterations, tolerance)
     try:
         result = fit(refinement, data, folder=folder, mode=mode,
-                     plan=chosen, cancel=cancel)
+                     plan=chosen, cancel=cancel,
+                     events=_stage_events(on_stage))
     except (ValueError, KeyError) as exc:
         raise PowderError(f"rietx refused the fit: {exc}") from None
+    _refuse_runaway(refinement, about, cell_range, cell_paths)
     return refinement, result, _finished(
         started, refinement, None if iterations == 0 else result,
         _PAWLEY_GROUPS)
+
+
+def _stage_events(on_stage):
+    """rietx's ``stage_start`` and ``stage_end`` events as
+    ``on_stage(words, k, n, rwp)``; ``None`` with nobody listening.
+    The start carries the stage's place (1-based) and the end its Rwp
+    alone, so the end is told the place its start gave."""
+    if on_stage is None:
+        return None
+    place = [0, 0]
+
+    def events(event):
+        kind = event.get("kind")
+        body = event.get("data", {})
+        stage = str(body.get("stage", ""))
+        words = _STAGE_WORDS.get(stage, stage)
+        if kind == "stage_start":
+            place[:] = [int(body.get("index", 0)),
+                        int(body.get("n_stages", 0))]
+            on_stage(words, *place, None)
+        elif kind == "stage_end" and body.get("rwp") is not None:
+            on_stage(words, *place, float(body["rwp"]))
+
+    return events
+
+
+def _refuse_runaway(refinement, about, fraction, cell_paths) -> None:
+    """Raise if the fitted cell is no cell, or stopped on its bounds."""
+    from xtal.core.lattice import Lattice
+
+    names = ("a", "b", "c", "alpha", "beta", "gamma")
+    phase = refinement.structure.phases[0]
+    values = [float(getattr(phase.cell, n).value) for n in names]
+    try:
+        bad = min(values[:3]) <= 0 or not all(
+            0 < v < 180 for v in values[3:]) or not \
+            Lattice.from_parameters(*values).volume > 0
+    except (ValueError, ArithmeticError):
+        bad = True
+    if bad or not all(math.isfinite(v) for v in values):
+        raise PowderError(
+            "the cell ran away -- the fit ended at "
+            + " ".join(f"{v:.4g}" for v in values)
+            + ", which is no cell.  Start from a cell closer to the "
+              "pattern's")
+    if not fraction:
+        return
+    hit = bounds_reached(refinement, about, fraction, cell_paths)
+    if hit:
+        start = " ".join(f"{v:.5g}" for v in about)
+        raise PowderError(
+            f"the cell ran to the edge of the {100 * fraction:g} % it "
+            f"may move ({', '.join(hit)}), so the fit stopped there "
+            f"rather than at a minimum.  The starting cell ({start}) "
+            f"is too far from the pattern's: index it again, or start "
+            f"closer")
 
 
 def reflections(refinement):
@@ -714,8 +830,18 @@ def allowed_reflections(structure, radiation: Radiation,
                         two_theta_min: float, two_theta_max: float):
     """``[(hkl, d, two_theta), ...]`` of :func:`lines_of`, in order of
     angle: what a tick is when a person points at it."""
-    cell = gemmi.UnitCell(*structure.lattice.parameters)
-    group = gemmi.find_spacegroup_by_name(space_group_symbol(structure))
+    return cell_reflections(structure.lattice.parameters,
+                            space_group_symbol(structure), radiation,
+                            two_theta_min, two_theta_max)
+
+
+def cell_reflections(cell, symbol: str, radiation: Radiation,
+                     two_theta_min: float, two_theta_max: float):
+    """:func:`allowed_reflections` of a cell and a group's extended
+    symbol (:func:`space_group_named`) rather than a structure: the
+    lines a typed Pawley start puts down."""
+    cell = gemmi.UnitCell(*(float(v) for v in cell))
+    group = gemmi.find_spacegroup_by_name(symbol)
     wavelength = emission_lines(radiation)[0][0]
     s_max = min(math.sin(math.radians(two_theta_max) / 2.0), 1.0)
     ops = group.operations()

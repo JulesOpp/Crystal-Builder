@@ -1339,7 +1339,7 @@ def _emit_pies(cell, drawn, cart):
     for index, key in enumerate(group.ravel().tolist()):
         members.setdefault(key, []).append(index)
 
-    local, centres, faces, colors, normals = [], [], [], [], []
+    plan = []
     for rows in members.values():
         shares = occupancy[rows]
         total = float(shares.sum())
@@ -1353,36 +1353,81 @@ def _emit_pies(cell, drawn, cart):
         # not depend on the order the sites were written in.
         order = sorted(range(len(rows)),
                        key=lambda k: (-shares[k], rows[k]))
-        wedges = []
         start = 0.0
         for k in order:
             end = start + float(shares[k]) / scale
-            wedges.append((start, end, tuple(drawn.color[rows[k]])))
+            plan.append((rows[0], start, end,
+                         tuple(drawn.color[rows[k]]), radius))
             start = end
         if start < 1.0 - OCCUPANCY_TOL:
-            wedges.append((start, 1.0, VACANCY_COLOR))
-        for lo, hi, color in wedges:
-            _wedge(cart[rows[0]], radius, lo, hi,
-                   local, centres, faces, colors, normals, color)
+            plan.append((rows[0], start, 1.0, VACANCY_COLOR, radius))
 
-    if not faces:
+    if not plan:
         return _no_pies()
-    return (np.concatenate(local).astype(np.float32),
-            np.concatenate(centres).astype(np.float32),
-            np.concatenate(faces).astype(int),
-            np.concatenate(colors).astype(np.uint8),
-            np.concatenate(normals).astype(np.float32))
+    return _pie_mesh(plan, cart)
 
 
-def _wedge(centre, radius, lo, hi, local, centres, faces, colors,
-           normals, color):
-    """One slice of a sphere, from fraction ``lo`` round to ``hi``.
+def _pie_mesh(plan, cart):
+    """The wedges of ``plan`` -- ``(drawn atom, lo, hi, colour,
+    radius)`` each, a slice of a sphere from fraction ``lo`` round to
+    ``hi`` -- as one mesh.
 
-    In the pie's own frame: the slice runs round the +z axis and the
+    In the pie's own frame: each slice runs round the +z axis and the
     centre it belongs to is carried beside it, because where the +z
     axis ends up pointing is the camera's business and not this
     function's.
+
+    **Meshed once per shape and copied**, never once per wedge.  A
+    framework with half its sites half empty has two shapes, (0, 0.5)
+    and (0.5, 1), over thousands of sites, and meshing each wedge on
+    its own -- with where its vertices start found by adding up every
+    wedge before it -- took five seconds a rebuild at 1x1x2 for a
+    4000-atom cell.  The copies land in the order the wedges were
+    planned, so the arrays are the ones the per-wedge loop made.
     """
+    shapes: dict[tuple, int] = {}
+    meshes = []
+    kind = np.empty(len(plan), int)
+    for n, (_row, lo, hi, _color, _radius) in enumerate(plan):
+        key = (lo, hi)
+        if key not in shapes:
+            shapes[key] = len(meshes)
+            meshes.append(_wedge_shape(lo, hi))
+        kind[n] = shapes[key]
+    rows = np.fromiter((w[0] for w in plan), int, len(plan))
+    radii = np.fromiter((w[4] for w in plan), float, len(plan))
+    wedge_colors = np.asarray([w[3] for w in plan], np.uint8)
+
+    n_verts = np.array([len(m[0]) for m in meshes])[kind]
+    n_faces = np.array([len(m[1]) for m in meshes])[kind]
+    vert_at = np.concatenate([[0], np.cumsum(n_verts)])
+    face_at = np.concatenate([[0], np.cumsum(n_faces)])
+    cart = np.asarray(cart, float)
+
+    local = np.empty((vert_at[-1], 3), np.float32)
+    centres = np.empty((vert_at[-1], 3), np.float32)
+    normals = np.empty((vert_at[-1], 3), np.float32)
+    faces = np.empty((face_at[-1], 3), int)
+    for shape, (verts, quads) in enumerate(meshes):
+        which = np.flatnonzero(kind == shape)
+        slots = (vert_at[which][:, None]
+                 + np.arange(len(verts))).ravel()
+        local[slots] = (verts[None] * radii[which][:, None, None]
+                        ).reshape(-1, 3)
+        normals[slots] = np.tile(verts, (len(which), 1))
+        centres[slots] = np.repeat(cart[rows[which]], len(verts),
+                                   axis=0)
+        cells = (face_at[which][:, None]
+                 + np.arange(len(quads))).ravel()
+        faces[cells] = (quads[None] + vert_at[which][:, None, None]
+                        ).reshape(-1, 3)
+    colors = np.repeat(wedge_colors, n_faces, axis=0)
+    return local, centres, faces, colors, normals
+
+
+def _wedge_shape(lo, hi):
+    """``(unit vertices, triangles)`` of one slice of a unit sphere,
+    from fraction ``lo`` round to ``hi`` about +z."""
     meridians = max(2, int(np.ceil((hi - lo) * PIE_MERIDIANS)))
     phi = np.linspace(lo, hi, meridians + 1) * 2.0 * np.pi
     theta = np.linspace(0.0, np.pi, PIE_PARALLELS + 1)
@@ -1392,21 +1437,13 @@ def _wedge(centre, radius, lo, hi, local, centres, faces, colors,
          np.outer(sin_t, np.sin(phi)),
          np.repeat(cos_t[:, None], meridians + 1, axis=1)],
         axis=-1).reshape(-1, 3)
-
-    base = sum(len(block) for block in local)
-    local.append(verts * radius)
-    centres.append(np.tile(np.asarray(centre, float), (len(verts), 1)))
-    normals.append(verts)
-
     row, column = np.meshgrid(np.arange(PIE_PARALLELS),
                               np.arange(meridians), indexing="ij")
-    a = (row * (meridians + 1) + column).ravel() + base
+    a = (row * (meridians + 1) + column).ravel()
     b, c, d = a + 1, a + meridians + 1, a + meridians + 2
     quads = np.concatenate([np.stack([a, c, b], axis=1),
                             np.stack([b, c, d], axis=1)])
-    faces.append(quads)
-    colors.append(np.tile(np.asarray(color, np.uint8),
-                          (len(quads), 1)))
+    return verts, quads
 
 
 # ======================================================================

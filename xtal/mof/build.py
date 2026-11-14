@@ -627,6 +627,10 @@ def build(request: BuildRequest, directory, catalog: Catalog | None
     # Before anything asks for the graph: the first read would
     # otherwise perceive by distance, and bond whatever overlaps.
     state_bonds(structure, framework)
+    linked = state_carboxylate_links(structure)
+    if linked:
+        _say(log, f"set {linked} carboxylate-linker C-C bond(s) "
+                  f"aromatic")
     outcome.closest = closest_contact(structure)
     outcome.overlaps = overlaps(structure, framework)
     if decorate.parse(request.topology):
@@ -1195,6 +1199,44 @@ def state_bonds(structure, framework) -> int:
                                    key=lambda b: (b.i, b.j, b.image)),
                             rules.signature(), cell)
     return len(found)
+
+
+def state_carboxylate_links(structure) -> int:
+    """Set every linker-to-carboxylate C-C bond aromatic, as Set Bond
+    Type would.  Returns how many asymmetric-unit bonds were stated.
+
+    Inferred, that bond is single: the carboxylate's own C-O bonds are
+    1.5 and its carbon resonant, but the bond to the ring has no pi
+    bond left to place.  UFF then gives it a single bond's length and
+    torsion, and an optimisation turns the carboxylates out of the
+    ring's plane -- the geometry a builder exists to get right.  So it
+    is *stated*, the user's kind of answer, which a relaxation, a save
+    and Recalculate Bonds all keep (:func:`bonding.carboxylate_links`
+    says which bonds), and Set Bond Type is still how to take it back.
+    """
+    from xtal.core import bonding, p1
+    from xtal.core.bonding import BondRules, bond_between
+
+    rules = BondRules.from_dict(structure.bond_rules)
+    links = bonding.carboxylate_links(structure, rules)
+    if not links:
+        return 0
+    cell = p1.expand(structure)
+    cell_bonds = bonding.graph(structure, rules).bonds
+    group = structure.space_group
+    wanted = {}
+    for k in links:
+        bond = cell_bonds[k]
+        found = bond_between(structure, cell, bond.i, bond.j,
+                             image_b=bond.image)
+        wanted[found.key(group)] = Bond(
+            found.i, found.j, found.image, bonding.AROMATIC_ORDER,
+            "explicit", found.op, stated=True)
+    # A joint is already an explicit bond: replaced, never doubled.
+    kept = [b for b in structure.bonds
+            if b.kind != "explicit" or b.key(group) not in wanted]
+    structure.set_bonds(kept + list(wanted.values()))
+    return len(wanted)
 
 
 def overlaps(structure, framework) -> tuple:

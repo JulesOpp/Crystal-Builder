@@ -90,6 +90,7 @@ from xtalapp.refine.parameters import ParameterTable
 from xtalapp.refine.pareto_plot import ParetoPlots
 from xtalapp.refine.plot import (
     RefinementPlot,
+    click_label,
     reflection_label,
     reflection_labels,
 )
@@ -123,8 +124,8 @@ GROUPS = {
     "index": (("Search", ("space_groups", "zero_error", "max_volume",
                           "longest_axis", "budget")),
               ("Space groups", ("rank_groups",))),
-    "pawley": (("Method", ("method",)),
-               ("Cell and space group", ("space_group",)),
+    "pawley": (("Method", ("method", "lebail_first")),
+               ("Cell and space group", ("space_group", "cell_range")),
                ("Range and background", ("start", "finish",
                                          "background_terms")),
                ("Iterations", ("max_iterations", "tolerance"))),
@@ -158,6 +159,10 @@ _NOT_IN_FORM = {
                  "profile", "size", "strain", "positions", "biso",
                  "occupancy"),
     "energy": ("engine",), "pareto": ("engine",)}
+
+#: How long typing in the Pawley cell must pause before its lines are
+#: drawn again, in milliseconds.
+PREVIEW_DELAY_MS = 250
 
 #: The steps that fit, and so start from the parameter set and show it.
 _FITS = ("pawley", "rietveld", "energy", "pareto", "auto")
@@ -258,9 +263,20 @@ class RefinementWorkbench(QMainWindow):
         self._framed = False
         self._running = ""
         self._cell_rows: list = []
+        #: the typed start's lines (``pawley.start_lines``), drawn and
+        #: tabled until a fit replaces them -- view state, never the
+        #: Document's
+        self.start_lines: list = []
+        self._previewing = False
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(PREVIEW_DELAY_MS)
+        self._preview_timer.timeout.connect(self._preview_start)
         self.worker: ModuleWorker | None = None
         self._folder = None
         self._entry = None
+        #: the run folder the Pawley step's answer was written into
+        self.pawley_folder: Path | None = None
         self.module = MODULES.get("pxrd")
         #: the numbers every fitting step starts from, one set for all
         #: of them; ``_parameters_own`` once a run or a person has
@@ -285,6 +301,7 @@ class RefinementWorkbench(QMainWindow):
         self.steps.setMaximumWidth(140)
 
         self.plot = RefinementPlot()
+        self.plot.clicked.connect(self._on_plot_clicked)
         self.table = _table(PEAK_HEADERS)
         self.table.itemChanged.connect(self._on_use_changed)
         for column, _key in PEAK_EDITS.items():
@@ -627,7 +644,25 @@ class RefinementWorkbench(QMainWindow):
         group.layout().addRow(self.cell_box)
         form.widgets["space_group"].textChanged.connect(
             self.cell_box.set_space_group)
+        #: how far the found peaks are from the typed start's lines
+        self.start_hint = _Paragraph("")
+        set_tone(self.start_hint, HINT)
+        self.start_hint.setVisible(False)
+        group.layout().addRow(self.start_hint)
+        # typing a cell is a key at a time: the lines follow once it
+        # pauses, not on every digit
+        self.cell_box.changed.connect(self._schedule_preview)
+        form.widgets["space_group"].textChanged.connect(
+            self._schedule_preview)
+        for name in ("start", "finish"):
+            form.widgets[name].valueChanged.connect(
+                self._schedule_preview)
         self.pawley_label = _result_label()
+        #: what the run said, one line a kind (``pawley_note_lines``)
+        self.pawley_notes = QWidget()
+        notes = QVBoxLayout(self.pawley_notes)
+        notes.setContentsMargins(0, 0, 0, 0)
+        notes.setSpacing(2)
         self.apply_button = QPushButton("Apply cell to the structure")
         self.apply_button.clicked.connect(self.apply_cell)
         self.new_button = QPushButton("New structure from this cell")
@@ -638,6 +673,24 @@ class RefinementWorkbench(QMainWindow):
         buttons = QHBoxLayout()
         buttons.addWidget(self.apply_button)
         buttons.addWidget(self.new_button)
+        self.folder_button = QPushButton("Show run folder")
+        self.folder_button.clicked.connect(self.show_run_folder)
+        self.export_button = QPushButton("Export...")
+        self.export_button.setToolTip(
+            "fit.xy, reflections.csv and the plot as a PNG, named after "
+            "the pattern, into a folder of your choosing")
+        self.export_button.clicked.connect(lambda: self.export_fit())
+        self.use_refined_button = QPushButton("Use refined as start")
+        self.use_refined_button.setToolTip(
+            "The refined cell and group into the boxes above, and the "
+            "fit's parameters into the table, so the next fit "
+            "continues from this one.  The start shown stays yours "
+            "until this is pressed.")
+        self.use_refined_button.clicked.connect(self.use_refined)
+        files = QHBoxLayout()
+        files.addWidget(self.use_refined_button)
+        files.addWidget(self.folder_button)
+        files.addWidget(self.export_button)
         explain = _hint(
             "A Pawley or Le Bail fit has no atoms: it refines a cell, "
             "and each reflection's intensity is found from the pattern "
@@ -658,7 +711,8 @@ class RefinementWorkbench(QMainWindow):
                            form.part("Range and background")),
                 self._fold("Iterations", form.part("Iterations")),
                 self._parameters_section("pawley"),
-                self._fold("Result", self.pawley_label, buttons),
+                self._fold("Result", self.pawley_label,
+                           self.pawley_notes, buttons, files),
                 self._fold("About", explain, _hint(PAWLEY_RANGE_NOTE),
                            _hint(CELL_TO_STRUCTURE_NOTE), open_=False))
 
@@ -1044,6 +1098,7 @@ class RefinementWorkbench(QMainWindow):
         self._fill_table()
         self._fill_cells()
         self._fill_reflections()
+        self._schedule_preview()
         self._fill_auto()
         self._show_pawley_result()
         self._show_rietveld_result()
@@ -1267,6 +1322,16 @@ class RefinementWorkbench(QMainWindow):
             self._before = (structure.frac.copy(),
                             structure.lattice.matrix.copy())
             self._framed = False
+        if name == "pawley":
+            # the run reads the form as it is now; a preview still due
+            # would land after a quick fit and be taken for a new start
+            self._preview_timer.stop()
+            # The pattern alone until this run has something to show:
+            # left up, the Peaks step's -10 000-count residual on ZSM-5
+            # read as this fit failing, for the thirteen minutes it ran.
+            self.plot.show_observed(self.data.two_theta,
+                                    self.data.intensity,
+                                    label=self.data.name)
         job = Job(structure=structure, params=values, folder=folder,
                   label=f"pxrd.{name}", given=self._given(name))
         worker = ModuleWorker(self.module, action, job)
@@ -1370,13 +1435,16 @@ class RefinementWorkbench(QMainWindow):
             self.peaks, self.cells = answer, None
             self._show_peaks()
             self._fill_cells()
+            self._schedule_preview()
         elif step == "index" and answer is not None:
             # Stop keeps what the search reached; that is the point
             # of stopping a search that already looks right.
             self.cells = answer
             self._fill_cells()
         elif step == "pawley" and answer and not result.cancelled:
-            self.pawley = answer
+            self.pawley, self._previewing = answer, False
+            self.pawley_folder = self._folder.path \
+                if self._folder is not None else None
             if not answer.evaluated:
                 self._take_parameters(answer.parameters)
             self._draw_pawley()
@@ -1433,6 +1501,14 @@ class RefinementWorkbench(QMainWindow):
     def _on_frame(self, frame) -> None:
         """One moment of a running fit: the curve redrawn in place and
         the atoms moved, neither of them an edit."""
+        if self._running == "pawley":
+            # the Le Bail pass a Pawley fit starts from, drawn the
+            # moment it ends: something of this run within seconds,
+            # where the rest may take minutes
+            if self.current_step == "pawley":
+                self.plot.show_fit(frame.two_theta, frame.y_obs,
+                                   frame.y_calc, frame.y_background)
+            return
         if self._running not in (*_REFINES_ATOMS, "auto") \
                 or self.document is None:
             return
@@ -1705,6 +1781,7 @@ class RefinementWorkbench(QMainWindow):
                                  self.peaks.curves())
         self.say(f"{self.peaks.n_used} of {len(self.peaks.peaks)} "
                  f"lines in use for indexing")
+        self._schedule_preview()
 
     def _on_peak_edited(self, item) -> None:
         """A number typed into the peak table: the line moved or resized
@@ -1840,16 +1917,99 @@ class RefinementWorkbench(QMainWindow):
         fit = self.pawley
         self._show_fit(fit)
 
+    def _schedule_preview(self, *_args) -> None:
+        self._preview_timer.start()
+
+    def _preview_start(self) -> None:
+        """The typed start's lines in the table and under the plot, and
+        how far the found peaks are from them: Pawley alone finds a
+        cell only from about 0.1 % off, and drawn only after the fit, a
+        wrong start cost the minutes the fit took to show it."""
+        from xtal.powder.pawley import start_lines, start_offset
+
+        lines, values = [], {}
+        if self.data is not None:
+            values = self._values("pawley")
+            try:
+                lo, hi = self.data.window(values.get("start") or None,
+                                          values.get("finish") or None
+                                          ).range
+                lines = start_lines(values["cell"],
+                                    values["space_group"],
+                                    steps.radiation_of(values), lo, hi)
+            except (PowderError, ValueError, RuntimeError):
+                # half a cell or a group still being typed: no lines,
+                # and the run says what is wrong if it is pressed
+                lines = []
+        self.start_lines = lines
+        # the fit's own cell typed back (Automatic's chosen row puts it
+        # there) is the fit, not a new start
+        self._previewing = not self._is_fits_start(values)
+        offset = start_offset(self.peaks, lines) \
+            if lines and self.peaks is not None else None
+        if offset is None:
+            self.start_hint.setVisible(False)
+        else:
+            text = (f"start cell: peaks within {offset.median:.2f}°, "
+                    f"worst {offset.worst:.2f}°")
+            if offset.far:
+                text += (" -- further than a peak width "
+                         f"({offset.width:.2f}°): the fit may not "
+                         "reach it")
+            self.start_hint.setText(text)
+            set_tone(self.start_hint, WARNING if offset.far else HINT)
+            self.start_hint.setVisible(True)
+        self._fill_reflections()
+        if self.current_step == "pawley" and self.worker is None:
+            if self._previewing:
+                self._draw_start()
+            else:
+                self._draw_pawley()
+
+    def _is_fits_start(self, values: dict) -> bool:
+        fit = self.pawley
+        if fit is None or not values:
+            return False
+        # only after a fit: with no rietx there is none, and the form
+        # still previews its start cell while the cell is typed
+        from xtal.powder import bridge
+        from xtal.powder.pawley import parse_cell
+
+        try:
+            typed = parse_cell(values["cell"])
+            group = bridge.space_group_named(values["space_group"])
+        except (PowderError, ValueError, RuntimeError):
+            return False
+        return group == fit.space_group and all(
+            abs(a - b) < 1e-4 for a, b in zip(typed, fit.cell,
+                                              strict=True))
+
+    def _draw_start(self) -> None:
+        """The pattern, the peaks found and the start's lines under
+        them -- a peak with no line beneath it is seen at once."""
+        if self.data is None:
+            return
+        self.plot.show_observed(self.data.two_theta, self.data.intensity,
+                                label=self.data.name)
+        if self.peaks is not None:
+            self.plot.set_ticks(self.peaks.ticks)
+        self.plot.set_reflections(
+            [r.two_theta for r in self.start_lines],
+            reflection_labels(self.start_lines))
+
     def _fill_reflections(self) -> None:
-        rows = self.pawley.reflections if self.pawley is not None \
-            else []
+        if self._previewing or self.pawley is None:
+            rows = self.start_lines
+        else:
+            rows = self.pawley.reflections
         self.reflection_table.setRowCount(len(rows))
         for r, reflection in enumerate(rows):
             h, k, m = reflection.hkl
+            fitted = reflection.multiplicity > 0
             cells = (str(h), str(k), str(m), f"{reflection.d:.5f}",
                      f"{reflection.two_theta:.4f}",
-                     str(reflection.multiplicity),
-                     f"{reflection.intensity:.2f}")
+                     str(reflection.multiplicity) if fitted else "",
+                     f"{reflection.intensity:.2f}" if fitted else "")
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(text)
                 item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -1864,13 +2024,158 @@ class RefinementWorkbench(QMainWindow):
             steps.pawley_summary(fit) if fit is not None
             else "Run a Pawley fit to refine a cell.")
         set_tone(self.pawley_label,
-                 HINT if fit is None or fit.converged else WARNING)
+                 HINT if fit is None or fit.converged and not fit.stalled
+                 else WARNING)
+        self._show_pawley_notes(fit)
         reason = self._apply_refused()
         self.apply_button.setEnabled(not reason)
         self.apply_button.setToolTip(
             reason or "Put this cell on the open structure, fractional "
                       "coordinates kept: one undo step")
         self.new_button.setEnabled(fit is not None)
+        self.export_button.setEnabled(fit is not None)
+        self.use_refined_button.setEnabled(fit is not None
+                                           and not fit.evaluated)
+        folder = self.pawley_folder
+        self.folder_button.setEnabled(folder is not None
+                                      and folder.is_dir())
+        self.folder_button.setToolTip(
+            str(folder) if folder is not None
+            else "A fit run in a workspace is filed in a run folder")
+
+    def _show_pawley_notes(self, fit) -> None:
+        layout = self.pawley_notes.layout()
+        while layout.count():
+            layout.takeAt(0).widget().deleteLater()
+        lines = steps.pawley_note_lines(fit) if fit is not None else []
+        for text, warns in lines:
+            line = _Paragraph(text)
+            line.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            set_tone(line, WARNING if warns else HINT)
+            layout.addWidget(line)
+        self.pawley_notes.setVisible(bool(lines))
+
+    @property
+    def pawley_note_texts(self) -> list[str]:
+        """The result box's note lines, for a test."""
+        layout = self.pawley_notes.layout()
+        return [layout.itemAt(k).widget().text()
+                for k in range(layout.count())]
+
+    def use_refined(self) -> None:
+        """The fit's cell, group and set as the next fit's start: a
+        form edited, not the Document, so no undo step."""
+        fit = self.pawley
+        if fit is None:
+            return
+        self.step_forms["pawley"].set_values(
+            {"space_group": fit.space_group})
+        self.cell_box.set_value(fit.cell)
+        if fit.parameters is not None:
+            self._take_parameters(fit.parameters)
+        self.say("the refined cell and parameters are the next fit's "
+                 "start")
+
+    def _shown_reflections(self):
+        """The reflections behind the curve in front, for a click."""
+        step = self.current_step
+        if step == "pawley":
+            return self.start_lines if self._previewing \
+                or self.pawley is None else self.pawley.reflections
+        fit = {"rietveld": self.rietveld, "energy": self.energy}.get(step)
+        return getattr(fit, "reflections", None) or []
+
+    def _on_plot_clicked(self, two_theta: float) -> None:
+        self.say(click_label(two_theta, self._shown_reflections()))
+
+    def show_run_folder(self) -> None:
+        """The folder the fit wrote, in the system's file browser."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        if self.pawley_folder is not None:
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.pawley_folder)))
+
+    def export_fit(self, folder=None) -> list[Path]:
+        """The fit's ``fit.xy`` and ``reflections.csv`` copied out of
+        its run folder, and the plot as a PNG, into ``folder`` (asked
+        for, starting where the last export went).  Each is named after
+        the pattern and written through :mod:`xtal.io.atomic`.  The
+        files written; none when asked not to overwrite."""
+        fit = self.pawley
+        if fit is None:
+            return []
+        settings = getattr(self.window_, "settings", None)
+        if folder is None:
+            start = settings.refine_export_directory if settings \
+                is not None else ""
+            folder = QFileDialog.getExistingDirectory(
+                self, "Export the fit into", start or str(Path.home()))
+            if not folder:
+                return []
+        folder = Path(folder)
+        if settings is not None:
+            settings.refine_export_directory = str(folder)
+        stem = f"{self.data.name if self.data is not None else 'pattern'}" \
+            f"-{fit.method}"
+        targets = {"fit.xy": folder / f"{stem}.xy",
+                   "reflections.csv": folder / f"{stem}-reflections.csv"}
+        if self.plot.figure is not None:
+            targets["fit.png"] = folder / f"{stem}.png"
+        if not self._may_overwrite([t for t in targets.values()
+                                    if t.exists()]):
+            return []
+        return self._write_export(fit, targets)
+
+    def _may_overwrite(self, existing) -> bool:
+        """Preferences' *confirm overwrite*, as Save File honours it:
+        asked once for all of them, and only about files that exist."""
+        settings = getattr(self.window_, "settings", None)
+        if not existing or settings is None \
+                or not settings.confirm_overwrite:
+            return True
+        from PySide6.QtWidgets import QMessageBox
+
+        names = "\n".join(path.name for path in existing)
+        answer = QMessageBox.question(
+            self, "Export",
+            f"Overwrite these?\n\n{names}\n\nIn: {existing[0].parent}",
+            QMessageBox.Yes | QMessageBox.No)
+        return answer == QMessageBox.Yes
+
+    def _write_export(self, fit, targets: dict) -> list[Path]:
+        import shutil
+
+        from xtal.io.atomic import replacing
+
+        writers = {"fit.xy": lambda path: steps._write_fit(
+                       path, fit, f"{fit.method_name} fit"),
+                   "reflections.csv": lambda path:
+                       steps._write_reflections(path, fit)}
+        if self._previewing or self.current_step != "pawley":
+            # the picture is of the fit, whatever was in front
+            self._draw_pawley()
+        written = []
+        try:
+            for name, target in targets.items():
+                source = self.pawley_folder / name \
+                    if self.pawley_folder is not None else None
+                with replacing(target) as partial:
+                    if name == "fit.png":
+                        self.plot.figure.savefig(partial, dpi=200,
+                                                 format="png")
+                    elif source is not None and source.is_file():
+                        shutil.copyfile(source, partial)
+                    else:
+                        writers[name](partial)
+                written.append(target)
+        except OSError as exc:
+            self.say(f"could not export: {exc}", warn=True)
+            return written
+        self.say(f"exported {', '.join(p.name for p in written)} to "
+                 f"{targets['fit.xy'].parent}")
+        return written
 
     def _apply_refused(self) -> str:
         from xtal.powder.pawley import cell_fits_structure
@@ -1928,8 +2233,11 @@ class RefinementWorkbench(QMainWindow):
         elif step == "pareto":
             self._show_pareto_result()
             self._draw_pareto_row()
-        elif step == "pawley" and self.pawley is not None:
-            self._draw_pawley()
+        elif step == "pawley" and self.worker is None:
+            if self.pawley is not None and not self._previewing:
+                self._draw_pawley()
+            else:
+                self._draw_start()
         elif step == "auto" and self.auto is not None:
             self._draw_auto_row()
         elif step in ("peaks", "index") and self.peaks is not None:
@@ -2013,7 +2321,9 @@ class RefinementWorkbench(QMainWindow):
         row = self._chosen_auto_row()
         if row is None or row.fit is None:
             return
-        self.pawley = row.fit
+        # not the Pawley step's run: Export writes this fit's files
+        # afresh rather than copy another fit's out of that folder
+        self.pawley, self.pawley_folder = row.fit, None
         self._fill_reflections()
         self._show_pawley_result()
         self.step_forms["pawley"].set_values(
@@ -2148,6 +2458,11 @@ class RefinementWorkbench(QMainWindow):
         if self.current_step == "pawley":
             method = self.step_forms["pawley"].values().get("method")
             label = f"Fit {METHODS.get(method, 'Pawley')}"
+        first = self.step_forms["pawley"].widgets.get("lebail_first")
+        if first is not None:
+            # only Pawley has a Le Bail fit to run before it
+            first.setEnabled(self.step_forms["pawley"].values().get(
+                "method", "pawley") == "pawley")
         self.run_button.setText(label)
         self.refine_button.setEnabled(can_run and not running
                                       and self.peaks is not None)

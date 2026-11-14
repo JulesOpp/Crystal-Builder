@@ -26,14 +26,18 @@ an open structure, or starting a structure from it, is the window's
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import numpy as np
 
 from xtal.powder.data import PowderData, PowderError, Radiation
 
-__all__ = ["DEFAULT_ITERATIONS", "DEFAULT_TOLERANCE", "EVALUATED",
-           "METHODS", "PawleyFit", "PawleyOptions", "Reflection",
-           "cell_fits_structure", "parse_cell", "parse_hold", "pawley"]
+__all__ = ["DEFAULT_CELL_RANGE", "DEFAULT_ITERATIONS",
+           "DEFAULT_TOLERANCE", "EVALUATED", "METHODS", "STALLED_RATIO",
+           "PawleyFit", "PawleyOptions", "PawleyPass", "Reflection",
+           "StartOffset",
+           "cell_fits_structure", "parse_cell", "parse_hold", "pawley",
+           "start_lines", "start_offset"]
 
 #: rietx's own: a stage's most iterations, and the relative fall in χ²
 #: its last stage stops at -- so the boxes at their defaults change
@@ -44,6 +48,19 @@ DEFAULT_TOLERANCE = 1e-9
 #: A fit's status when it ran no cycles: evaluated at the values it
 #: was handed, nothing moved and nothing to converge.
 EVALUATED = "evaluated"
+
+#: How far a cell may move from where it started, as a fraction of
+#: each length (and of a right angle, for an angle).  Bounded, a cell
+#: that wanders off is stopped at the edge and refused; unbounded,
+#: Le Bail started 0.5-2 % off took rutile 85 % long and gave
+#: fluorapatite a negative c, both "converged".
+DEFAULT_CELL_RANGE = 0.025
+
+#: A Pawley fit whose Rwp is this many times its own Le Bail pass's has
+#: stalled: free intensities can always do at least as well as
+#: partitioned ones, so a fit worse than that stopped with its lines
+#: misplaced.  ZSM-5 ended at 26 % against Le Bail's 7 %.
+STALLED_RATIO = 1.1
 
 #: How a whole-pattern fit without atoms finds its intensities, by
 #: rietx's mode name.
@@ -69,7 +86,17 @@ class PawleyOptions:
     way, so the two are compared on one footing.  ``max_iterations``
     and ``tolerance`` are every stage's (TOPAS's iters and
     convergence criterion); 0 iterations evaluates at the values
-    given, fitting nothing.
+    given, fitting nothing.  ``cell_range`` is how far the cell may
+    move from the one given, a fraction of each length
+    (``DEFAULT_CELL_RANGE``); 0 leaves it unbounded.
+
+    ``lebail_first`` runs a Le Bail fit over the same plan before a
+    Pawley one and starts Pawley from its cell and profile.  A Pawley
+    fit makes every intensity a variable, and with the lines misplaced
+    those shrink where the lines are not and the cell stops moving: it
+    found quartz from 0.1 % off and not from 0.2 %.  Le Bail finds the
+    lines in seconds, and its Rwp is the bar the Pawley fit must clear
+    (``STALLED_RATIO``).
     """
 
     start: float | None = None
@@ -83,6 +110,8 @@ class PawleyOptions:
     method: str = "pawley"
     max_iterations: int = DEFAULT_ITERATIONS
     tolerance: float = DEFAULT_TOLERANCE
+    cell_range: float = DEFAULT_CELL_RANGE
+    lebail_first: bool = True
 
     def free(self, radiation: Radiation) -> tuple[str, ...]:
         """The rietx groups freed, in the bridge's words.
@@ -148,10 +177,35 @@ class PawleyFit:
     method: str = "pawley"
     #: the set after the fit, for the next run to start from
     parameters: object = None
+    #: the Rwp of the Le Bail pass a Pawley fit started from, or None
+    lebail_rwp: float | None = None
+    #: rietx's diagnostics as ``(code, level, message)``: ``notes`` has
+    #: their messages, and these are what groups a hundred of one kind
+    #: into a line (``xtal.modules.powder.pawley_note_lines``)
+    diagnostics: list = field(default_factory=list)
 
     @property
     def converged(self) -> bool:
         return self.status in ("converged", EVALUATED)
+
+    @property
+    def stalled(self) -> bool:
+        """A Pawley fit that ended clearly worse than the Le Bail pass
+        before it: stopped with its lines misplaced, whatever rietx's
+        status says."""
+        return self.lebail_rwp is not None and \
+            self.rwp > STALLED_RATIO * self.lebail_rwp
+
+    @property
+    def stalled_note(self) -> str:
+        """What to say of a stalled fit, or ``""``."""
+        if not self.stalled:
+            return ""
+        return (f"Pawley ended at Rwp {100 * self.rwp:.2f} %, worse than "
+                f"the {100 * self.lebail_rwp:.2f} % of the Le Bail fit "
+                f"it started from: it stalled with its lines misplaced, "
+                f"and its cell is not to be trusted.  Fit this cell by "
+                f"Le Bail instead")
 
     @property
     def evaluated(self) -> bool:
@@ -213,9 +267,42 @@ def parse_hold(text) -> tuple[str, ...]:
     return tuple(out)
 
 
+@dataclass(frozen=True)
+class PawleyPass:
+    """A pass that finished inside a fit -- the Le Bail fit a Pawley
+    fit starts from -- with the curve to draw while the rest runs."""
+
+    method: str
+    rwp: float
+    two_theta: np.ndarray
+    y_obs: np.ndarray
+    y_calc: np.ndarray
+    y_background: np.ndarray
+
+
+def _stage_teller(say, name: str):
+    """``on_stage`` for :func:`bridge.pawley` that says each stage as
+    "Pawley, cell (3 of 6), Rwp 8.60 %" -- the Rwp the last stage
+    ended at, since rietx has none in between."""
+    if say is None:
+        return None
+    last = [None]
+
+    def tell(words, k, n, rwp):
+        if rwp is not None:
+            last[0] = rwp
+        text = f"{name}, {words} ({k} of {n})"
+        if last[0] is not None:
+            text += f", Rwp {100 * last[0]:.2f} %"
+        say(text)
+
+    return tell
+
+
 def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
            options: PawleyOptions | None = None, *, parameters=None,
-           cancel=None, folder=None) -> PawleyFit:
+           cancel=None, folder=None, say=None,
+           on_pass=None) -> PawleyFit:
     """Fit ``cell`` (six numbers, or text :func:`parse_cell` reads) in
     ``space_group`` to ``data``.
 
@@ -227,6 +314,10 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     ``cancel`` is a job's :class:`~xtal.modules.job.Cancellation`;
     Stop raises :class:`~xtal.powder.data.PowderStopped`, because half
     a Pawley fit is not a cell anybody should apply.
+
+    ``say`` is told each stage as it starts and ends, and ``on_pass``
+    is handed a :class:`PawleyPass` when the Le Bail pass ends -- both
+    from the fitting thread.
     """
     from xtal.powder import bridge
 
@@ -239,11 +330,35 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
     if not isinstance(cell, str):
         cell = " ".join(str(float(v)) for v in cell)
     start = bridge.start_from(parameters, options, radiation, window)
+    given = parse_cell(cell)
+    common = dict(hold_cell=options.hold_cell,
+                  cancel=bridge.cancel_token(cancel),
+                  iterations=options.max_iterations,
+                  tolerance=options.tolerance,
+                  cell_range=options.cell_range or None,
+                  bounds_about=given)
+    lebail_rwp = None
+    begin = given
+    if options.method == "pawley" and options.lebail_first \
+            and options.max_iterations != 0:
+        first, found, start = bridge.pawley(
+            window, radiation, given, symbol, start=start,
+            folder=None if folder is None else Path(folder) / "lebail",
+            mode="lebail", on_stage=_stage_teller(say, "Le Bail first"),
+            **common)
+        lebail_rwp = float(found.statistics.rwp)
+        if on_pass is not None:
+            on_pass(PawleyPass(
+                "lebail", lebail_rwp, np.asarray(found.two_theta),
+                np.asarray(found.y_obs), np.asarray(found.y_calc),
+                np.asarray(found.y_background)))
+        begin = tuple(float(getattr(first.structure.phases[0].cell,
+                                    n).value)
+                      for n in ("a", "b", "c", "alpha", "beta", "gamma"))
     refinement, result, after = bridge.pawley(
-        window, radiation, parse_cell(cell), symbol, start=start,
-        hold_cell=options.hold_cell, folder=folder, mode=options.method,
-        cancel=bridge.cancel_token(cancel),
-        iterations=options.max_iterations, tolerance=options.tolerance)
+        window, radiation, begin, symbol, start=start, folder=folder,
+        mode=options.method,
+        on_stage=_stage_teller(say, METHODS[options.method]), **common)
     evaluated = options.max_iterations == 0
     refined = refinement.structure.phases[0].cell
     names = ("a", "b", "c", "alpha", "beta", "gamma")
@@ -254,7 +369,7 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
         return float(found.value) if found is not None else 0.0
 
     stats = result.statistics
-    return PawleyFit(
+    fitted = PawleyFit(
         cell=tuple(float(getattr(refined, n).value) for n in names),
         cell_esd=tuple(0.0 if evaluated
                        else float(getattr(refined, n).stderr or 0.0)
@@ -273,7 +388,87 @@ def pawley(data: PowderData, radiation: Radiation, cell, space_group: str,
             "instrument.geometry.sample_displacement"),
         refined={} if evaluated else bridge.refined_values(result),
         notes=[d.message for d in result.diagnostics],
-        method=options.method, parameters=after)
+        diagnostics=[(str(d.code), str(d.level), d.message)
+                     for d in result.diagnostics],
+        method=options.method, parameters=after, lebail_rwp=lebail_rwp)
+    if lebail_rwp is not None:
+        fitted.notes.insert(0, f"started from a Le Bail fit over the same "
+                               f"plan, Rwp {100 * lebail_rwp:.2f} %")
+    if fitted.stalled:
+        fitted.notes.insert(0, fitted.stalled_note)
+    return fitted
+
+
+def start_lines(cell, space_group: str, radiation: Radiation,
+                lo: float, hi: float) -> list[Reflection]:
+    """The reflections the typed start allows between ``lo`` and
+    ``hi``, at the primary line, before any fit: what a person checks
+    a start against.  Pawley alone finds a cell only from about 0.1 %
+    off, and drawn only after the fit, a wrong start cost minutes to
+    discover.  Multiplicity 0 and intensity NaN: nothing has fitted
+    them.  ``cell`` is six numbers or text :func:`parse_cell` reads.
+    """
+    from xtal.powder import bridge
+
+    if isinstance(cell, str):
+        cell = parse_cell(cell)
+    symbol = bridge.space_group_named(space_group)
+    return [Reflection(hkl, d, two_theta, 0, float("nan"))
+            for hkl, d, two_theta in bridge.cell_reflections(
+                cell, symbol, radiation, lo, hi)]
+
+
+@dataclass(frozen=True)
+class StartOffset:
+    """How far the peaks in use are from a start's lines, in 2θ.
+
+    ``median`` and ``worst`` are each peak's distance to its nearest
+    line; ``width`` the peaks' median FWHM.  ``far`` is the worst
+    beyond a peak width: a line that far off sits on another peak's
+    flank, and the fit may not walk it back.
+    """
+
+    median: float
+    worst: float
+    width: float
+    peaks: int
+
+    @property
+    def far(self) -> bool:
+        return self.worst > self.width
+
+
+def start_offset(peaks, lines) -> StartOffset | None:
+    """:class:`StartOffset` of ``peaks`` (a
+    :class:`~xtal.powder.peaks.PeakFit`, the lines in use) from
+    ``lines`` (:func:`start_lines`); ``None`` with either empty.
+
+    A line is matched at every emission line the peaks were fitted
+    with, not the primary alone: rietx leaves some Kα2 shoulders in use
+    as peaks of their own, and rutile's at 62.93° is 0.17° -- five
+    widths -- from the nearest Kα1 line of the very cell it came from.
+    """
+    used = [p for p in peaks.peaks if p.use]
+    waves = [float(w) for w, _weight in (peaks.emission or ())] \
+        or [float(peaks.wavelength)]
+    d = np.array([float(r.d) for r in lines])
+    at = np.sort(np.concatenate([
+        2.0 * np.degrees(np.arcsin(np.clip(w / (2.0 * d), 0.0, 1.0)))
+        for w in waves])) if d.size else d
+    if not used or not at.size:
+        return None
+    x = np.array([p.two_theta for p in used])
+    k = np.clip(np.searchsorted(at, x), 1, at.size - 1) if at.size > 1 \
+        else np.zeros(x.size, dtype=int)
+    near = np.abs(x - at[k])
+    if at.size > 1:
+        near = np.minimum(near, np.abs(x - at[k - 1]))
+    widths = [p.fwhm for p in used if p.fwhm > 0]
+    return StartOffset(median=float(np.median(near)),
+                       worst=float(near.max()),
+                       width=float(np.median(widths)) if widths
+                       else float("inf"),
+                       peaks=len(used))
 
 
 def cell_fits_structure(fit: PawleyFit, structure, *,

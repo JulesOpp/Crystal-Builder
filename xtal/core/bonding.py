@@ -1589,6 +1589,50 @@ def _carboxylates(cell, geo, bonds, free, aromatic) -> list:
     return out
 
 
+def carboxylate_links(structure, rules: BondRules | None = None
+                      ) -> list[int]:
+    """The graph's bonds from a carboxylate carbon -- its oxygens
+    bound to metals or to nothing -- to the flat carbon of the linker
+    it hangs off, as indices into :func:`graph`'s bonds.
+
+    The bond a builder calls aromatic.  UFF reads a single bond
+    between two resonant carbons with a torsion barrier and a rest
+    length of a single bond, so a relaxed terephthalate twists its
+    carboxylates out of the ring's plane and stretches the joint; at
+    1.5 the conjugation that holds them flat is in the force field.
+    Only an sp2 partner -- three neighbours, flat: a ring, an alkene --
+    because an aromatic bond makes both its ends resonant, and an sp3
+    carbon typed resonant is wrong in every term it appears in.
+    """
+    cell = p1.expand(structure)
+    bonds = graph(structure, rules).bonds
+    geo = geometry(structure, rules)
+
+    def flat(atom: int) -> bool:
+        return (geo.coordination(atom) == 3
+                and geo.angle_sum(atom) >= PLANAR_ANGLE_SUM)
+
+    def carboxylate(carbon: int) -> bool:
+        if cell.elements[carbon] != "C" or not flat(carbon):
+            return False
+        oxygens = [j for j in geo.partners(carbon)
+                   if cell.elements[j] == "O"]
+        return (len(oxygens) == 2 and len(set(oxygens)) == 2
+                and all(_carboxylate_oxygen(o, carbon, cell, geo)
+                        for o in oxygens))
+
+    out = []
+    for k, bond in enumerate(bonds):
+        if (cell.elements[bond.i] != "C"
+                or cell.elements[bond.j] != "C"):
+            continue
+        for carbon, other in ((bond.i, bond.j), (bond.j, bond.i)):
+            if carboxylate(carbon) and flat(other):
+                out.append(k)
+                break
+    return out
+
+
 def _carboxylate_oxygen(oxygen, carbon, cell, geo) -> bool:
     others = [j for j in geo.partners(oxygen) if j != carbon]
     return all(el.element(cell.elements[j]).is_metal for j in others)

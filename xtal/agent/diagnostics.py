@@ -168,6 +168,11 @@ CODES: dict[str, Code] = {
                  "another; they are not bonded, and the message names "
                  "the blocks. Rebuild with the other orientation, a "
                  "larger repeat or a different block before relaxing."),
+    "PAWLEY_STALLED": Code(
+        WARNING, "The Pawley fit ended clearly worse than the Le Bail "
+                 "fit it started from, so it stopped with its lines "
+                 "misplaced and its cell is not a result. Run the same "
+                 "cell with method=lebail and report that instead."),
     "MODULE_FAILED": Code(
         ERROR, "The run did not produce an answer. A refusal before "
                "the first step is the answer; do not retry unchanged."),

@@ -29,6 +29,13 @@ scale that zooming stretched.
 listed together, since coincident lines are exactly the ones a person
 cannot tell apart by eye.  A comb of peaks nothing has indexed says
 so rather than inventing an hkl.
+
+**A click on the pattern names the reflection nearest it** -- 2θ, d
+and the line with its intensity, in the window's status line rather
+than over the plot: hovering is for the comb, where ticks are a pixel
+apart, and a click is for a feature of the curve whose line is
+somewhere under it.  Only with the toolbar's zoom and pan off, whose
+clicks are theirs.
 """
 
 from __future__ import annotations
@@ -36,6 +43,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 
 import numpy as np
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from xtal import install
@@ -48,7 +56,7 @@ from xtalapp.widgets.intensity_scale import (
 from xtalapp.widgets.tone import WARNING, set_tone
 
 __all__ = ["DEFAULT_SCALE", "HOVER_PIXELS", "RefinementPlot",
-           "reflection_label", "reflection_labels"]
+           "click_label", "reflection_label", "reflection_labels"]
 
 #: The intensity scale a new plot starts on.
 DEFAULT_SCALE = "log"
@@ -78,8 +86,40 @@ def reflection_labels(reflections) -> list[str] | None:
             for r in reflections]
 
 
+def click_label(two_theta: float, reflections) -> str:
+    """What a click at ``two_theta`` says: the angle, its d, and the
+    nearest of ``reflections`` with its intensity where one was fitted.
+
+    The wavelength is the reflections' own (every one is at the
+    primary line, so ``2 d sin θ`` of any of them), which keeps this
+    free of the radiation box: a fit drawn from another radiation is
+    named in its own.  No reflections, no d.
+    """
+    import math
+
+    text = f"2θ {float(two_theta):.3f}°"
+    if not reflections:
+        return text
+    near = min(reflections,
+               key=lambda r: abs(float(r.two_theta) - float(two_theta)))
+    wavelength = 2.0 * float(near.d) * math.sin(
+        math.radians(float(near.two_theta)) / 2.0)
+    s = math.sin(math.radians(float(two_theta)) / 2.0)
+    if s > 0:
+        text += f", d {wavelength / (2.0 * s):.4f} Å"
+    text += "; nearest " + reflection_label(near.hkl, near.two_theta,
+                                            near.d)
+    intensity = float(getattr(near, "intensity", float("nan")))
+    if intensity == intensity:
+        text += f", I {intensity:.4g}"
+    return text
+
+
 class RefinementPlot(QWidget):
     """A pattern and a fit to it, or a sentence naming the extra."""
+
+    #: 2θ of a click on the pattern's axis, with zoom and pan off.
+    clicked = Signal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -117,6 +157,7 @@ class RefinementPlot(QWidget):
         self.canvas = canvas_class(self.figure)
         self.canvas.setMinimumSize(360, 240)
         self.canvas.mpl_connect("motion_notify_event", self._on_motion)
+        self.canvas.mpl_connect("button_press_event", self._on_press)
         self.toolbar = toolbar_class(self.canvas, self)
         self.scale_box = scale_box()
         # logarithmic to start with: the weak lines and the background
@@ -341,6 +382,12 @@ class RefinementPlot(QWidget):
         row = 1 if event.ydata >= 1.0 else 0
         self._set_hover("\n".join(self.ticks_at(event.x, row)),
                         event.xdata, row)
+
+    def _on_press(self, event) -> None:
+        if event.inaxes is not self.axes or event.xdata is None \
+                or getattr(self.toolbar, "mode", ""):
+            return
+        self.clicked.emit(float(event.xdata))
 
     @property
     def hovered(self) -> str:

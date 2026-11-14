@@ -1746,3 +1746,25 @@ def test_the_net_explorer_cites_the_merged_nets_papers(window):
     urls = window.open_net_explorer().sources.urls()
     assert "https://doi.org/10.1126/science.ads7866" in urls
     assert "https://doi.org/10.1021/jacs.8b04745" in urls
+
+
+@pytest.mark.parametrize("base, text, mid", [
+    ("#1e1e1e", "#e6e6e6", "#353535"),          # a dark theme
+    ("#ffffff", "#000000", "#b8b8b8"),          # a light one
+])
+def test_a_block_preview_draws_its_bonds_clear_of_the_background(
+        qapp, base, text, mid):
+    """In a dark theme the bonds were the palette's Mid, a dark grey a
+    few steps off the base, and a building block was a scatter of atoms
+    with no bonds to tell it from its neighbours in the list."""
+    from PySide6.QtGui import QColor, QPalette
+
+    from xtalapp.dialogs.mof_preview import line_colour
+
+    palette = QPalette()
+    palette.setColor(QPalette.Base, QColor(base))
+    palette.setColor(QPalette.Text, QColor(text))
+    palette.setColor(QPalette.Mid, QColor(mid))
+    gap = abs(line_colour(palette).lightness()
+              - QColor(base).lightness())
+    assert gap >= 100

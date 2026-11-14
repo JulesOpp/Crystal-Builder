@@ -258,3 +258,202 @@ def test_pawley_at_zero_cycles_finds_intensities_and_moves_nothing(
     assert fit.reflections
     assert 0.0 < fit.rwp < 0.5
     assert all(row.esd is None for row in fit.parameters)
+
+
+@pytest.fixture(scope="module")
+def quartz_data(tmp_path_factory):
+    """A rietx pattern of the conftest quartz, 15-80 degrees: the case
+    where Pawley alone loses its cell from 0.2 % off."""
+    from tests.conftest import _quartz
+    from xtal.powder import bridge
+
+    two_theta = np.arange(15.0, 80.0, 0.02)
+    y = bridge.predict(_quartz(), Radiation("cu"), two_theta)
+    counts = np.random.default_rng(0).poisson(y / y.max() * 5000 + 100)
+    return PowderData(two_theta, counts.astype(float))
+
+
+#: The conftest quartz's cell, 0.3 % long on every length.
+QUARTZ_OFF = (4.9134 * 1.003, 4.9134 * 1.003, 5.4052 * 1.003,
+              90.0, 90.0, 120.0)
+
+
+def test_pawley_alone_loses_a_cell_started_a_few_parts_per_thousand_off(
+        quartz_data):
+    """Why Le Bail goes first: every intensity a variable, the lines
+    misplaced, and the cell stops 0.3 % out at Rwp 15 % against 10.
+    If rietx learns to find this cell alone, the box can go."""
+    fit = pawley(quartz_data, Radiation("cu"), QUARTZ_OFF, "P3221",
+                 PawleyOptions(lebail_first=False))
+    assert fit.lebail_rwp is None
+    assert fit.cell[0] > 4.92
+    assert fit.rwp > 0.13
+
+
+def test_le_bail_first_finds_the_cell_pawley_alone_loses(quartz_data):
+    """The default: a Le Bail fit over the same plan places the lines,
+    and Pawley starts from its cell and profile and finishes below
+    it."""
+    fit = pawley(quartz_data, Radiation("cu"), QUARTZ_OFF, "P3221")
+    assert fit.cell[0] == pytest.approx(4.9134, abs=3e-4)
+    assert fit.cell[2] == pytest.approx(5.4052, abs=3e-4)
+    assert fit.rwp < fit.lebail_rwp < 0.12
+    assert not fit.stalled
+    assert any("started from a Le Bail fit" in n for n in fit.notes)
+
+
+def test_a_le_bail_fit_runs_no_le_bail_before_itself(rutile_xy_shared):
+    fit = pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+                 INDEXED, "P42/mnm", PawleyOptions(method="lebail"))
+    assert fit.lebail_rwp is None and not fit.stalled
+
+
+def test_a_cell_that_runs_away_is_refused_not_converged(rutile_xy_shared):
+    """Unbounded, Le Bail took rutile from 1 % off to a cell 85 % long
+    and called it converged.  Bounded, the cell meets the edge of the
+    box, and a fit that stopped there was still going."""
+    with pytest.raises(PowderError, match="ran to the edge of the 2.5 %"):
+        pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+               (4.594 * 1.01, 4.594 * 1.01, 2.959 * 1.01), "P42/mnm",
+               PawleyOptions(method="lebail"))
+
+
+def test_the_cell_moves_only_as_far_as_it_is_allowed(rutile_xy_shared):
+    """Indexing's cell is 2e-4 out; a box of 1e-4 cannot reach the
+    answer, and the fit says so rather than handing back its edge."""
+    with pytest.raises(PowderError, match="0.01 %"):
+        pawley(PowderData.from_xy(rutile_xy_shared), Radiation("cu"),
+               (4.594 * 1.0005, 4.594 * 1.0005, 2.959 * 1.0005),
+               "P42/mnm", PawleyOptions(cell_range=1e-4))
+
+
+def test_a_pawley_fit_worse_than_its_le_bail_fit_says_it_stalled(
+        fit, rutile_xy_shared, monkeypatch):
+    """ZSM-5's Pawley ended at Rwp 26 % after a Le Bail fit of 7 % and
+    rietx called it converged.  Free intensities can always match
+    partitioned ones, so a fit that does not has stalled -- said in the
+    result box, the run's message and, for an assistant, by code."""
+    from xtal.modules import powder as steps
+    from xtal.modules.job import Job
+    from xtal.powder import pawley as module
+
+    stalled = dataclasses.replace(fit, lebail_rwp=fit.rwp / 2)
+    assert stalled.stalled and not fit.stalled
+    assert "stalled" in steps.pawley_summary(stalled)
+    monkeypatch.setattr(module, "pawley", lambda *a, **k: stalled)
+    result = steps.run_pawley(Job(params={
+        "xy": str(rutile_xy_shared), "cell": INDEXED,
+        "space_group": "136"}))
+    assert result.ok and "stalled" in result.message
+    assert [code for code, _said in result.warnings] == ["PAWLEY_STALLED"]
+
+
+def test_overlap_notes_are_one_line_with_their_count(fit):
+    """ZSM-5's fit said "overlap too strongly to split" 163 times, one
+    group each.  The result box says it once, with the count; another
+    kind keeps its own line, and a warning is marked as one."""
+    from xtal.modules import powder as steps
+
+    overlap = ("PAWLEY_OVERLAP_UNRESOLVED", "info",
+               "2 reflections overlap too strongly to split: ...")
+    bound = ("BOUND_HIT", "warning", "a hit its bound")
+    noisy = dataclasses.replace(
+        fit, lebail_rwp=None, diagnostics=[overlap] * 163 + [bound])
+    lines = steps.pawley_note_lines(noisy)
+    assert lines[0] == (
+        "163 reflection groups overlap too strongly to split: their "
+        "summed intensities are determined, the split between the "
+        "lines is not", False)
+    assert lines[1] == ("a hit its bound", True)
+    assert len(lines) == 2
+
+
+def test_the_le_bail_pass_and_a_stall_come_before_rietxs_notes(fit):
+    from xtal.modules import powder as steps
+
+    stalled = dataclasses.replace(
+        fit, lebail_rwp=fit.rwp / 2,
+        diagnostics=[("X", "info", "something")] * 2)
+    texts = [text for text, _warns in steps.pawley_note_lines(stalled)]
+    assert texts[0] == stalled.stalled_note
+    assert texts[1].startswith("Le Bail pass first: Rwp ")
+    assert texts[2] == "something (and 1 more like it)"
+
+
+#: The cell the rutile pattern was simulated from.
+RUTILE = (4.5940, 4.5940, 2.9590, 90.0, 90.0, 90.0)
+
+
+@pytest.fixture(scope="module")
+def rutile_peaks(rutile_xy_shared):
+    from xtal.powder.peaks import fit_peaks
+
+    return fit_peaks(PowderData.from_xy(rutile_xy_shared),
+                     Radiation("cu"))
+
+
+def test_start_lines_are_the_groups_allowed_reflections():
+    """Drawn before any fit, so a person sees what the start predicts:
+    the group's absences included, or a line would stand where no peak
+    can be."""
+    from xtal.powder.pawley import start_lines
+
+    lines = start_lines(RUTILE, "P42/mnm", Radiation("cu"), 20.0, 80.0)
+    hkls = {r.hkl for r in lines}
+    assert (1, 1, 0) in hkls
+    assert (1, 0, 0) not in hkls and (0, 0, 1) not in hkls
+    first = next(r for r in lines if r.hkl == (1, 1, 0))
+    assert first.two_theta == pytest.approx(27.43, abs=0.02)
+    assert all(20.0 <= r.two_theta <= 80.0 for r in lines)
+    assert [r.two_theta for r in lines] == sorted(
+        r.two_theta for r in lines)
+
+
+def test_the_offset_of_rutiles_peaks_from_its_own_cell_is_noise(
+        rutile_peaks):
+    from xtal.powder.pawley import start_lines, start_offset
+
+    lo, hi = rutile_peaks.two_theta[0], rutile_peaks.two_theta[-1]
+    offset = start_offset(rutile_peaks, start_lines(
+        RUTILE, "P42/mnm", Radiation("cu"), lo, hi))
+    assert offset.peaks == rutile_peaks.n_used
+    assert offset.median < 0.01
+    assert not offset.far
+
+
+def test_a_cell_half_a_percent_off_is_said_to_be_further_than_a_peak_width(
+        rutile_peaks):
+    """Pawley alone loses a cell started a few parts per thousand off;
+    the hint is there to say so before the minutes are spent."""
+    from xtal.powder.pawley import start_lines, start_offset
+
+    lo, hi = rutile_peaks.two_theta[0], rutile_peaks.two_theta[-1]
+    off = tuple(v * 1.005 for v in RUTILE[:3]) + RUTILE[3:]
+    offset = start_offset(rutile_peaks, start_lines(
+        off, "P42/mnm", Radiation("cu"), lo, hi))
+    assert offset.far
+    assert offset.worst > offset.width
+
+
+def test_a_pawley_run_says_each_stage_and_its_rwp(rutile_xy_shared):
+    """A ZSM-5 fit is thirteen minutes, and a clock alone could not
+    tell a run that is getting somewhere from one that is not.  rietx
+    has an Rwp only where a stage ends, so that is what is said."""
+    from xtal.modules import powder as steps
+    from xtal.modules.job import Job
+    from xtal.powder.pawley import PawleyPass
+
+    said, passes = [], []
+    job = Job(params={"xy": str(rutile_xy_shared), "cell": INDEXED,
+                      "space_group": "P42/mnm"},
+              on_progress=said.append, on_update=passes.append)
+    assert steps.run_pawley(job).ok
+    first = [s for s in said if s.startswith("Le Bail first, ")]
+    then = [s for s in said if s.startswith("Pawley, ")]
+    assert first and then and said.index(first[-1]) < said.index(then[0])
+    assert then[0].startswith("Pawley, background (1 of ")
+    assert any(" cell (" in s and ", Rwp " in s for s in then)
+    assert then[-1].endswith(" %")
+    assert [p.method for p in passes] == ["lebail"]
+    assert isinstance(passes[0], PawleyPass)
+    assert len(passes[0].y_calc) == len(passes[0].two_theta) > 100

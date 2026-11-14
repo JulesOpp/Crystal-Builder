@@ -1347,6 +1347,22 @@ def test_the_kbeta_flag_starts_off_and_le_bail_is_a_pawley_method(bench):
     assert bench.values("pawley")["method"] == "lebail"
 
 
+def test_le_bail_first_is_ticked_and_only_pawley_offers_it(bench):
+    """Le Bail first is on unless unticked, and greyed under the Le
+    Bail method, which has no Le Bail fit to run before itself.  The
+    cell's box starts at 2.5 %."""
+    form = bench.step_forms["pawley"]
+    bench.steps.setCurrentRow(2)
+    assert bench.values("pawley")["lebail_first"] is True
+    assert bench.values("pawley")["cell_range"] == pytest.approx(2.5)
+    assert form.widgets["lebail_first"].isEnabled()
+    form.set_values({"method": "lebail"})
+    assert not form.widgets["lebail_first"].isEnabled()
+    form.set_values({"method": "pawley", "lebail_first": False})
+    assert form.widgets["lebail_first"].isEnabled()
+    assert bench.values("pawley")["lebail_first"] is False
+
+
 def test_a_peak_can_be_moved_and_resized_by_hand_before_refining(
         bench, rutile_xy):
     """A better start for Refine peaks than the one found: the numbers
@@ -1520,3 +1536,224 @@ def test_hovering_a_rietveld_tick_names_its_reflection(
     assert plot.hovered.startswith("(")
     assert f"{first.two_theta:.2f}°" in plot.hovered
     assert "Å" in plot.hovered
+
+
+@needs_rietx
+def test_fitting_clears_the_previous_steps_curve_from_the_plot(
+        bench, qtbot, rutile_xy):
+    """On ZSM-5 the Peaks step's -10 000-count residual stayed up for
+    the thirteen minutes Pawley ran, and read as the fit failing."""
+    _run_peaks(bench, qtbot, rutile_xy)
+    if not bench.plot.available:
+        pytest.skip("needs matplotlib")
+    assert "calculated" in bench.plot.traces
+    bench.steps.setCurrentRow(2)
+    bench.step_forms["pawley"].set_values({"space_group": "P42/mnm"})
+    bench.cell_box.set_value("4.5948 4.5948 2.9572")
+    with qtbot.waitSignal(bench.stepFinished, timeout=60000):
+        bench.run_step()
+        assert bench.plot.traces == ["observed"]
+    assert "calculated" in bench.plot.traces
+
+
+@needs_rietx
+def test_the_result_box_says_what_the_run_log_says_grouped(
+        bench, qtbot, rutile_xy):
+    """The Le Bail pass's Rwp and rietx's notes reached run.log only,
+    so the result box looked clean when it was not."""
+    bench.load_pattern(rutile_xy)
+    result = _run_pawley(bench, qtbot)
+    assert result.ok, result.message
+    lines = bench.pawley_note_texts
+    assert lines[0].startswith("Le Bail pass first: Rwp ")
+    log = "".join(path.read_text(encoding="utf-8") for path in
+                  bench._entry_for().path.rglob("*.log"))
+    assert "started from a Le Bail fit" in log
+    bench.pawley = dataclasses.replace(
+        bench.pawley, lebail_rwp=None, diagnostics=[(
+            "PAWLEY_OVERLAP_UNRESOLVED", "info", "...")] * 3)
+    bench._show_pawley_result()
+    assert bench.pawley_note_texts == [
+        "3 reflection groups overlap too strongly to split: their "
+        "summed intensities are determined, the split between the "
+        "lines is not"]
+
+
+def _typed_start(bench, qtbot, cell, group="P42/mnm"):
+    bench.steps.setCurrentRow(2)
+    bench.step_forms["pawley"].set_values({"space_group": group})
+    bench.cell_box.set_value(cell)
+    qtbot.waitUntil(lambda: not bench._preview_timer.isActive(),
+                    timeout=5000)
+
+
+@needs_rietx
+def test_typing_a_cell_draws_its_lines_before_any_fit(
+        bench, qtbot, rutile_xy):
+    """Pawley alone finds a cell only from about 0.1 % off; the start's
+    lines under the found peaks show a wrong one before the minutes
+    are spent, and the hint says how wrong."""
+    _run_peaks(bench, qtbot, rutile_xy)
+    _typed_start(bench, qtbot, "4.594 4.594 2.959")
+    assert bench.pawley is None
+    rows = bench.reflection_table.rowCount()
+    assert rows == len(bench.start_lines) > 10
+    hkls = {tuple(int(bench.reflection_table.item(r, c).text())
+                  for c in range(3)) for r in range(rows)}
+    assert (1, 1, 0) in hkls and (1, 0, 0) not in hkls
+    # nothing has fitted an intensity yet
+    assert bench.reflection_table.item(0, 6).text() == ""
+    if bench.plot.available:
+        positions, labels = bench.plot._combs[1]
+        assert len(positions) == rows
+        assert labels[0].startswith("(1 1 0)")
+    assert not bench.start_hint.isHidden()
+    assert bench.start_hint.text().startswith("start cell: peaks within")
+    assert "further" not in bench.start_hint.text()
+    _typed_start(bench, qtbot, "4.617 4.617 2.974")
+    assert "further than a peak width" in bench.start_hint.text()
+
+
+@needs_rietx
+def test_a_fit_replaces_the_previewed_reflections_with_its_own(
+        bench, qtbot, rutile_xy):
+    bench.load_pattern(rutile_xy)
+    _typed_start(bench, qtbot, "4.5948 4.5948 2.9572")
+    assert bench.reflection_table.item(0, 6).text() == ""
+    assert _run_pawley(bench, qtbot).ok
+    assert bench.reflection_table.rowCount() == \
+        len(bench.pawley.reflections)
+    assert bench.reflection_table.item(0, 6).text() != ""
+    assert int(bench.reflection_table.item(0, 5).text()) > 0
+    # a new start typed after the fit is a preview again
+    _typed_start(bench, qtbot, "4.60 4.60 2.96")
+    assert bench.reflection_table.item(0, 6).text() == ""
+
+
+@needs_rietx
+def test_the_status_line_shows_the_stage_beside_the_clock(
+        bench, qtbot, rutile_xy, monkeypatch):
+    """And the Le Bail pass is drawn as it ends, before the fit is."""
+    import re
+
+    bench.load_pattern(rutile_xy)
+    shown, drawn = [], []
+    say = bench.say
+    monkeypatch.setattr(bench, "say", lambda text, warn=False: (
+        shown.append(text), say(text, warn)))
+    show_fit = bench.plot.show_fit
+    monkeypatch.setattr(bench.plot, "show_fit", lambda *a, **k: (
+        drawn.append(bench.worker is not None), show_fit(*a, **k)))
+    assert _run_pawley(bench, qtbot).ok
+    staged = re.compile(r"^Pawley, [a-zA-Z ]+ \(\d of \d\), "
+                        r"Rwp \d+\.\d\d % \(\d+:\d\d\)$")
+    assert any(staged.match(text) for text in shown), shown
+    assert drawn[0] is True
+
+
+@needs_rietx
+def test_export_writes_the_fit_the_reflections_and_a_picture(
+        bench, qtbot, rutile_xy, tmp_path, monkeypatch):
+    """Copies of the run folder's files, named after the pattern so a
+    second pattern's export does not overwrite the first's."""
+    from PySide6.QtWidgets import QFileDialog
+
+    bench.load_pattern(rutile_xy)
+    assert not bench.export_button.isEnabled()
+    assert _run_pawley(bench, qtbot).ok
+    assert bench.export_button.isEnabled()
+    out = tmp_path / "out"
+    out.mkdir()
+    monkeypatch.setattr(QFileDialog, "getExistingDirectory",
+                        lambda *a, **k: str(out))
+    written = bench.export_fit()
+    stem = f"{bench.data.name}-pawley"
+    names = {p.name for p in written}
+    assert {f"{stem}.xy", f"{stem}-reflections.csv"} <= names
+    assert (out / f"{stem}.xy").read_bytes() == \
+        (bench.pawley_folder / "fit.xy").read_bytes()
+    assert (out / f"{stem}-reflections.csv").read_text().startswith(
+        "h,k,l,d,two_theta")
+    if bench.plot.available:
+        assert (out / f"{stem}.png").read_bytes()[:4] == b"\x89PNG"
+    assert not list(out.glob("*.partial*"))
+    assert bench.window_.settings.refine_export_directory == str(out)
+
+
+@needs_rietx
+def test_export_asks_before_overwriting_only_when_preferences_say_so(
+        bench, qtbot, rutile_xy, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    assert bench.export_fit(tmp_path)
+    assert bench.export_fit(tmp_path)          # silent by default
+    bench.window_.settings.confirm_overwrite = True
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: QMessageBox.No)
+    assert bench.export_fit(tmp_path) == []
+
+
+@needs_rietx
+def test_the_run_folder_link_names_the_folder_the_run_wrote(
+        bench, qtbot, rutile_xy, monkeypatch):
+    from PySide6.QtGui import QDesktopServices
+
+    bench.load_pattern(rutile_xy)
+    assert not bench.folder_button.isEnabled()
+    assert _run_pawley(bench, qtbot).ok
+    folder = bench.pawley_folder
+    assert (folder / "fit.xy").is_file()
+    assert bench.folder_button.isEnabled()
+    assert bench.folder_button.toolTip() == str(folder)
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl",
+                        lambda url: opened.append(url.toLocalFile()))
+    bench.folder_button.click()
+    assert opened == [str(folder)]
+
+
+@needs_rietx
+def test_clicking_the_pattern_names_the_nearest_reflection(
+        bench, qtbot, rutile_xy):
+    from types import SimpleNamespace
+
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot).ok
+    if not bench.plot.available:
+        pytest.skip("needs matplotlib")
+    bench.plot._on_press(SimpleNamespace(inaxes=bench.plot.axes,
+                                         xdata=27.47))
+    said = bench.status.text()
+    assert said.startswith("2θ 27.470°, d 3.24")
+    assert "nearest (1 1 0)  27.4" in said and ", I " in said
+    # a click below, on the comb, is hover's and says nothing new
+    bench.plot._on_press(SimpleNamespace(inaxes=bench.plot.strip,
+                                         xdata=36.1))
+    assert bench.status.text() == said
+
+
+@needs_rietx
+def test_use_refined_as_start_puts_the_fit_into_the_cell_box(
+        bench, qtbot, rutile_xy):
+    """The start shown stays the person's until they ask: a re-run
+    then continues from the fit.  A form, so no undo step."""
+    bench.load_pattern(rutile_xy)
+    assert _run_pawley(bench, qtbot, cell="4.5948 4.5948 2.9572").ok
+    assert bench.cell_box.numbers()[0] == pytest.approx(4.5948)
+    fit = bench.pawley
+    bench.parameter_table.reset()
+    bench.use_refined()
+    assert bench.cell_box.numbers()[0] == pytest.approx(fit.cell[0],
+                                                        abs=1e-5)
+    assert bench.cell_box.numbers()[2] == pytest.approx(fit.cell[2],
+                                                        abs=1e-5)
+    for row in fit.parameters:
+        if row.value is not None and row.name in bench.parameters:
+            assert bench.parameters[row.name].value == pytest.approx(
+                row.value)
+    qtbot.waitUntil(lambda: not bench._preview_timer.isActive(),
+                    timeout=5000)
+    # the fit's own cell typed back is the fit, not a preview
+    assert bench.reflection_table.item(0, 6).text() != ""
