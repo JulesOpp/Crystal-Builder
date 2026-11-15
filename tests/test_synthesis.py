@@ -116,6 +116,50 @@ def test_a_comma_inside_a_name_does_not_split_it():
         "BDC", "4,4'-bipyridine"]
 
 
+@pytest.mark.parametrize("typed", [
+    "DMF", "dmf", "N,N-dimethylformamide", "N,N-Dimethylformamide",
+    "N, N-dimethylformamide", "dimethylformamide", "dimethyl formamide",
+    "Dimethylformamide", "CID 6228"])
+def test_every_way_of_writing_dmf_is_dmf(typed):
+    """Jules asked.  N,N-dimethylformamide was split at its comma into
+    "N" and "N-dimethylformamide", neither known, so the one spelling
+    a paper uses was the one that dropped DMF from the comparison."""
+    read, unread = precedent.read_solvents(synthesis.split(typed))
+
+    assert read == (6228,) and unread == ()
+
+
+def test_locants_keep_their_commas_and_entries_still_split():
+    assert synthesis.split("N,N-diethylformamide, water") == [
+        "N,N-diethylformamide", "water"]
+    assert synthesis.split("DMF, N,N-dimethylacetamide;EtOH") == [
+        "DMF", "N,N-dimethylacetamide", "EtOH"]
+    assert synthesis.split("DMF,water") == ["DMF", "water"]
+    assert synthesis.split("H2O, o") == ["H2O", "o"]
+
+
+def test_no_two_names_in_either_table_meet_under_the_loose_key():
+    """Spaces, hyphens and case are dropped to look a name up; a pair
+    of names that then coincided would read one solvent or linker as
+    another."""
+    for table in (precedent.SOLVENTS,
+                  {s: (n,) for n, s in precedent.LINKER_NAMES.items()}):
+        meets = {}
+        for value, names in table.items():
+            for name in names:
+                assert meets.setdefault(precedent._name_key(name),
+                                        value) == value, name
+
+
+@needs_rdkit
+def test_a_linker_name_is_read_however_it_is_cased_or_spaced():
+    bdc = precedent.linker_key("terephthalic acid")
+    assert precedent.linker_key("Terephthalic Acid") == bdc
+    assert precedent.linker_key("terephthalic-acid") == bdc
+    assert precedent.linker_key("NH2 BDC") == \
+        precedent.linker_key("NH2-BDC")
+
+
 @needs_rdkit
 def test_a_linker_is_the_same_as_acid_or_anion():
     """The table's linkers are MOFid's carboxylates, written as
@@ -566,3 +610,29 @@ def test_xtal_run_answers_from_the_command_line():
     assert done.returncode == 0, done.stderr
     assert "Likeliest net tbo" in done.stdout
     assert "The precedents that voted" in done.stdout
+
+
+@pytest.mark.slow
+def test_xtal_run_files_every_build_it_was_asked_for(tmp_path):
+    """``top=2`` on the command line is two entries in the workspace,
+    as it is two tabs in the window -- the CLI used to file only the
+    structure and drop the rest."""
+    import subprocess
+    import sys
+
+    from xtal.mof.catalog import installed as builder_installed
+
+    if not builder_installed():
+        pytest.skip("the MOF builder is not installed")
+    done = subprocess.run(
+        [sys.executable, "-m", "xtal.cli", "run", "synthesis.build",
+         "--workspace", str(tmp_path / "ws"),
+         "-p", "metal=ZrCl4", "-p", "linkers=BDC", "-p", "solvents=DMF",
+         "-p", "top=2", "-p", "budget=60"],
+        capture_output=True, text=True, timeout=300, cwd=ROOT)
+
+    assert done.returncode == 0, done.stderr
+    filed = [line for line in done.stdout.splitlines()
+             if line.startswith("filed as ")]
+    assert len(filed) == 2
+    assert all(line.endswith(".cif") for line in filed)

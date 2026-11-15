@@ -174,8 +174,16 @@ SOLVENTS = {
     3776: ("isopropanol", "2-propanol", "ipa", "iproh"),
     263: ("1-butanol", "n-butanol", "buoh"),
 }
-_SOLVENT_BY_NAME = {name: cid for cid, names in SOLVENTS.items()
-                    for name in names}
+def _name_key(name: str) -> str:
+    """A solvent's or a linker's name as looked up: case, spaces and
+    hyphens are how people differ in writing one name, not different
+    names -- "N, N-dimethylformamide", "dimethyl formamide", "NH2 BDC".
+    No two names in either table meet under it."""
+    return re.sub(r"[\s\-]", "", str(name).lower())
+
+
+_SOLVENT_BY_NAME = {_name_key(name): cid
+                    for cid, names in SOLVENTS.items() for name in names}
 
 #: Linkers by the names they go by, to SMILES.  A convenience: any
 #: SMILES is read as well, and a name not here is refused by name.
@@ -213,6 +221,12 @@ LINKER_NAMES = {
     "1,2,4-triazole": "c1nc[nH]n1",
     "tetrazole": "c1nnn[nH]1",
 }
+
+
+#: Looked up as solvents are, so "Trimesic acid", "NH2 BDC" and
+#: "terephthalic-acid" are the names they look like.
+_LINKER_BY_KEY = {_name_key(name): smiles
+                  for name, smiles in LINKER_NAMES.items()}
 
 
 @dataclass(frozen=True)
@@ -322,7 +336,7 @@ def read_solvents(texts) -> tuple[tuple[int, ...], tuple[str, ...]]:
         name = str(text).strip()
         if not name:
             continue
-        cid = _SOLVENT_BY_NAME.get(name.lower())
+        cid = _SOLVENT_BY_NAME.get(_name_key(name))
         found = re.fullmatch(r"(?i)cid\s*:?\s*(\d+)", name)
         if cid is None and found:
             cid = int(found.group(1))
@@ -356,8 +370,7 @@ def linker_key(text: str) -> tuple[str, frozenset]:
     from rdkit.Chem.MolStandardize import rdMolStandardize
 
     RDLogger.DisableLog("rdApp.*")
-    smiles = LINKER_NAMES.get(str(text).strip().lower(),
-                              str(text).strip())
+    smiles = _LINKER_BY_KEY.get(_name_key(text), str(text).strip())
     molecule = Chem.MolFromSmiles(smiles)
     if molecule is None:
         raise PrecedentError(

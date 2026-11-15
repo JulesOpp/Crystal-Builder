@@ -57,3 +57,35 @@ def test_the_best_build_opens_in_a_new_tab_with_its_linker_kept(
                for w in built.meta.get("warnings", ()))
     blocks = window.workspace.blocks
     assert len(list(blocks.glob("SYN-*.xyz"))) == 1
+
+
+def test_from_a_synthesis_is_an_entry_of_the_mof_builder_submenu(window):
+    """Jules's ask: it is a way to choose what to build, so it is
+    under the MOF builder and not a submenu of its own."""
+    submenu = window._module_submenus["synthesis"]
+
+    assert submenu is window._module_submenus["mof"]
+    assert submenu.title() == "MOF builder"
+    labels = [a.text() for a in submenu.actions()]
+    assert "From a synthesis..." in labels
+    assert "Build the likely frameworks..." not in labels
+    titles = [a.text() for a in window.modules_menu.actions()]
+    assert "From a synthesis" not in titles
+
+
+@pytest.mark.slow
+def test_the_top_two_open_in_two_tabs_with_the_best_in_front(
+        window, qtbot, monkeypatch):
+    monkeypatch.setattr(ModuleDialog, "ask", staticmethod(
+        lambda *a, **k: {"metal": "ZrCl4", "linkers": "BDC",
+                         "solvents": "DMF", "top": 2,
+                         "budget": 60.0}))
+
+    window.run_module_action("synthesis", "build")
+    qtbot.waitUntil(lambda: window.module_worker is None,
+                    timeout=180000)
+
+    assert len(window.documents) == 2
+    front = window.current_document().structure
+    assert front.meta["title"].startswith("fcu-N419-SYN-")
+    assert all(d.entry is not None for d in window.documents)

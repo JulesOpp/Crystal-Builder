@@ -2,7 +2,8 @@
 
 What a metal salt, linkers, solvents and a temperature are likely to
 make, read off the published syntheses nearest to them. Modules ▸
-From a synthesis…, `xtal run synthesis.forecast`. This is the design
+MOF builder ▸ From a synthesis…, `xtal run synthesis.build`
+(`synthesis.forecast` is the vote alone). This is the design
 record: what it is for, what was considered, what was chosen and why,
 and how it is tested. What is still owed is in `docs/TODO.md`.
 
@@ -59,7 +60,7 @@ Three units, each testable alone.
 | `scripts/synthesis_precedents.py` | Joins the two downloads into `xtal/mof/data/precedents.json.gz`, then measures the held-out accuracy and prints it | RDKit, the two files named on the command line |
 | `xtal/mof/precedent.py` | Reads a query, scores it against a `Source`, votes | numpy-free; RDKit only to read a typed linker |
 | `xtal/mof/candidates.py` | The linker as a block, the candidates, the test builds | the forecast, the catalogue, the MOF builder |
-| `xtal/modules/synthesis.py` | The registry entries: the vote, and the vote then the builds | the three above |
+| `xtal/modules/synthesis.py` | The registry entry: one form under the MOF builder, the vote and -- ticked -- the builds; the vote alone unlisted for the CLI | the three above |
 
 **The table.** One record per CSD refcode *family*: `WIZMAV02` to
 `WIZMAV13` are re-determinations of one compound and were eleven
@@ -106,8 +107,11 @@ the row a person reads (not a tooltip).
 
 ## Building what it names
 
-Build the likely frameworks… (`synthesis.build`,
-`xtal/mof/candidates.py`) votes and then builds. Approaches weighed:
+With *Build the likely frameworks* ticked (the default; `synthesis.build`,
+`xtal/mof/candidates.py`) the form votes and then builds. It was a
+second entry until Jules's review: the two asked the same five
+questions, so they are one form under Modules ▸ MOF builder, the box
+and *Frameworks to open* (n, default 1) added to it. Approaches weighed:
 matching MOFid's node SMILES to a catalogue block atom for atom
 (exact, but two writers draw one cluster two ways, which is why the
 vote counts nodes by their metals), against matching by metals and
@@ -137,17 +141,27 @@ cluster drawn twice). Three steps:
   first row of Zn + BDC. Ranked by net share times node share. What
   cannot be tried is said once each: a net the builder lacks, a net
   with no slot for the linker, a node with no cluster.
-- **The trial.** Built in rank order for 30 s (a parameter), checked
-  between builds; at least one is always built, and the rest are
-  listed untried. Anything PORMAKE raises fails that row and the next
-  is tried. A build counts when the builder reads back the net it
-  asked for; the best is the highest-ranked such build with nothing
-  overlapping, and it opens in a new tab with a warning that it is a
-  starting geometry, not the phase that forms. Every row carries the
-  `xtal run mof.build` parameters that build it again.
+- **The trial.** Built in rank order until *n* have come out as asked
+  or 30 s (a parameter) are spent, checked between builds; at least
+  one is always built, and the rest are listed untried with the
+  reason. Anything PORMAKE raises fails that row and the next is
+  tried. A build counts when the builder reads back the net it asked
+  for. The *n* opened are the highest-ranked such builds, **one per
+  net and voted node** -- the catalogue draws Zr6(CO2)6 twice (N14,
+  N15), and two drawings of UiO-66 are not two frameworks, so the
+  second is passed over -- clean ones first and overlapping ones only
+  if there are too few. Each opens in a tab of its own (the first in
+  front) with a warning that it is a starting geometry, not the phase
+  that forms; `JobResult.more` carries all but the first, and `xtal run
+  --workspace` and the agent file them as the window does. Fewer than
+  asked for is said, never padded. Every row carries the `xtal run
+  mof.build` parameters that build it again, and the opened rows say
+  so. Stopping at *n* is also what made one build cost one build: it
+  was the whole 30 s before.
 
-The vote alone stays its own action and never imports the builder,
-so it still answers in a second.
+Unticked, the form is the vote alone, never imports the builder, and
+still answers in a second; the entry needs RDKit only, and a build
+without ase is a failed run saying so rather than a greyed entry.
 
 ## How well it does
 
@@ -171,7 +185,11 @@ hold out a paper by). 146 is a small sample.
 - **Reading**: salts by name and by formula, hydrates, oxidation
   states, the counter-ions that contain each other (perchlorate and
   chloride, hydroxide and oxide); solvents read and unread; commas
-  inside names; a linker the same as acid or anion.
+  inside names, a locant list's included (N,N-dimethylformamide was
+  split at its comma into two unknown solvents until Jules asked
+  whether it was DMF); every spelling of DMF; case, spaces and hyphens
+  ignored in a solvent's or linker's name, with no two names meeting
+  under that; a linker the same as acid or anion.
 - **Similarity and vote** on a small table written in the test,
   through the `Source` seam, so no RDKit and exact expectations:
   unknown conditions rank between agreeing and not, shares sum to
@@ -199,10 +217,22 @@ hold out a paper by). 146 is a small sample.
   first; each skip said once; a candidate's rebuild line parsed back
   to its request; a failed build (PORMAKE's own assertion included)
   one row and the next still tried; the time and Stop leave the rest
-  untried; the best is confirmed and clean. UiO-66 and HKUST-1 from
-  their syntheses end to end, and the window opens the UiO-66 build
-  in a new tab with its BDC block kept (`tests/test_synthesis_ui.py`).
+  untried; the best is confirmed and clean. With builds faked: one
+  asked for stops at the first clean one; the top two are two
+  frameworks, the second drawing of a cluster passed over and said;
+  a crowded build opens only when too few are clean, and never
+  beside a clean drawing of itself; fewer than asked is not padded.
+  Unticked never reaches the builder; without ase the run says how to
+  vote without it. UiO-66 and HKUST-1 from
+  their syntheses end to end, the top two from UiO-66's as two
+  frameworks, `xtal run --workspace top=2` filing two entries, and
+  the window opens the UiO-66 build in a new tab with its BDC block
+  kept, two tabs with the best in front when asked for two, and the
+  entry under the MOF builder submenu (`tests/test_synthesis_ui.py`).
 - **Mutations**: each rule above was broken on purpose once and a
   test failed for it -- the vote's seven, and the build's six
   (non-plain clusters, the deleted carboxyl, a zero budget building
-  nothing, worst first, an overlapping best, a narrow `except`).
+  nothing, worst first, an overlapping best, a narrow `except`), and
+  the top n's eight after review (no stop at n, no pass-over, no
+  one-per-pair in what is opened, clean not first, `more` dropped, not
+  opened in the window, not filed by the CLI, the box ignored).

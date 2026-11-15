@@ -1,21 +1,26 @@
 """
 xtal.modules.synthesis
 ======================
-What a synthesis is likely to make, as a registry entry: two actions.
+What a synthesis is likely to make, as a registry entry under Modules
+▸ MOF builder.
 
-**From a synthesis...** is the vote alone (:mod:`xtal.mof.precedent`):
-which nodes and nets the nearest published syntheses formed, each with
-its share and the precedents it stood on.  A report and no structure,
-no document needed and no run folder, so it answers in a second.
-
-**Build the likely frameworks...** votes and then builds what the vote
-names (:mod:`xtal.mof.candidates`): the typed linker made a block,
-each voted net the builder has filled with catalogue clusters of the
-voted metals, tried best-ranked first for as long as it is given, and
-the best that comes out as the net it was asked to be opens in a new
-tab.  Every row says how to build it again with ``xtal run
+**From a synthesis...** (``synthesis.build``) is one form.  It votes
+(:mod:`xtal.mof.precedent`): which nodes and nets the nearest
+published syntheses formed, each with its share and the precedents it
+stood on.  With *Build the likely frameworks* ticked, as it is by
+default, it then builds what the vote names (:mod:`xtal.mof.candidates`):
+the typed linker made a block, each voted net the builder has filled
+with catalogue clusters of the voted metals, tried best-ranked first
+until *Frameworks to open* have come out as the net they were asked to
+be -- one per net and node -- or the time is spent, and those open in
+new tabs.  Every row says how to build it again with ``xtal run
 mof.build``, which is why the linker block goes into the workspace's
-``blocks/``.  It needs the MOF builder as well as RDKit.
+``blocks/``.  Building needs the MOF builder as well as RDKit; the
+vote alone needs RDKit only, so the entry is greyed only without that
+and a build without ase is a failed run saying so.
+
+``synthesis.forecast`` is the vote alone, unlisted: a report and no
+structure, no run folder, for the command line and the agent.
 
 The checks are ``find_spec``, as the molecule builder's is.
 """
@@ -52,7 +57,8 @@ PARAMS = (
                "The acid or its anion, either is read."),
     Param("solvents", "Solvents", kind="text", default="DMF",
           help="Separated by commas: DMF, DEF, DMA, water, EtOH, "
-               "MeOH, MeCN, DMSO, NMP, dioxane, pyridine, THF.  One "
+               "MeOH, MeCN, DMSO, NMP, dioxane, pyridine, THF, or "
+               "their names (N,N-dimethylformamide), in any case.  One "
                "not recognised is said in the answer and left out of "
                "the comparison."),
     Param("temperature", "Temperature", kind="text", default="",
@@ -66,6 +72,17 @@ PARAMS = (
 )
 
 BUILD_PARAMS = (
+    Param("build", "Build the likely frameworks", kind="bool",
+          default=True,
+          help="Build what the vote names, best-ranked first, and open "
+               "the best in a new tab.  Unticked, the answer is the "
+               "vote alone, in about a second."),
+    Param("top", "Frameworks to open", kind="int", default=1,
+          minimum=1, maximum=10,
+          help="How many of the best builds to open, each in its own "
+               "tab: different nets or different nodes, never one "
+               "cluster drawn twice.  Building stops once this many "
+               "have come out as asked."),
     Param("budget", "Time to spend building", kind="float",
           default=30.0, minimum=1.0, maximum=600.0, decimals=0,
           suffix=" s",
@@ -76,24 +93,23 @@ BUILD_PARAMS = (
 )
 
 
-def _can_build() -> Availability:
-    """The vote's needs and the MOF builder's: RDKit and ase."""
-    from xtal.modules import mof
-
-    voted = available()
-    if not voted:
-        return voted
-    return mof.available()
-
-
 #: A comma between two digits is part of a name -- 4,4'-bipyridine,
-#: 1,4-dioxane -- and every other one separates two entries.
+#: 1,4-dioxane -- and every other one separates two entries ...
 _SEPARATOR = re.compile(r";|\n|(?<!\d),|,(?!\d)")
+#: ... except in a list of locants before a hyphen: N,N-dimethyl-
+#: formamide was read as two solvents, "N" and "N-dimethylformamide",
+#: neither known, and DMF dropped out of the comparison.  A locant is
+#: a number or one letter standing alone, primed or not.
+_LOCANTS = re.compile(r"(?<![\w'])(?:\d+|[A-Za-z])'*"
+                      r"(?:\s*,\s*(?:\d+|[A-Za-z])'*)+(?=\s*-)")
+_HELD = "\x00"
 
 
 def split(text: str) -> list[str]:
-    return [part.strip() for part in _SEPARATOR.split(str(text or ""))
-            if part.strip()]
+    held = _LOCANTS.sub(lambda m: m.group(0).replace(",", _HELD),
+                        str(text or ""))
+    return [part.strip().replace(_HELD, ",")
+            for part in _SEPARATOR.split(held) if part.strip()]
 
 
 def available() -> Availability:
@@ -137,8 +153,26 @@ def _vote(job):
                                         precedent.NEIGHBOURS)))
 
 
+def from_a_synthesis(job) -> JobResult:
+    """The form's one entry: the vote, and the builds when ticked."""
+    if not job.param("build", True):
+        return forecast(job)
+    builder = _builder()
+    if not builder:
+        return JobResult.failure(
+            f"{builder.reason}  Untick Build the likely frameworks to "
+            f"see the vote without it.")
+    return build_likely(job)
+
+
+def _builder() -> Availability:
+    from xtal.modules import mof
+
+    return mof.available()
+
+
 def build_likely(job) -> JobResult:
-    """Vote, then build what the vote names; the best build opens.
+    """Vote, then build what the vote names; the best ``top`` open.
 
     The linker block is written into the workspace's ``blocks/`` when
     there is a workspace, which is where the MOF builder reads the
@@ -172,48 +206,65 @@ def build_likely(job) -> JobResult:
     def catalog_for(blocks):
         return Catalog.default(also_blocks=(str(blocks),))
 
+    top = max(1, int(job.param("top", 1)))
     tried = candidates.trial(
         answer, catalog_for, folder=folder,
         budget=float(job.param("budget", candidates.BUDGET)),
-        log=job.say, cancelled=lambda: job.cancelled)
+        log=job.say, cancelled=lambda: job.cancelled, wanted=top)
     if job.cancelled:
         return JobResult.stopped("stopped between builds")
-    best = tried.best
+    chosen = tried.chosen(top)
     voted = report(answer)
     result = Report(title="Build the likely frameworks",
-                    blocks=_tried(tried) + voted.blocks,
+                    blocks=_tried(tried, chosen) + voted.blocks,
                     note=voted.note)
-    if best is None:
+    if not chosen:
         return JobResult(
             message=f"Nothing the vote names built as asked. "
                     f"{_said(answer)}",
             report=result)
-    structure = best.structure
+    for each in chosen:
+        each.structure.meta.setdefault("warnings", []).append(
+            "A starting geometry on a net the nearest precedents "
+            "formed, not a prediction that this is the phase that "
+            "forms.")
+    best = chosen[0]
     candidate = best.candidate
-    structure.meta.setdefault("warnings", []).append(
-        "A starting geometry on a net the nearest precedents formed, "
-        "not a prediction that this is the phase that forms.")
+    built = sum(a.confirmed for a in tried.attempts)
+    opened = (f"the best-ranked of {built} that built as asked"
+              if len(chosen) == 1 else
+              f"and {len(chosen) - 1} more: {_names(chosen[1:])}")
+    short = (f" ({top} asked for, {len(chosen)} built)"
+             if len(chosen) < top else "")
     return JobResult(
         message=f"Built {candidate.net} with "
                 f"{', '.join(n for _, n in candidate.nodes)} "
-                f"({best.atoms} atoms), the best-ranked of "
-                f"{sum(a.confirmed for a in tried.attempts)} that "
-                f"built as asked. {_said(answer)}",
-        structure=structure, report=result)
+                f"({best.atoms} atoms), {opened}{short}. "
+                f"{_said(answer)}",
+        structure=best.structure,
+        more=tuple(a.structure for a in chosen[1:]),
+        report=result)
 
 
-def _tried(tried) -> tuple[Table, ...]:
+def _names(attempts) -> str:
+    return ", ".join(f"{a.candidate.net} with {a.candidate.node}"
+                     for a in attempts)
+
+
+def _tried(tried, chosen=()) -> tuple[Table, ...]:
+    opened = {id(a) for a in chosen}
     rows = [Row.of(
         a.candidate.net,
         ", ".join(f"{k}={n}" for k, n in a.candidate.nodes),
         a.candidate.edge or "none",
-        f"{a.candidate.score:.3f}", a.status,
+        f"{a.candidate.score:.3f}",
+        f"{a.status}, opened" if id(a) in opened else a.status,
         a.atoms or "--", a.candidate.spelled,
         note=a.verdict)
         for a in tried.attempts]
     rows += [Row.of(c.net, ", ".join(f"{k}={n}" for k, n in c.nodes),
                     c.edge or "none", f"{c.score:.3f}",
-                    "not tried: out of time", "--", c.spelled)
+                    tried.why_untried(c), "--", c.spelled)
              for c in tried.untried]
     linker = tried.linker
     built = Table(
@@ -334,26 +385,32 @@ SYNTHESIS = Module(
                 "formed, each with its share of the vote and the "
                 "precedents behind it.  Experimental: a vote, not a "
                 "prediction.",
-    order=28, group="build",
+    # Under the MOF builder: it is a way to choose what to build.
+    order=28, group="build", menu="MOF builder",
     check=available,
     provides=frozenset({"structure", "table"}),
     actions=(
-        Action(name="forecast", label="From a synthesis...",
+        # One entry and one form, Build the likely frameworks a box in
+        # it: the vote and the build ask the same five questions, and
+        # two entries asked them twice.  The vote alone stays an
+        # action for the command line and the agent, unlisted, since
+        # it is the quick answer and needs neither ase nor a folder.
+        Action(name="build", label="From a synthesis...",
+               tip="The nodes and nets the nearest published "
+                   "syntheses formed, and the likeliest built in a "
+                   "new tab",
+               kind="build",
+               needs_structure=False,
+               params=PARAMS + BUILD_PARAMS,
+               run=from_a_synthesis),
+        Action(name="forecast", label="Vote only",
                tip="The nodes and nets the nearest published "
                    "syntheses formed",
                needs_structure=False,
                writes_run_folder=False,
+               listed=False,
                params=PARAMS,
                run=forecast),
-        Action(name="build", label="Build the likely frameworks...",
-               tip="Vote, then build the nets and nodes the nearest "
-                   "syntheses formed; the best build opens in a new "
-                   "tab",
-               kind="build",
-               needs_structure=False,
-               check=_can_build,
-               params=PARAMS + BUILD_PARAMS,
-               run=build_likely),
     ),
 )
 

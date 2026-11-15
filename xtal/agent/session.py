@@ -236,11 +236,16 @@ class Session:
         filed = ws.adopt_build(
             result.structure, run=folder.path if folder else None,
             artifacts=getattr(result, "artifacts", ()))
+        # The session is the first; the rest are filed beside it and
+        # named, so an agent asked for three can open the other two.
+        also = [str(ws.adopt_build(extra).path)
+                for extra in getattr(result, "more", ())]
         session = cls.open(filed.path)
         answer = VerbResult(
             action, True, result.summary(),
             atoms_after=session.n_atoms,
             data={"path": str(filed.path),
+                  **({"also": also} if also else {}),
                   "run": str(filed.run) if filed.run else "",
                   **_report_data(result)},
             diagnostics=_result_warnings(result))

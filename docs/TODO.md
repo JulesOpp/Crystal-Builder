@@ -742,9 +742,9 @@ Four small things the branch's final review found and did not fix:
 
 ### From a synthesis: what is still owed
 
-Modules ▸ From a synthesis… (`xtal run synthesis.forecast`) votes the
-nearest published syntheses on node and net, and Build the likely
-frameworks… (`synthesis.build`) builds what the vote names
+Modules ▸ MOF builder ▸ From a synthesis… votes the nearest published
+syntheses on node and net (`xtal run synthesis.forecast`) and, ticked,
+builds the top n of what the vote names (`synthesis.build`)
 (`xtal/mof/precedent.py`, `xtal/mof/candidates.py`; the design is
 `docs/FROM_A_SYNTHESIS.md`). Owed:
 - **Linkers that are not carboxylates**: a pyridyl, an azolate or a
@@ -763,7 +763,8 @@ frameworks… (`synthesis.build`) builds what the vote names
 - **A dialog**: the generated form takes linkers as text; the
   sketcher (`build_molecule.sketch_for`) is the better way to give
   one, and the tried frameworks want a Build button per row rather
-  than a line to copy.
+  than a line to copy. *Frameworks to open* is not greyed when Build
+  is unticked; the generated form has no dependent fields.
 - **More precedents**: only 323 of the 7870 have conditions, because
   SynMOF-ME is 840 syntheses. A larger extraction (the CSD's own
   synthesis text, or a text-mined set with a licence that allows

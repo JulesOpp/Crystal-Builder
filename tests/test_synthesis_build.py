@@ -241,6 +241,114 @@ def test_an_assertion_inside_pormake_is_one_failed_row(monkeypatch):
     assert attempts[0].verdict == "AssertionError"
 
 
+class _Built:
+    """What :func:`xtal.mof.build.build` hands back, as far as the
+    trial reads it."""
+
+    def __init__(self, request, agrees=True, overlaps=()):
+        self.net_agrees = agrees
+        self.overlaps = overlaps
+        self.n_atoms = 10
+        self.structure = request
+
+    def verdict(self):
+        return "fine"
+
+
+@pytest.fixture
+def fake_builds(monkeypatch):
+    """Every build succeeds instantly, except the ones the test lists
+    as overlapping; the structure is the request, so a test can tell
+    which candidate a build was."""
+    import importlib
+
+    build_module = importlib.import_module("xtal.mof.build")
+    crowded = set()
+    made = []
+
+    def build(request, directory, catalog):
+        made.append(request)
+        return _Built(request, overlaps=(1,) if str(request) in crowded
+                      else ())
+
+    monkeypatch.setattr(build_module, "build", build)
+    return crowded, made
+
+
+def _three():
+    return [Candidate("fcu", ((0, "N14"),), "E14", "Zr6", 0.6),
+            Candidate("fcu", ((0, "N15"),), "E14", "Zr6", 0.5),
+            Candidate("pcu", ((0, "N16"),), "E14", "Zn4", 0.3)]
+
+
+def test_asking_for_one_build_stops_at_the_first_clean_one(fake_builds):
+    """Building the rest only to open the first was most of the 30 s
+    a run took."""
+    _, made = fake_builds
+    first, second, third = _three()
+    attempts, untried = candidates.attempt([first, second, third],
+                                           catalog=None, wanted=1)
+    trial = Trial(attempts, untried, [], wanted=1)
+
+    assert len(made) == 1
+    assert trial.chosen(1) == attempts
+    assert trial.why_untried(third) == "not tried: one built as asked"
+
+
+def test_the_top_two_are_two_frameworks_not_one_cluster_drawn_twice(
+        fake_builds):
+    """N14 and N15 are both Zr6(CO2)6: the second is passed over, not
+    built and opened as a second framework."""
+    _, made = fake_builds
+    first, second, third = _three()
+    attempts, untried = candidates.attempt([first, second, third],
+                                           catalog=None, wanted=2)
+    trial = Trial(attempts, untried, [], wanted=2)
+
+    assert [a.candidate for a in trial.chosen(2)] == [first, third]
+    assert untried == [second]
+    assert trial.why_untried(second) == \
+        "not tried: fcu with Zr6 already built"
+
+
+def test_an_overlapping_build_is_opened_only_when_too_few_are_clean(
+        fake_builds):
+    crowded, _ = fake_builds
+    first, _, third = _three()
+    crowded.add(str(first.request()))
+    attempts, untried = candidates.attempt([first, third],
+                                           catalog=None, wanted=2)
+    trial = Trial(attempts, untried, [], wanted=2)
+
+    assert [a.candidate for a in trial.chosen(1)] == [third]
+    assert [a.candidate for a in trial.chosen(2)] == [third, first]
+
+
+def test_a_crowded_drawing_is_not_opened_beside_a_clean_one_of_it(
+        fake_builds):
+    """N14 overlaps, so N15 is still tried and comes out clean; asked
+    for three with two frameworks to give, the crowded drawing of the
+    first is not made up into a third tab of the same thing."""
+    crowded, _ = fake_builds
+    first, second, third = _three()
+    crowded.add(str(first.request()))
+    attempts, untried = candidates.attempt([first, second, third],
+                                           catalog=None, wanted=3)
+    trial = Trial(attempts, untried, [], wanted=3)
+
+    assert len(attempts) == 3
+    assert [a.candidate for a in trial.chosen(3)] == [second, third]
+
+
+def test_fewer_built_than_asked_for_is_said_not_padded(fake_builds):
+    first, *_ = _three()
+    attempts, untried = candidates.attempt([first], catalog=None,
+                                           wanted=3)
+    trial = Trial(attempts, untried, [], wanted=3)
+
+    assert len(trial.chosen(3)) == 1
+
+
 @needs_builder
 def test_once_the_time_is_spent_the_rest_are_listed_untried(catalog):
     """At least one is always built -- a budget of nothing would
@@ -266,24 +374,65 @@ def test_stop_leaves_the_rest_untried(catalog):
 
 # ---------------------------------------------------------- the module
 
-def test_the_build_entry_needs_the_mof_builder_too(monkeypatch):
-    from xtal.modules import mof
-
-    monkeypatch.setattr(synthesis, "installed", lambda: True)
-    monkeypatch.setattr(mof, "available",
-                        lambda: Availability(False, "needs ase"))
+def test_without_ase_a_build_is_a_failed_run_saying_how_to_vote(
+        monkeypatch):
+    """The entry is no longer greyed for want of the MOF builder --
+    the vote alone needs RDKit only -- so a build without ase must say
+    why it did not build and how to get the vote anyway."""
+    monkeypatch.setattr(synthesis, "_builder",
+                        lambda: Availability(False, "needs ase."))
     action = synthesis.SYNTHESIS.action("build")
+    result = action.run(Job(params=action.coerce({
+        "metal": "Zr", "linkers": "BDC"})))
 
-    assert not action.check()
-    assert action.check().reason == "needs ase"
+    assert not result.ok
+    assert result.message.startswith("needs ase.")
+    assert "Untick Build the likely frameworks" in result.message
 
 
-def test_without_rdkit_the_build_entry_names_the_extra(monkeypatch):
+def test_without_rdkit_the_entry_names_the_extra(monkeypatch):
     monkeypatch.setattr(synthesis, "installed", lambda: False)
-    available = synthesis.SYNTHESIS.action("build").check()
+    available = synthesis.SYNTHESIS.availability()
 
     assert not available
     assert install.command("build") in available.reason
+
+
+def test_the_vote_and_the_build_are_one_listed_entry():
+    """Jules's ask: one form with a box, not two entries asking the
+    same five questions.  The vote alone stays, for the command line,
+    unlisted."""
+    listed = [a.name for a in synthesis.SYNTHESIS.actions if a.listed]
+    build = synthesis.SYNTHESIS.action("build")
+
+    assert listed == ["build"]
+    assert build.label == "From a synthesis..."
+    assert build.defaults()["build"] is True
+    assert build.defaults()["top"] == 1
+    assert not synthesis.SYNTHESIS.action("forecast").listed
+
+
+def test_it_shares_the_mof_builder_submenu():
+    from xtal.modules import MODULES
+
+    assert synthesis.SYNTHESIS.menu == "MOF builder"
+    assert MODULES.get("mof").menu == "MOF builder"
+
+
+def test_unticked_the_entry_is_the_vote_and_never_reaches_the_builder(
+        monkeypatch):
+    import sys
+
+    monkeypatch.delitem(sys.modules, "xtal.mof.candidates",
+                        raising=False)
+    monkeypatch.setattr(synthesis, "_builder", lambda: pytest.fail(
+        "the builder was asked for with Build unticked"))
+    action = synthesis.SYNTHESIS.action("build")
+    result = action.run(Job(params=action.coerce({
+        "metal": "Zr", "linkers": "", "build": False})))
+
+    assert not result.ok and "linker" in result.message
+    assert "xtal.mof.candidates" not in sys.modules
 
 
 @needs_rdkit
@@ -319,7 +468,36 @@ def test_uio_66_is_built_from_its_synthesis_into_the_workspace(tmp_path):
     assert len(list(workspace.blocks.glob("SYN-*.xyz"))) == 1
     tried = result.report.tables[0]
     assert tried.title == "Frameworks tried"
-    assert tried.rows[0].texts[4] == "built"
+    assert tried.rows[0].texts[4] == "built, opened"
+
+
+@needs_rdkit
+@needs_builder
+@pytest.mark.slow
+def test_the_top_two_from_uio_66s_synthesis_are_two_frameworks(
+        tmp_path):
+    """fcu with Zr6 first and a second framework after it, each a
+    structure of its own, and the report says which rows opened."""
+    from xtal.workspace import Workspace
+
+    workspace = Workspace.create(tmp_path / "ws")
+    entry = workspace.add_document("synthesis")
+    action = synthesis.SYNTHESIS.action("build")
+    result = action.run(Job(
+        params=action.coerce({"metal": "ZrCl4", "linkers": "BDC",
+                              "solvents": "DMF", "top": 2,
+                              "budget": 60.0}),
+        folder=entry.next_run("synthesis", "build")))
+
+    assert result.ok, result.message
+    assert result.structure.meta["title"].startswith("fcu-N419-SYN-")
+    assert len(result.more) == 1
+    second = result.more[0].meta["title"]
+    assert not second.startswith("fcu-N419")
+    assert "and 1 more:" in result.message
+    opened = [r for r in result.report.tables[0].rows
+              if r.texts[4].endswith(", opened")]
+    assert len(opened) == 2
 
 
 @needs_rdkit

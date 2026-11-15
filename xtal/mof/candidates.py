@@ -338,25 +338,72 @@ class Trial:
     untried: list[Candidate]
     skipped: list[Skipped]
     linker: LinkerBlock | None = None
+    #: How many builds were asked for; once that many came out clean
+    #: the rest were left, and that is why they are untried.
+    wanted: int = 1
 
     @property
     def best(self) -> Attempt | None:
         """The highest-ranked build that is the net it was asked to
         be with nothing overlapping; failing that, the highest-ranked
         that is the net."""
+        chosen = self.chosen(1)
+        return chosen[0] if chosen else None
+
+    def chosen(self, n: int) -> list[Attempt]:
+        """The ``n`` builds to open, best first: one per net and voted
+        node, the clean confirmed ones in rank order, then -- only if
+        there are too few -- the confirmed ones with atoms
+        overlapping.  One per pair because the catalogue draws one
+        cluster twice (N14 and N15 are both Zr6(CO2)6), and two
+        drawings of UiO-66 are not two frameworks."""
         confirmed = [a for a in self.attempts if a.confirmed]
-        clean = [a for a in confirmed if not a.overlaps]
-        return (clean or confirmed or [None])[0]
+        ordered = ([a for a in confirmed if not a.overlaps]
+                   + [a for a in confirmed if a.overlaps])
+        out, seen = [], set()
+        for tried in ordered:
+            key = _key(tried.candidate)
+            if key not in seen:
+                seen.add(key)
+                out.append(tried)
+        return out[:max(int(n), 0)]
+
+    def why_untried(self, candidate: Candidate) -> str:
+        built = _clean(self.attempts)
+        if _key(candidate) in built:
+            return (f"not tried: {candidate.net} with {candidate.node} "
+                    f"already built")
+        if len(built) >= self.wanted:
+            return ("not tried: one built as asked" if self.wanted == 1
+                    else f"not tried: {self.wanted} built as asked")
+        return "not tried: out of time"
+
+
+def _key(candidate: Candidate) -> tuple[str, str]:
+    return candidate.net, candidate.node
+
+
+def _clean(attempts) -> set:
+    """The net and voted node of every clean confirmed build."""
+    return {_key(a.candidate) for a in attempts
+            if a.confirmed and not a.overlaps}
 
 
 def attempt(candidates, catalog, directory=None, budget: float = BUDGET,
-            log=None, cancelled=lambda: False) -> tuple[list, list]:
-    """Build candidates in order until ``budget`` seconds are spent.
+            log=None, cancelled=lambda: False,
+            wanted: int | None = None) -> tuple[list, list]:
+    """Build candidates in order until ``budget`` seconds are spent,
+    or until ``wanted`` of them have come out clean.
 
     Returns ``(attempts, untried)``.  The budget is checked between
     builds, never during one -- PORMAKE builds in a single call with
     nothing to poll -- so the last build may finish past it.  Only a
     confirmed build keeps its structure; the rest are a line each.
+    Stopping at ``wanted`` is what makes asking for one build cost
+    one build: the candidates are best first, so the first clean one
+    is the one that would have been opened anyway.  With ``wanted``
+    a second drawing of a net and node already built clean is passed
+    over, since it would only be opened as the same framework.
     """
     from xtal.mof.build import build
 
@@ -368,7 +415,11 @@ def attempt(candidates, catalog, directory=None, budget: float = BUDGET,
     attempts, untried = [], []
     try:
         for candidate in candidates:
-            if attempts and (time.perf_counter() - start > budget
+            built = _clean(attempts)
+            if attempts and ((wanted is not None
+                              and (len(built) >= wanted
+                                   or _key(candidate) in built))
+                             or time.perf_counter() - start > budget
                              or cancelled()):
                 untried.append(candidate)
                 continue
@@ -406,7 +457,7 @@ def attempt(candidates, catalog, directory=None, budget: float = BUDGET,
 
 def trial(forecast: precedent.Forecast, catalog_for, folder=None,
           budget: float = BUDGET, log=None,
-          cancelled=lambda: False) -> Trial:
+          cancelled=lambda: False, wanted: int = 1) -> Trial:
     """The whole of it: the linker written, the plan, the builds.
 
     ``catalog_for(blocks_folder)`` is handed the folder the linker
@@ -415,6 +466,7 @@ def trial(forecast: precedent.Forecast, catalog_for, folder=None,
     a catalogue of its own.  ``folder`` keeps the linker block (the
     workspace's ``blocks/``, so ``xtal run mof.build`` finds it again);
     ``None`` writes it to a temporary folder that goes with the run.
+    ``wanted`` is how many clean builds to stop at.
     """
     linker = linker_block(forecast.query.linkers[0][0])
     holder = None
@@ -426,8 +478,9 @@ def trial(forecast: precedent.Forecast, catalog_for, folder=None,
         catalog = catalog_for(Path(folder))
         candidates, skipped = plan(forecast, linker, catalog)
         attempts, untried = attempt(candidates, catalog, budget=budget,
-                                    log=log, cancelled=cancelled)
+                                    log=log, cancelled=cancelled,
+                                    wanted=wanted)
     finally:
         if holder is not None:
             holder.cleanup()
-    return Trial(attempts, untried, skipped, linker)
+    return Trial(attempts, untried, skipped, linker, wanted=wanted)
