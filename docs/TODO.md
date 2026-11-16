@@ -740,6 +740,41 @@ Four small things the branch's final review found and did not fix:
 
 ## Modules
 
+### From a synthesis: what is still owed
+
+Modules ▸ MOF builder ▸ From a synthesis… votes the nearest published
+syntheses on node and net (`xtal run synthesis.forecast`) and, ticked,
+builds the top n of what the vote names (`synthesis.build`)
+(`xtal/mof/precedent.py`, `xtal/mof/candidates.py`; the design is
+`docs/FROM_A_SYNTHESIS.md`). Owed:
+- **Linkers that are not carboxylates**: a pyridyl, an azolate or a
+  phosphonate is refused by name. Each meets its metal in a node the
+  catalogue draws differently (a ZIF's Zn is a single atom with the
+  imidazolate as the edge's own ends), so each needs its own rule for
+  where the connection point goes and which clusters are plain.
+- **Rod nodes**: MIL-53 and MOF-74 are rod frameworks, built by
+  `xtal/mof/rodbuild.py` and not by PORMAKE, so a vote for them has
+  nothing to try. MOFid gives no rod token to vote on either.
+- **Analogue clusters**: a node whose metals no catalogue cluster
+  has exactly (Hf6 on fcu) is skipped; the Zr6 cluster with the metal
+  swapped, labelled hypothetical, would be the obvious try.
+- **Only the first linker is built**: a mixed-linker synthesis (BDC
+  and DABCO, pillared layers) votes on both and builds with the first.
+- **A dialog**: the generated form takes linkers as text; the
+  sketcher (`build_molecule.sketch_for`) is the better way to give
+  one, and the tried frameworks want a Build button per row rather
+  than a line to copy.
+- **More precedents**: only 323 of the 7870 have conditions, because
+  SynMOF-ME is 840 syntheses. A larger extraction (the CSD's own
+  synthesis text, or a text-mined set with a licence that allows
+  shipping) slots in as another `precedent.Source`.
+- **Hold out a paper, not a refcode**: the table has no DOI for a CSD
+  entry, so a paper's series of related structures stays in when one
+  of them is tested and the held-out 62 % is generous.
+- **Dimensionality**: CoRE MOF's `structure_dimension` is in the SI
+  table only (1372 structures); the vote could say 2D or 3D for
+  those.
+
 ### Polymers after the packing builder
 
 Raised while planning the polymer builder (2026-10-02), which shipped

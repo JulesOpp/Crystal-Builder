@@ -650,7 +650,7 @@ PORMAKE = Module(
     description="Build a framework from a topology, a metal node and "
                 "a linker, with PORMAKE.  The result opens in a new "
                 "tab with its net already drawn.",
-    order=20, group="build",
+    order=20, group="build", menu="MOF builder",
     check=available,
     provides=frozenset({"structure", "table"}),
     actions=(

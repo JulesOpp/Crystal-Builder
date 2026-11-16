@@ -144,8 +144,9 @@ PACKAGE_DATA = {
     # `xtal.mof.catalog.rcsr_layers`.
     "xtal/mof/library": ["blocks/*.xyz", "rods/*.xyz",
                          "rods/linkers/*.xyz", "topologies/*.cgd"],
-    # The linker series as measured: what Suggest linkers reads.
-    "xtal/mof": ["data/*.json"],
+    # The linker series as measured: what Suggest linkers reads; and
+    # the synthesis precedents, what From a synthesis votes over.
+    "xtal/mof": ["data/*.json", "data/precedents.json.gz"],
     # The AI assistant skill, which Help > Set up an AI assistant
     # copies out of the bundle: without it the entry has nothing to
     # install.

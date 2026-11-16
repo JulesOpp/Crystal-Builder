@@ -1564,8 +1564,9 @@ def test_build_on_a_net_with_no_linker_set_opens_the_general_builder(
 
 def test_each_builder_has_its_own_entry_and_the_explorer_is_a_net_one(
         window):
-    """Modules > MOF builder holds the five builders and Modules > Net
-    builder the explorer; each entry opens its own dialog."""
+    """Modules > MOF builder holds the five builders, then From a
+    synthesis, and Modules > Net builder the explorer; each builder
+    opens its own dialog."""
     from xtalapp.dialogs import module_dialog
 
     labels = [a.text() for a in
@@ -1574,7 +1575,8 @@ def test_each_builder_has_its_own_entry_and_the_explorer_is_a_net_one(
                       "Build a pore-partitioned MOF (pacs)...",
                       "Build a supertetrahedral MOF...",
                       "Build a mixed-linker MOF (merged net)...",
-                      "Build a rod framework..."]
+                      "Build a rod framework...",
+                      "From a synthesis..."]
     net = [a.text() for a in window._module_submenus["net"].actions()]
     assert "Merged-net explorer..." in net
     dialogs = {MODULES.find(f"mof.{name}")[1].dialog for name in

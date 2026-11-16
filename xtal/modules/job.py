@@ -244,6 +244,13 @@ class JobResult:
     #: A new geometry for the document to adopt, as one undoable
     #: command.  ``None`` from anything that only measured.
     structure: Any = None
+    #: Further structures built from nothing, after :attr:`structure`
+    #: and each filed and opened the way it is, in a tab of its own.
+    #: From a synthesis asked for its top three is three frameworks,
+    #: and one tab with two left in the report was not what was
+    #: asked.  Only for an action that needs no structure: a run over
+    #: a document has one document to change.
+    more: tuple = ()
     #: Anything worth naming that the run wrote.  The tree reads the
     #: folder rather than this, so it is for messages, not for the
     #: tree.
