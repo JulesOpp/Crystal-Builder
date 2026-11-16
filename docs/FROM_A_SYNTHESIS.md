@@ -111,7 +111,8 @@ With *Build the likely frameworks* ticked (the default; `synthesis.build`,
 `xtal/mof/candidates.py`) the form votes and then builds. It was a
 second entry until Jules's review: the two asked the same five
 questions, so they are one form under Modules ▸ MOF builder, the box
-and *Frameworks to open* (n, default 1) added to it. Approaches weighed:
+and *Frameworks to open* (n, default 1) added to it; n and the time
+are greyed while the box is unticked (`Param.when`). Approaches weighed:
 matching MOFid's node SMILES to a catalogue block atom for atom
 (exact, but two writers draw one cluster two ways, which is why the
 vote counts nodes by their metals), against matching by metals and

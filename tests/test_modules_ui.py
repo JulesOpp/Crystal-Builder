@@ -523,6 +523,39 @@ def test_the_form_hands_back_declared_types(qtbot):
     assert isinstance(form.values()["n"], int)
 
 
+def test_a_field_that_needs_a_box_ticked_is_greyed_while_it_is_not(
+        qtbot):
+    """Frameworks to open means nothing with Build unticked, and a box
+    left editable says it does.  Greying it keeps its value, so ticking
+    Build again brings back what was there."""
+    form = ParamForm((Param("build", kind="bool", default=True),
+                      Param("top", kind="int", default=2, when="build"),
+                      Param("other", kind="int")))
+    qtbot.addWidget(form)
+    assert form.widgets["top"].isEnabled()
+
+    form.widgets["build"].setChecked(False)
+    assert not form.widgets["top"].isEnabled()
+    assert form.widgets["other"].isEnabled()
+    assert form.values()["top"] == 2
+
+    form.set_values({"build": True})
+    assert form.widgets["top"].isEnabled()
+
+
+def test_a_field_is_greyed_from_the_start_when_its_box_starts_unticked(
+        qtbot):
+    form = ParamForm((Param("build", kind="bool", default=False),
+                      Param("top", kind="int", when="build")))
+    qtbot.addWidget(form)
+    assert not form.widgets["top"].isEnabled()
+
+
+def test_a_field_cannot_wait_on_a_box_the_form_does_not_have(qtbot):
+    with pytest.raises(ValueError, match="build"):
+        ParamForm((Param("top", kind="int", when="build"),))
+
+
 def test_a_path_says_where_its_file_is_had_when_it_declares_it(qtbot):
     """The MACE model file's Download link, beside Browse: a path
     nobody can fill without knowing where the file comes from.  One

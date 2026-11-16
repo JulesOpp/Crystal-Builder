@@ -89,3 +89,18 @@ def test_the_top_two_open_in_two_tabs_with_the_best_in_front(
     front = window.current_document().structure
     assert front.meta["title"].startswith("fcu-N419-SYN-")
     assert all(d.entry is not None for d in window.documents)
+
+
+def test_frameworks_to_open_is_greyed_while_build_is_unticked(qtbot):
+    """Jules's form: n only matters when something is built."""
+    from xtal.modules import MODULES
+
+    module, action = MODULES.find("synthesis.build")
+    dialog = ModuleDialog(module, action)
+    qtbot.addWidget(dialog)
+    widgets = dialog.form.widgets
+
+    assert widgets["top"].isEnabled() and widgets["budget"].isEnabled()
+    widgets["build"].setChecked(False)
+    assert not widgets["top"].isEnabled()
+    assert not widgets["budget"].isEnabled()

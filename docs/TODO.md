@@ -763,8 +763,7 @@ builds the top n of what the vote names (`synthesis.build`)
 - **A dialog**: the generated form takes linkers as text; the
   sketcher (`build_molecule.sketch_for`) is the better way to give
   one, and the tried frameworks want a Build button per row rather
-  than a line to copy. *Frameworks to open* is not greyed when Build
-  is unticked; the generated form has no dependent fields.
+  than a line to copy.
 - **More precedents**: only 323 of the 7870 have conditions, because
   SynMOF-ME is 840 syntheses. A larger extraction (the CSD's own
   synthesis text, or a text-mined set with a licence that allows

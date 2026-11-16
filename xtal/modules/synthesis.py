@@ -78,14 +78,14 @@ BUILD_PARAMS = (
                "the best in a new tab.  Unticked, the answer is the "
                "vote alone, in about a second."),
     Param("top", "Frameworks to open", kind="int", default=1,
-          minimum=1, maximum=10,
+          minimum=1, maximum=10, when="build",
           help="How many of the best builds to open, each in its own "
                "tab: different nets or different nodes, never one "
                "cluster drawn twice.  Building stops once this many "
                "have come out as asked."),
     Param("budget", "Time to spend building", kind="float",
           default=30.0, minimum=1.0, maximum=600.0, decimals=0,
-          suffix=" s",
+          suffix=" s", when="build",
           help="Seconds of test builds, best-ranked first; what is "
                "left is listed untried.  A build is about a second on "
                "pcu, fcu or tbo and longer on an unusual net, and the "
