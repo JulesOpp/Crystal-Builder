@@ -442,6 +442,74 @@ favour them clearly.
 
 ---
 
+## Single-metal nodes and PORMAKE2's block library
+
+Planned 2026-11-20 from Lee, Kim, Lee & Kim, *Chem. Mater.* 2026
+(PORMAKE2).  The full plan, with its measurements, is
+`docs/plans/pormake2-single-metal.md`; one commit per phase.
+
+No node we can build with today is a lone metal, so ZIF-type and
+CALF-20-type frameworks cannot be built.  PORMAKE2 is MIT, like the
+PORMAKE we vendor, and its library is **vendored, converted** to our
+conventions.  Decided with Julius: a metal node's **shape is held and
+picked** (no "net decides" mode: on `sod` it is worse and relaxes to the
+same structure), and **we generate our own metal nodes** from
+`coordination.SHAPES` rather than ship PORMAKE2's 88 -- theirs at
+0.9 + 0.9 A make ZIF-8's cell 8 % short, ours are within 1.3 % before
+any relax.  A metal point's distance depends on what meets it, so a
+metal node is a template written at build time; converted points are
+pulled to 0.75 A; names are prefixed `P2E`/`P2N`; a joint pairs carbon
+with carbon or donor with metal and nothing else.
+
+| Phase | Delivers | Main files |
+|---|---|---|
+| **0 — The converted library** | PORMAKE2's blocks, LICENSE and provenance, metadata in an `index.json` sidecar; changes no build | `scripts/pormake2_blocks.py`, `xtal/mof/library/pormake2/` |
+| **1 — Single-metal nodes** | `MetalNode(element, shape)` (`Zn_T4`, `Cu_SP4`, ...), donor-dependent reach, end matching | `xtal/mof/metal_nodes.py` |
+| **2 — Charge check** | The framework's formal charge over allowed oxidation states | `xtal/mof/charge.py` |
+| **3 — The window and the agent** | A *Single metal* group in the block picker; the agent's build | `xtalapp/`, `xtal/agent/` |
+
+---
+
+## Reciprocal space: the zone, its paths and their coordinates
+
+Planned 2026-11-16 from a user's suggestion: reciprocal lattice and
+Brillouin zone, selectable high-symmetry paths, and the coordinates
+of the points along them, "similar to XCrySDen" with a modern
+interface.  The full plan, with its measurements, is
+`docs/plans/reciprocal-space.md`; branch
+`features/reciprocal-space` from main, one commit per phase.
+
+Decided with Julius: its **own window** (Cell ▸ Reciprocal space…),
+**HPKOT through seekpath** as the default convention with ASE's
+Setyawan-Curtarolo in a box, and export to QE, VASP, DFTB+, phonopy,
+CASTEP, CP2K and CSV.
+
+What makes it more than wiring: ASE reads the metric alone, so every
+centred cell written conventionally (halite, MOF-5, HKUST-1, MFU-4l)
+gets the simple-cubic path today.  seekpath reads the group from the
+atoms, at `p1.SPECIAL_POSITION_TOL` (0.05 A) -- at its own 1e-5 MFU-4l
+is oP1.  **A k-point's coordinates travel with the cell they are
+in**: fcc X is (0,1,0) in the conventional cell, which is Gamma
+there, so every table and export names its basis and a primitive-basis
+export writes the primitive cell beside it.  This becomes an invariant
+in CLAUDE.md with Phase 1.
+
+| Phase | Delivers | Main files | Size |
+|---|---|---|---|
+| **R1 — The path is the crystal's** | `special_path` (seekpath, markers held back, `symmetry._spglib_cell`, falls back with a note when spglib refuses -- CFA-1), `KPath` in both bases, reciprocal lattice, the vertex table; seekpath a core dependency and in `--selftest` | `xtal/analysis/kpath.py`, `pyproject.toml` | M |
+| **R2 — Formats** | QE `crystal_b`, VASP line mode, DFTB+ `Klines`, phonopy `BAND`, CASTEP, CP2K, CSV; jumps as each code reads them; the cell written beside a primitive-basis export | `xtal/analysis/kpath_formats.py` | M |
+| **R3 — The zone view** | Shaded faces, b1-b3, the folded zone of a non-primitive cell, hover coordinates, click to build the path (shift-click a new run) | `xtalapp/widgets/brillouin.py` | M |
+| **R4 — The window** | Cell ▸ Reciprocal space…: lattice, symmetry and notes, path editor and custom points, points table with a basis box, Export / Copy / Open primitive cell (a new tab; this one untouched) | `xtalapp/reciprocal/window.py`, `xtalapp/menus.py` | L |
+| **R5 — One path everywhere** | The DFTB+ band dialog on `special_path` with the convention box; `xtal kpath`; a read-only agent verb `band_path` (`READ_ONLY`, codes `SYMMETRY_UNREADABLE`, `FOLDED_CELL`, skill updated) | `xtalapp/dialogs/dftb_run.py`, `xtal/cli.py`, `xtal/agent/` | M |
+| **R6 — Layers (ask first)** | A 2D zone and path for a layer (Gamma-M-K-Gamma on a hexagonal sheet); seekpath has no 2D convention | `xtal/analysis/kpath.py` | M |
+
+Open before R5: the DFTB+ band dialog's default on a centred
+conventional cell -- HPKOT's fcc points in the cell's basis (folded)
+with a *Reduce to primitive* button, or ASE's cell-shape path kept
+until the cell is reduced.
+
+---
+
 # Not scheduled
 
 Raised while using the application; no phase yet.
