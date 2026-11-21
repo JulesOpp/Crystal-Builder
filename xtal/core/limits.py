@@ -68,6 +68,10 @@ BUDGETS = {
     # graph grows with the atoms (HESSIAN_MB_PER_ATOM): 300 is 4 GB of
     # it beside the model.
     "hessian": (100, 300),
+    # A two-colour print's triangles, both colours: the mesher holds
+    # about 400 bytes a triangle at its peak (MOF-5, 2.0 M triangles
+    # at 0.10 A, 0.8 GB), so 8 M is about 3 GB.
+    "print": (3_000_000, 8_000_000),
 }
 
 #: What an analytic Hessian's retained graph costs, MB a P1 atom:

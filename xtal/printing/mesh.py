@@ -81,11 +81,16 @@ class TwoBodies:
         return self.vertices[used], inverse.reshape(-1, 3)
 
 
-def two_bodies(primitives, voxel: float) -> TwoBodies:
+def two_bodies(primitives, voxel: float, between=None) -> TwoBodies:
+    """The two bodies of ``primitives`` on a grid of ``voxel``.
+    ``between`` is called between blocks -- a cancellation's
+    ``check``, which raises to stop."""
     grid = fields.Grid.around(primitives, voxel)
     keys, positions = [], []
     bodies = ([], [])
     for block in fields.blocks(primitives, grid):
+        if between is not None:
+            between()
         _march_block(grid, block, keys, positions, bodies)
     return _weld(keys, positions, bodies)
 
