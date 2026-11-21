@@ -40,7 +40,7 @@ def test_a_centred_cell_has_its_face_and_corner_atoms(halite):
 
 
 def test_every_image_in_a_cut_names_the_p1_atom_it_copies(halite):
-    """A colour chosen for an atom of the document has to reach every
+    """A color chosen for an atom of the document has to reach every
     copy of it: the eight sodium corners are one atom of the cell."""
     cut = cellcut.cut_cell(halite)
     cell = p1.expand(halite)

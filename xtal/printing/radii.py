@@ -1,11 +1,11 @@
 """
 xtal.printing.radii
 ===================
-The ball radii of the one-colour export, so the two exports print the
+The ball radii of the one-color export, so the two exports print the
 same model.
 
 Transcribed from Atomic Blender (``io_mesh_atomic/pdb_import.py``,
-``ELEMENTS_DEFAULT``, as shipped with Blender 3.4).  The one-colour
+``ELEMENTS_DEFAULT``, as shipped with Blender 3.4).  The one-color
 export asks it for radius type ``'1'``, "atomic", and the importer
 reads that as index 1 of ``[used, covalent, atomic]`` -- the
 *covalent* column, which is what is transcribed here.  The add-on is

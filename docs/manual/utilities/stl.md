@@ -84,7 +84,8 @@ in general is {doc}`/quickstart/installation`.
    bonds <cmd-recompute_bonds>` if the structure has none.
 2. Choose {ref}`Export as STL… <cmd-export_stl>` from the *File*
    menu -- its only place, because that is where an export is
-   looked for.  The dialog ({numref}`fig-utilities-stl-export-dialog`)
+   looked for -- and leave *Two-color printing* unticked for one
+   color ({ref}`below <two-colors>` for two).  The dialog ({numref}`fig-utilities-stl-export-dialog`)
    suggests `<structure>.stl` in the directory you last used.
 3. Set the mesh up.  Every setting, its range and its default is in
    the {ref}`reference <mod-blender-export-stl>`; what each is for:
@@ -147,18 +148,17 @@ blender.export-stl` on the command line.
 
 Blender is not installed on the machine this manual was written on.
 The menu entry is still there -- it is enabled whenever a structure is
-open and idle -- and choosing it does not open the dialog; the status
-bar says instead:
+open and idle -- and the dialog still opens, because *Two-color
+printing* needs no Blender.  Unticked, it says under the form
 
 ```text
 Blender is not installed, or not on PATH (XTAL_BLENDER is not set).  It is at https://www.blender.org/
 ```
 
-The same sentence is what `xtal modules` prints beside `blender`, and
-what *Preferences ▸ Engines* says under the empty field.  The dialog
-in {numref}`fig-utilities-stl-export-dialog` was built directly for
-the figure, which is why it shows at all.  Once Blender is installed
-and found, the run proceeds as above.
+and keeps *Run* off until the box is ticked.  The same sentence is
+what `xtal modules` prints beside `blender`, and what *Preferences ▸
+Engines* says under the empty field.  Once Blender is installed and
+found, the one-color run proceeds as above.
 
 % TODO(Sam): Blender is not installed here, so no run was made.  When
 % it is, add the run's real output: the "cut one cell: N atoms, M
@@ -166,25 +166,32 @@ and found, the run proceeds as above.
 % listing (structure.pdb, structure.stl, the log), and check the
 % add-on sentence Blender prints when Atomic Blender is missing.
 
-## Two colours
+(two-colors)=
+## Two colors
 
-```{index} single: 3D printing; two colours
+```{index} single: 3D printing; two colors
 ```
 
-*File ▸ Export for Two-Colour Printing…* makes the same cell as **two
-bodies**, one per filament, and needs no Blender.  Each element is
-colour 1 or colour 2 (metals start in colour 2), an atom group can
-override its atoms' element, and bonds are all colour 1, all colour 2,
-or half and half -- each half its atom's colour, changing halfway
-between the two balls' surfaces.
+Tick *Two-color printing* at the top of the same dialog and the cell
+is made as **two bodies**, one per filament, by the application
+itself: no Blender is needed, and on a machine without it this is
+the one way the dialog runs.  *Remesh into one solid* goes, since two
+colors are always welded, and *Bonds* and a *Colors* box come in.
+Each element is color 1 or color 2 (metals start in color 2), an atom
+group can override its atoms' element, and bonds are all color 1, all
+color 2, or half and half -- each half its atom's color, changing
+halfway between the two balls' surfaces.
 
-It writes a `.3mf` that Bambu Studio and Orca Slicer open as one
-object of two parts, each already on its own filament, and an STL of
-each colour beside it (`name_colour1.stl`, `name_colour2.stl`) for any
-slicer that does not read 3MF: load both together and answer that
-they are one object with several parts.
+It writes a `.3mf` -- the path's suffix follows the box -- that Bambu
+Studio and Orca Slicer open as one object of two parts, each already
+on its own filament, and an STL of each color beside it
+(`name_color1.stl`, `name_color2.stl`) for any slicer that does not
+read 3MF: load both together and answer that they are one object
+with several parts.  Bambu Studio says the file is not from Bambu
+Lab and loads its geometry only; that is every 3MF it did not write,
+and the filaments are assigned all the same.
 
-Both colours are marched on one grid, so the two bodies meet on the
+Both colors are marched on one grid, so the two bodies meet on the
 very same vertices: no overlap and no gap for the slicer to resolve.
 Every body is checked closed and consistently wound before anything
 is written, and a body that is not is a failure rather than a file.

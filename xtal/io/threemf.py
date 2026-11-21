@@ -1,6 +1,6 @@
 """A 3MF of one object in several parts, each on its own extruder.
 
-A two-colour print is one body made of two meshes that meet at a
+A two-color print is one body made of two meshes that meet at a
 shared interface.  Written as two objects, a slicer arranges them
 apart on the bed; written as one object of two *parts*, it keeps them
 together and lets each part take its own filament.  The core 3MF spec

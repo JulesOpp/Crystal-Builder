@@ -779,7 +779,7 @@ The net drawn on this structure as a .cgd file, for Systre to name -- a second o
 
 `export_stl`
 
-One unit cell with its bonds, as a mesh a 3D printer can take.  Blender does the meshing, so it has to be installed -- see Preferences > Engines
+One unit cell with its bonds, as a model a 3D printer can take: in one color, meshed by Blender (see Preferences > Engines), or in two colors as a 3MF, which needs no Blender
 
 ```{index} Export as STL...
 ```

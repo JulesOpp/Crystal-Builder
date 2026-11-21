@@ -1,6 +1,6 @@
 """Binary STL, one mesh to a file, for a print.
 
-A two-colour print is two STLs (or one 3MF, `xtal.io.threemf`) whose
+A two-color print is two STLs (or one 3MF, `xtal.io.threemf`) whose
 meshes meet at a shared interface, so the coordinates are written as
 float32 exactly as handed over and never re-centred or rescaled: a
 slicer that loads both files has to see the interface vertices land on

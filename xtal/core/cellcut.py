@@ -46,7 +46,7 @@ class CellCut:
     """Atoms at cartesian positions, and bonds ``(i, j, order)``
     between them.  ``sites`` is the P1 atom each one is an image of,
     which is how a choice made over the document's atoms -- an atom
-    group's print colour -- reaches every copy of it in the cut."""
+    group's print color -- reaches every copy of it in the cut."""
 
     elements: tuple = ()
     cart: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))

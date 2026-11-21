@@ -2,8 +2,8 @@
 xtal.printing.field
 ===================
 The balls and sticks as two signed-distance fields on one grid: ``f1``
-the distance to the nearest colour-1 primitive, ``f2`` to the nearest
-colour-2 one, negative inside.
+the distance to the nearest color-1 primitive, ``f2`` to the nearest
+color-2 one, negative inside.
 
 **Sparse, a block at a time.**  A framework is mostly pore: MFU-4l's
 cut is 40 million grid points at 0.1 A and a few per cent of them are
@@ -84,7 +84,7 @@ class Block:
 
     @property
     def labels(self) -> np.ndarray:
-        """0 outside, else the colour of the nearer body: 1 wins a tie,
+        """0 outside, else the color of the nearer body: 1 wins a tie,
         which matches the sign of ``f1 - f2`` the interface is placed
         by."""
         out = np.where(self.f1 <= self.f2, 1, 2).astype(np.int8)
@@ -134,7 +134,7 @@ def _block(primitives, grid, key, members, first, last, roof) -> Block:
         d = _distance(primitives, p, points)
         window = tuple(slice(lo[n] - start[n], hi[n] - start[n])
                        for n in range(3))
-        target = f[int(primitives.colour[p])]
+        target = f[int(primitives.color[p])]
         np.minimum(target[window], d, out=target[window])
     return Block(start=tuple(int(s) for s in start), f1=f[1], f2=f[2])
 

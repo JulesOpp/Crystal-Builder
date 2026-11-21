@@ -1,7 +1,7 @@
 """
 xtal.printing
 =============
-A structure as a model a 3D printer can take, in two colours.
+A structure as a model a 3D printer can take, in two colors.
 
 One cell is cut (:func:`xtal.core.cellcut.cut_cell`), turned into balls
 and sticks (:mod:`.primitives`), sampled as a distance field on one

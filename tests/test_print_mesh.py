@@ -1,4 +1,4 @@
-"""A cut cell as two printable bodies, one per colour, that meet
+"""A cut cell as two printable bodies, one per color, that meet
 without overlapping and without a gap."""
 
 import re
@@ -14,11 +14,11 @@ from xtal.printing import check, field, mesh, primitives, radii
 ATOMIC_BLENDER = Path("/Applications/Blender.app/Contents/Resources")
 
 
-def _pair(colours=(1, 2), bonds="half", voxel=0.05):
+def _pair(colors=(1, 2), bonds="half", voxel=0.05):
     cut = CellCut(elements=("C", "O"),
                   cart=np.array([[0.0, 0.0, 0.0], [1.4, 0.1, 0.05]]),
                   bonds=((0, 1, 1.0),))
-    prims = primitives.build(cut, list(colours), bonds)
+    prims = primitives.build(cut, list(colors), bonds)
     return prims, mesh.two_bodies(prims, voxel)
 
 
@@ -54,16 +54,16 @@ def test_a_single_ball_is_a_closed_manifold_of_the_right_volume():
 
 
 @pytest.mark.parametrize("bonds", primitives.BONDS)
-def test_each_colour_body_is_closed_and_consistently_wound(bonds):
+def test_each_color_body_is_closed_and_consistently_wound(bonds):
     """What a slicer counts as non-manifold: an edge used once, used
     by three triangles, or twice the same way round."""
     _prims, bodies = _pair(bonds=bonds)
-    for colour in (1, 2):
-        report = check.report(*bodies.body(colour))
-        assert report.ok, (colour, report.says())
+    for color in (1, 2):
+        report = check.report(*bodies.body(color))
+        assert report.ok, (color, report.says())
 
 
-def test_two_touching_balls_of_two_colours_share_every_interface_vertex():
+def test_two_touching_balls_of_two_colors_share_every_interface_vertex():
     """The interface is one surface with two names: every triangle of
     it is in both bodies, wound oppositely, on the very same vertices
     -- not two surfaces a rounding error apart."""
@@ -77,11 +77,11 @@ def test_two_touching_balls_of_two_colours_share_every_interface_vertex():
             assert (t[1], t[0]) in edges_two
 
 
-def test_the_two_bodies_add_up_to_the_one_colour_solid():
-    """Splitting by colour moves no plastic: the two volumes sum to
-    the volume of the same model in one colour."""
-    _prims, split = _pair(colours=(1, 2))
-    _prims, whole = _pair(colours=(1, 1))
+def test_the_two_bodies_add_up_to_the_one_color_solid():
+    """Splitting by color moves no plastic: the two volumes sum to
+    the volume of the same model in one color."""
+    _prims, split = _pair(colors=(1, 2))
+    _prims, whole = _pair(colors=(1, 1))
     total = sum(check.volume(*split.body(c)) for c in (1, 2))
     assert total == pytest.approx(check.volume(*whole.body(1)), rel=1e-3)
 
@@ -99,7 +99,7 @@ def test_the_bodies_do_not_overlap():
     assert not np.any(one & two)
 
 
-def test_a_half_bond_changes_colour_at_the_middle_of_the_visible_stick():
+def test_a_half_bond_changes_color_at_the_middle_of_the_visible_stick():
     """Halfway between the two ball surfaces: zinc's ball is larger
     than oxygen's, so the change is past the midpoint of the nuclei."""
     cut = CellCut(elements=("Zn", "O"),
@@ -117,19 +117,19 @@ def test_a_half_bond_changes_colour_at_the_middle_of_the_visible_stick():
     assert _inside(*bodies.body(1), points).tolist() == [False, True]
 
 
-@pytest.mark.parametrize("colour", [1, 2])
-def test_a_whole_bond_takes_the_chosen_colour_whatever_its_atoms_are(
-        colour):
-    prims, bodies = _pair(colours=(1, 2), bonds=str(colour))
+@pytest.mark.parametrize("color", [1, 2])
+def test_a_whole_bond_takes_the_chosen_color_whatever_its_atoms_are(
+        color):
+    prims, bodies = _pair(colors=(1, 2), bonds=str(color))
     sticks = prims.kind == primitives.STICK
-    assert prims.colour[sticks].tolist() == [colour]
+    assert prims.color[sticks].tolist() == [color]
     middle = ((prims.a[sticks] + prims.b[sticks]) / 2).reshape(1, 3)
-    assert _inside(*bodies.body(colour), middle).all()
-    assert not _inside(*bodies.body(3 - colour), middle).any()
+    assert _inside(*bodies.body(color), middle).all()
+    assert not _inside(*bodies.body(3 - color), middle).any()
 
 
-def test_a_one_colour_choice_makes_one_body_and_an_empty_other():
-    _prims, bodies = _pair(colours=(1, 1), bonds="1")
+def test_a_one_color_choice_makes_one_body_and_an_empty_other():
+    _prims, bodies = _pair(colors=(1, 1), bonds="1")
     assert check.report(*bodies.body(1)).ok
     vertices, triangles = bodies.body(2)
     assert len(triangles) == 0
@@ -143,19 +143,19 @@ def test_no_vertex_sits_on_a_grid_point():
     steps = (bodies.vertices - grid.origin) / grid.voxel
     off = np.abs(steps - np.round(steps))
     assert np.all(off.max(axis=1) > 0.5 * mesh.CLAMP)
-    for colour in (1, 2):
-        assert check.report(*bodies.body(colour)).degenerate == 0
+    for color in (1, 2):
+        assert check.report(*bodies.body(color)).degenerate == 0
 
 
 @pytest.mark.parametrize("bonds", ["half", "1"])
 def test_halite_cut_meshes_clean_in_both_bond_modes(halite, bonds):
     cut = cellcut.cut_cell(halite)
-    colours = [2 if e == "Na" else 1 for e in cut.elements]
-    prims = primitives.build(cut, colours, bonds)
+    colors = [2 if e == "Na" else 1 for e in cut.elements]
+    prims = primitives.build(cut, colors, bonds)
     bodies = mesh.two_bodies(prims, 0.2)
-    for colour in (1, 2):
-        report = check.report(*bodies.body(colour))
-        assert report.ok, (colour, report.says())
+    for color in (1, 2):
+        report = check.report(*bodies.body(color))
+        assert report.ok, (color, report.says())
 
 
 def test_a_body_that_is_not_closed_is_named_as_such():
@@ -169,17 +169,17 @@ def test_a_body_that_is_not_closed_is_named_as_such():
 
 
 @pytest.mark.slow
-def test_mof5_meshes_clean_with_a_body_per_colour():
+def test_mof5_meshes_clean_with_a_body_per_color():
     from xtal.io.cif_reader import read_cif
     root = Path(__file__).resolve().parents[1]
     structure = read_cif(root / "resources" / "samples" / "MOF-5.cif")
     cut = cellcut.cut_cell(structure)
-    colours = [2 if e == "Zn" else 1 for e in cut.elements]
-    prims = primitives.build(cut, colours, "half")
+    colors = [2 if e == "Zn" else 1 for e in cut.elements]
+    prims = primitives.build(cut, colors, "half")
     bodies = mesh.two_bodies(prims, 0.2)
-    for colour in (1, 2):
-        report = check.report(*bodies.body(colour))
-        assert report.ok, (colour, report.says())
+    for color in (1, 2):
+        report = check.report(*bodies.body(color))
+        assert report.ok, (color, report.says())
 
 
 @pytest.mark.skipif(not ATOMIC_BLENDER.is_dir(),

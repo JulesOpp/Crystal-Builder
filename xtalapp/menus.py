@@ -170,14 +170,10 @@ def build_actions(window):
             "Systre to name -- a second opinion on the Net panel that "
             "does not come from the code that gave the first")
     add("export_stl", "Export as S&TL...", window.export_stl,
-        tip="One unit cell with its bonds, as a mesh a 3D printer can "
-            "take.  Blender does the meshing, so it has to be "
-            "installed -- see Preferences > Engines")
-    add("export_two_colour", "Export for T&wo-Colour Printing...",
-        window.export_two_colour,
-        tip="One unit cell as two bodies, one per colour, that meet "
-            "exactly: a 3MF a slicer opens as one object in two parts, "
-            "and an STL of each.  No Blender needed")
+        tip="One unit cell with its bonds, as a model a 3D printer can "
+            "take: in one color, meshed by Blender (see Preferences > "
+            "Engines), or in two colors as a 3MF, which needs no "
+            "Blender")
     add("render_blender", "Render in &Blender...", window.render_in_blender,
         tip="One unit cell with its bonds, lit and rendered by "
             "Blender, the scene kept beside the picture.  Blender has "
@@ -725,7 +721,7 @@ def build_menus(window):
     window.actions_.fill_menu(file_menu, [
         None, "save", "save_as",
         None, "export", "export_net", "export_image", "export_stl",
-        "export_two_colour", "render_blender",
+        "render_blender",
         None, "new_workspace", "open_workspace",
         None, "close_tab", "close_all_tabs"])
     file_menu.addSeparator()

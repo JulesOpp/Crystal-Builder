@@ -1,4 +1,4 @@
-"""The two-colour print writers: binary STL and a 3MF of two parts."""
+"""The two-color print writers: binary STL and a 3MF of two parts."""
 
 from __future__ import annotations
 
@@ -43,8 +43,8 @@ def _cube(offset) -> tuple[np.ndarray, np.ndarray]:
 @pytest.fixture
 def two_cubes():
     """Two cubes meeting at the face x = 1.2."""
-    return [Part("colour 1", *_cube((0, 0, 0)), extruder=1),
-            Part("colour 2", *_cube((1, 0, 0)), extruder=2)]
+    return [Part("color 1", *_cube((0, 0, 0)), extruder=1),
+            Part("color 2", *_cube((1, 0, 0)), extruder=2)]
 
 
 def _model(path):
@@ -60,7 +60,7 @@ def _mesh_vertices(obj) -> np.ndarray:
 
 def test_a_3mf_holds_one_object_of_two_parts_on_extruders_one_and_two(
         tmp_path, two_cubes):
-    """If this breaks, Bambu Studio lays the two colours out as two
+    """If this breaks, Bambu Studio lays the two colors out as two
     objects apart on the bed, or prints both with one filament."""
     path = write_3mf(tmp_path / "print.3mf", two_cubes)
     with zipfile.ZipFile(path) as archive:
@@ -99,7 +99,7 @@ def test_the_stl_round_trips_its_triangles(tmp_path, two_cubes):
     mesher made."""
     part = two_cubes[0]
     path = write_stl(tmp_path / "one.stl", part.vertices, part.triangles,
-                     name="colour 1")
+                     name="color 1")
     vertices, triangles = read_stl(path)
     assert path.stat().st_size == 84 + 50 * len(part.triangles)
     assert len(vertices) == 8
@@ -128,7 +128,7 @@ def test_the_two_stls_and_the_3mf_share_coordinates(tmp_path, two_cubes):
 
 
 def test_an_empty_part_is_left_out_of_the_3mf(tmp_path, two_cubes):
-    """If this breaks, a colour with nothing in it writes an object with
+    """If this breaks, a color with nothing in it writes an object with
     an empty mesh, and the slicer refuses the whole file."""
     empty = Part("nothing", np.zeros((0, 3)), np.zeros((0, 3), int), 3)
     path = write_3mf(tmp_path / "print.3mf", [two_cubes[0], empty])
@@ -139,7 +139,7 @@ def test_an_empty_part_is_left_out_of_the_3mf(tmp_path, two_cubes):
               if o.find("m:mesh", NS) is not None]
     assert len(meshes) == 1
     assert [p.find("metadata[@key='name']").get("value")
-            for p in bambu.iter("part")] == ["colour 1"]
+            for p in bambu.iter("part")] == ["color 1"]
 
 
 def test_stl_normals_follow_the_winding(tmp_path, two_cubes):

@@ -1,17 +1,17 @@
 """
 xtal.printing.mesh
 ==================
-Two closed bodies, colour 1 and colour 2, marched from one labelled
+Two closed bodies, color 1 and color 2, marched from one labelled
 grid so that they meet without overlapping and without a gap.
 
-**Why one grid.**  A slicer takes a two-colour model as two parts and
+**Why one grid.**  A slicer takes a two-color model as two parts and
 needs each part to be a closed solid and the two not to fight over the
-same plastic.  Meshing each colour on its own -- or one remesh and a
+same plastic.  Meshing each color on its own -- or one remesh and a
 boolean, which is what Blender would offer -- gives two surfaces that
 were never told about each other: where they should meet they overlap
 by a fraction of a voxel or leave a crack, and that is the
 "non-manifold" or "overlapping volumes" complaint.  Here every grid
-point is *labelled* -- outside, colour 1 or colour 2 (the nearer
+point is *labelled* -- outside, color 1 or color 2 (the nearer
 body, :class:`~xtal.printing.field.Block.labels`) -- and each body is
 the boundary of its own label.  Where 1 meets 2 the same triangles
 are written into both bodies, wound oppositely, so the interface is
@@ -21,9 +21,9 @@ one surface with two names.
 tetrahedra of :mod:`xtal.analysis.isosurface`.  A vertex goes on every
 tetrahedron edge whose ends differ: where the union field crosses zero
 if one end is outside, where ``f1 - f2`` does if the ends are the two
-colours.  A tetrahedron with two labels gets the ordinary marching
+colors.  A tetrahedron with two labels gets the ordinary marching
 triangles.  One with three -- only where the interface reaches the
-outside, a ring round every colour boundary -- has two corners of one
+outside, a ring round every color boundary -- has two corners of one
 label and one each of the others; a vertex is added at the middle of
 each of its two three-label faces and at its own middle, and the three
 boundaries are the polygons through them (:func:`_three`).  A face
@@ -65,16 +65,16 @@ def _code(offset) -> np.ndarray:
 @dataclass(frozen=True)
 class TwoBodies:
     """``vertices`` (V, 3) in Angstrom; ``bodies[0]`` and ``bodies[1]``
-    triangles ``(T, 3)`` into them, wound outward, for colours 1 and
+    triangles ``(T, 3)`` into them, wound outward, for colors 1 and
     2.  Interface vertices are shared by both bodies."""
 
     vertices: np.ndarray
     bodies: tuple
 
-    def body(self, colour: int) -> tuple[np.ndarray, np.ndarray]:
+    def body(self, color: int) -> tuple[np.ndarray, np.ndarray]:
         """One body on its own: ``(vertices, triangles)`` with only the
         vertices it uses."""
-        triangles = self.bodies[colour - 1]
+        triangles = self.bodies[color - 1]
         if not len(triangles):
             return np.zeros((0, 3)), np.zeros((0, 3), dtype=int)
         used, inverse = np.unique(triangles, return_inverse=True)
@@ -213,7 +213,7 @@ class _Triangles:
         self.parts.append((k, p, ideal, labels, xyz, top, bottom))
 
     def emit(self, keys, positions, bodies) -> None:
-        """Into each coloured body, wound away from that body's
+        """Into each colored body, wound away from that body's
         corners.
 
         The winding is read off ``ideal`` -- every edge vertex at its
