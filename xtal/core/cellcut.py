@@ -44,11 +44,14 @@ FACE_TOL = 1e-6
 @dataclass(frozen=True)
 class CellCut:
     """Atoms at cartesian positions, and bonds ``(i, j, order)``
-    between them."""
+    between them.  ``sites`` is the P1 atom each one is an image of,
+    which is how a choice made over the document's atoms -- an atom
+    group's print colour -- reaches every copy of it in the cut."""
 
     elements: tuple = ()
     cart: np.ndarray = field(default_factory=lambda: np.zeros((0, 3)))
     bonds: tuple = ()
+    sites: tuple = ()
 
     @property
     def n_atoms(self) -> int:
@@ -103,7 +106,8 @@ def cut_cell(structure, bonded_partners: bool = False,
         cart=structure.lattice.to_cart(frac) if len(keys)
         else np.zeros((0, 3)),
         bonds=tuple((i, j, order)
-                    for (i, j), order in sorted(bonds.items())))
+                    for (i, j), order in sorted(bonds.items())),
+        sites=tuple(int(k) for k, _shift in keys))
 
 
 def _by_atom(images) -> dict:
