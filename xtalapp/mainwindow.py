@@ -570,8 +570,9 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
 
     def export_stl(self) -> None:
         """A module run, reached from File because that is where an
-        export is looked for.  See :mod:`xtal.modules.blender`."""
-        self.run_module_action("blender", "export-stl")
+        export is looked for: one color through Blender or two of our
+        own, from one form.  See :mod:`xtal.modules.print3d`."""
+        self.run_module_action("print3d", "export")
 
     def render_in_blender(self) -> None:
         """A module run from File, beside Export as STL.  See

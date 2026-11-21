@@ -301,7 +301,8 @@ def test_file_export_as_stl_runs_with_the_markers_left_to_the_cut(
     window.actions_["export_stl"].trigger()
     qtbot.waitUntil(lambda: window.module_worker is None, timeout=20000)
 
-    assert seen["action"] == "export-stl"
+    # One form for both exports; unticked, it is Blender's run.
+    assert seen["action"] == "export"
     assert destination.is_file()
     written = list(document.entry.path.rglob(blender.INPUT_NAME))
     assert len(written) == 1

@@ -249,8 +249,8 @@ to a literal: renaming a module there is one edit and no test change.
 * **Export as STL and Render in Blender are in File only.**  They were
   also Modules ▸ Blender; both entries are `listed=False` now, and a
   module with nothing listed (`Module.listed`) has no submenu and no
-  row in the Modules panel.  A missing Blender is said when either is
-  chosen, by `run_module_action`.
+  row in the Modules panel.  A missing Blender is said when Render is
+  chosen, by `run_module_action`, and in Export as STL's form (§ 8).
 * **The toolbar's periodic table** (`PeriodicTableToolButton`, a drawn
   glyph) sits after the element box: the pick goes in the box and the
   mouse goes to Add atom.  The words between the boxes ("cells", the
@@ -294,3 +294,18 @@ Registry keys are unchanged; only labels and order moved.
   greyed while an optimisation runs.
 * **Modules ▸ Energy scan** gains *Quasi-harmonic free energy...*
   after *Bulk modulus...*, in the same scan dialog.
+
+## 8. Two-color printing (2026-11-21)
+
+* **File ▸ Export as STL...** is one form for one color and two:
+  `print3d.export`, `listed=False` like the Blender entries.  A
+  *Two-color printing* box chooses: unticked it runs Blender's
+  `blender.export-stl` unchanged (still there for `xtal run`), ticked
+  our own two-body 3MF, which needs no Blender.  Its form is
+  `PrintExportDialog`: the generated fields, *Remesh* shown only
+  unticked, *Bonds* and a table of the elements present and one of the
+  atom groups, each with a color, only ticked; the path's suffix
+  follows the box.  Without Blender the form still opens, says so, and
+  keeps Run off until the box is ticked.  There was briefly a separate
+  *Export for Two-Colour Printing...* entry; it was folded in before
+  it shipped, and the feature is spelled *color*.

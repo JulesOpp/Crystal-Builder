@@ -39,6 +39,22 @@ def test_a_centred_cell_has_its_face_and_corner_atoms(halite):
     assert frac.min() >= -1e-9 and frac.max() <= 1 + 1e-9
 
 
+def test_every_image_in_a_cut_names_the_p1_atom_it_copies(halite):
+    """A color chosen for an atom of the document has to reach every
+    copy of it: the eight sodium corners are one atom of the cell."""
+    cut = cellcut.cut_cell(halite)
+    cell = p1.expand(halite)
+    assert len(cut.sites) == cut.n_atoms
+    for k, site in enumerate(cut.sites):
+        assert cut.elements[k] == cell.elements[site]
+        shift = halite.lattice.to_frac(cut.cart[k]) - cell.frac[site]
+        assert np.allclose(shift, np.round(shift), atol=1e-6)
+    corners = {cut.sites[k] for k in range(cut.n_atoms)
+               if np.allclose(np.round(halite.lattice.to_frac(
+                   cut.cart[k])), halite.lattice.to_frac(cut.cart[k]))}
+    assert len(corners) == 1
+
+
 def test_no_bond_in_the_cut_is_longer_than_a_bond(halite):
     cut = cellcut.cut_cell(halite)
     lengths = [np.linalg.norm(cut.cart[i] - cut.cart[j])

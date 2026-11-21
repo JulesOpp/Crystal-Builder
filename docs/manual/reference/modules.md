@@ -1152,3 +1152,35 @@ One unit cell with its bonds, lit and rendered by Blender's Cycles; the scene is
 | **Render samples** | int, 1 to 10000 | `50` | Cycles' samples a pixel for the picture.  More is less noise, and time in proportion |
 | **Viewport samples** | int, 1 to 10000 | `10` | Cycles' samples in Blender's own rendered view, for when scene.blend is opened |
 | **Frame the whole structure** | bool | `True` | Move the camera along its view until every atom is in the picture.  Off stands it at the scene's fixed place, which suits a cell of MOF-5's size |
+
+(mod-print3d)=
+## 3D printing
+
+A structure as a model to 3D print, in one color or two.
+
+```{index} 3D printing
+```
+
+(mod-print3d-export)=
+### Export as STL...
+
+One unit cell with its bonds as a model to 3D print: one color through Blender, or two colors as two bodies that meet exactly, in a 3MF and an STL of each
+
+```{tabularcolumns} |\Y{0.18}|\Y{0.2}|\Y{0.18}|\Y{0.44}|
+```
+
+| Setting | Accepts | Default | What it is |
+|---|---|---|---|
+| **Save as** | path |  | Where the model goes: an STL, or with two colors a 3MF with an STL of each color beside it.  A copy also stays in the run folder |
+| **Two-color printing** | bool | `False` | Two bodies, one per filament, that meet exactly, in a 3MF Bambu Studio and Orca open as one object of two parts.  Needs no Blender |
+| **Bonds** | one of Half and half, Color 1, Color 2 | `half` | Half and half changes color halfway between the two balls' surfaces, each half its atom's |
+| **Color 2 elements** | text |  | Elements printed in color 2, as Zn=2 Cu=2; any element not named is color 1 |
+| **Atoms by index** | text |  | P1 atoms whose color overrides their element's, as 17=2 18=1.  The window fills this from the atom groups |
+| **Complete bonds across the cell faces** | bool | `False` | Bring in the atom at the far end of every bond that leaves the cell, so a linker cut by a face prints with both its ends |
+| **Ball scale** | float, 0.1 to 5 | `0.8` | Atomic radii times this |
+| **Hydrogen scale** | float, 0.1 to 10 | `2.0` | Hydrogens again times this: at atomic radii they are too small to print |
+| **Stick radius** | float, 0.05 to 3 A | `0.4` |  |
+| **Remesh into one solid** | bool | `True` | One color only: weld the balls and sticks into one watertight mesh.  Off leaves overlapping pieces, which most slicers refuse.  Two colors are always welded |
+| **Voxel size** | float, 0.01 to 2 A | `0.1` | The grid the model is meshed on.  Smaller keeps more detail; the triangles go as one over its square |
+| **Triangle budget** | int, 0 to 100000000 | `1000000` | Both colors together.  The grid is coarsened until the model fits; 0 is no budget; a binary STL is about 50 bytes a triangle |
+| **Longest side** | float, 0 to 10000 mm | `0.0` | Scale the model so its longest side is this.  0 leaves one Angstrom as one millimetre |

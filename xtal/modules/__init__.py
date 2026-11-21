@@ -40,6 +40,7 @@ from xtal.modules import (
     net,
     orca,
     polymer,
+    print3d,
     pxrd,
     scan,
     zeopp,
@@ -76,6 +77,7 @@ polymer.register()
 pxrd.register()
 scan.register()
 blender.register()
+print3d.register()
 
 if os.environ.get("XTAL_STUB_MODULE", "").strip().lower() not in (
         "", "0", "false", "no", "off"):

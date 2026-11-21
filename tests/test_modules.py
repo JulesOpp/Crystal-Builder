@@ -94,7 +94,7 @@ def test_the_builders_come_first_and_the_energy_modules_together():
         ("characterise", "Porosity"), ("characterise", "PXRD"),
         ("energy", "Force Field"), ("energy", "DFTB+"),
         ("energy", "Energy scan"), ("energy", "ORCA"),
-        ("export", "Blender")]
+        ("export", "Blender"), ("export", "3D printing")]
 
 
 def test_an_action_needs_something_to_do():

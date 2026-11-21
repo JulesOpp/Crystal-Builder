@@ -621,7 +621,7 @@
    "section": "File",
    "path": "Export as STL...",
    "shortcut": "",
-   "tip": "One unit cell with its bonds, as a mesh a 3D printer can take.  Blender does the meshing, so it has to be installed -- see Preferences > Engines",
+   "tip": "One unit cell with its bonds, as a model a 3D printer can take: in one color, meshed by Blender (see Preferences > Engines), or in two colors as a 3MF, which needs no Blender",
    "checkable": false
   },
   {
@@ -6194,6 +6194,113 @@
        "accepts": "bool",
        "default": "True",
        "help": "Move the camera along its view until every atom is in the picture.  Off stands it at the scene's fixed place, which suits a cell of MOF-5's size"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "print3d",
+   "label": "3D printing",
+   "description": "A structure as a model to 3D print, in one color or two.",
+   "actions": [
+    {
+     "name": "export",
+     "label": "Export as STL...",
+     "tip": "One unit cell with its bonds as a model to 3D print: one color through Blender, or two colors as two bodies that meet exactly, in a 3MF and an STL of each",
+     "dialog": "print-export",
+     "shell": "",
+     "params": [
+      {
+       "name": "output",
+       "label": "Save as",
+       "accepts": "path",
+       "default": "",
+       "help": "Where the model goes: an STL, or with two colors a 3MF with an STL of each color beside it.  A copy also stays in the run folder"
+      },
+      {
+       "name": "two_color",
+       "label": "Two-color printing",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Two bodies, one per filament, that meet exactly, in a 3MF Bambu Studio and Orca open as one object of two parts.  Needs no Blender"
+      },
+      {
+       "name": "bonds",
+       "label": "Bonds",
+       "accepts": "one of Half and half, Color 1, Color 2",
+       "default": "half",
+       "help": "Half and half changes color halfway between the two balls' surfaces, each half its atom's"
+      },
+      {
+       "name": "element_colors",
+       "label": "Color 2 elements",
+       "accepts": "text",
+       "default": "",
+       "help": "Elements printed in color 2, as Zn=2 Cu=2; any element not named is color 1"
+      },
+      {
+       "name": "atom_colors",
+       "label": "Atoms by index",
+       "accepts": "text",
+       "default": "",
+       "help": "P1 atoms whose color overrides their element's, as 17=2 18=1.  The window fills this from the atom groups"
+      },
+      {
+       "name": "bonded_partners",
+       "label": "Complete bonds across the cell faces",
+       "accepts": "bool",
+       "default": "False",
+       "help": "Bring in the atom at the far end of every bond that leaves the cell, so a linker cut by a face prints with both its ends"
+      },
+      {
+       "name": "ball_scale",
+       "label": "Ball scale",
+       "accepts": "float, 0.1 to 5",
+       "default": "0.8",
+       "help": "Atomic radii times this"
+      },
+      {
+       "name": "h_scale",
+       "label": "Hydrogen scale",
+       "accepts": "float, 0.1 to 10",
+       "default": "2.0",
+       "help": "Hydrogens again times this: at atomic radii they are too small to print"
+      },
+      {
+       "name": "stick_radius",
+       "label": "Stick radius",
+       "accepts": "float, 0.05 to 3 A",
+       "default": "0.4",
+       "help": ""
+      },
+      {
+       "name": "remesh",
+       "label": "Remesh into one solid",
+       "accepts": "bool",
+       "default": "True",
+       "help": "One color only: weld the balls and sticks into one watertight mesh.  Off leaves overlapping pieces, which most slicers refuse.  Two colors are always welded"
+      },
+      {
+       "name": "voxel_size",
+       "label": "Voxel size",
+       "accepts": "float, 0.01 to 2 A",
+       "default": "0.1",
+       "help": "The grid the model is meshed on.  Smaller keeps more detail; the triangles go as one over its square"
+      },
+      {
+       "name": "max_tris",
+       "label": "Triangle budget",
+       "accepts": "int, 0 to 100000000",
+       "default": "1000000",
+       "help": "Both colors together.  The grid is coarsened until the model fits; 0 is no budget; a binary STL is about 50 bytes a triangle"
+      },
+      {
+       "name": "target_size",
+       "label": "Longest side",
+       "accepts": "float, 0 to 10000 mm",
+       "default": "0.0",
+       "help": "Scale the model so its longest side is this.  0 leaves one Angstrom as one millimetre"
       }
      ]
     }
