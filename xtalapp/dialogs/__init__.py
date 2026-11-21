@@ -51,6 +51,8 @@ _BY_NAME = {
                        "GrapheneBuildDialog"),
     "stl-export": ("xtalapp.dialogs.stl_export", "StlExportDialog"),
     "blender-render": ("xtalapp.dialogs.stl_export", "RenderDialog"),
+    "stl-two-colour": ("xtalapp.dialogs.stl_export",
+                       "TwoColourExportDialog"),
     "band-structure": ("xtalapp.dialogs.dftb_run",
                        "BandStructureDialog"),
     "dftb-run": ("xtalapp.dialogs.dftb_run", "DftbRunDialog"),

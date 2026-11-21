@@ -166,6 +166,32 @@ and found, the run proceeds as above.
 % listing (structure.pdb, structure.stl, the log), and check the
 % add-on sentence Blender prints when Atomic Blender is missing.
 
+## Two colours
+
+```{index} single: 3D printing; two colours
+```
+
+*File ▸ Export for Two-Colour Printing…* makes the same cell as **two
+bodies**, one per filament, and needs no Blender.  Each element is
+colour 1 or colour 2 (metals start in colour 2), an atom group can
+override its atoms' element, and bonds are all colour 1, all colour 2,
+or half and half -- each half its atom's colour, changing halfway
+between the two balls' surfaces.
+
+It writes a `.3mf` that Bambu Studio and Orca Slicer open as one
+object of two parts, each already on its own filament, and an STL of
+each colour beside it (`name_colour1.stl`, `name_colour2.stl`) for any
+slicer that does not read 3MF: load both together and answer that
+they are one object with several parts.
+
+Both colours are marched on one grid, so the two bodies meet on the
+very same vertices: no overlap and no gap for the slicer to resolve.
+Every body is checked closed and consistently wound before anything
+is written, and a body that is not is a failure rather than a file.
+The triangle budget is met by coarsening the grid (the run says when
+it does), never by decimating, which would move the interface in one
+body and not the other.
+
 ## Limitations
 
 - Blender and the Atomic Blender add-on are your installs; the

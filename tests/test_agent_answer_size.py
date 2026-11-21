@@ -22,10 +22,13 @@ def test_mof5_inspection_json_is_under_five_kilobytes():
     assert len(found.to_json()) < 5000
 
 
-def test_capabilities_json_is_under_six_kilobytes():
+def test_capabilities_json_is_under_six_and_a_half_kilobytes():
     """Measured on a checkout where most extras are missing, which is
-    the large case: every unavailable row carries a reason."""
-    assert len(capabilities().to_json()) < 6000
+    the large case: every unavailable row carries a reason.  It was
+    6000 until the two-colour print export's row took it to 6008; a
+    row per action is what the answer is for, and padding it is
+    what this guards against."""
+    assert len(capabilities().to_json()) < 6500
 
 
 def test_a_compact_reason_carries_no_command_and_verbose_does(

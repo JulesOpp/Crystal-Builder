@@ -294,3 +294,12 @@ Registry keys are unchanged; only labels and order moved.
   greyed while an optimisation runs.
 * **Modules ▸ Energy scan** gains *Quasi-harmonic free energy...*
   after *Bulk modulus...*, in the same scan dialog.
+
+## 8. Two-colour printing (2026-11-21)
+
+* **File ▸ Export for Two-Colour Printing...** sits under *Export as
+  STL*.  It is `print3d.export-two-colour`, `listed=False` like the
+  Blender entries, so it has no Modules submenu; it needs no Blender
+  and is enabled whenever Export as STL is (`shell_state`).  Its form
+  is `TwoColourExportDialog`: the generated fields plus a table of the
+  elements present and one of the atom groups, each with a colour.

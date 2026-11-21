@@ -20,6 +20,7 @@ bonding, run force field / DFTB+ / Zeo++ calculations on the result.
 | `xtal/graphene/` | Honeycomb sheets (Modules ▸ Carbon builder ▸ Graphene..., `xtal run graphene.build`): two atoms a hexagonal cell, any supercell or the rectangular one an integer transform of it, every bond stated with the cell it crosses, AA/AB/ABC/AA' as lateral shifts, bulk (a whole number of the stacking's period) or a slab. **No bond joins two layers.** A twisted stack (`twist.py`) turns every other layer by a commensurate (m, r) about a shared atom, each layer whole in its own integer cell of the twisted one; the angle is read to the precision written (the smallest cell at it, never coarser than 0.005 degrees), and the form lists the nearest under the size limit. |
 | `xtal/polymer/` | Amorphous polymers: a monomer is a starred SMILES with a head and a tail (`monomer.py`), joined by bond length (`chain.py`), all chains grown at once by configurational bias (`pack.py`), pushed off or compressed holding every bond and angle (`pushoff.py`), written by `build.py`. `polymer.build` is the module; it needs the `build` extra. |
 | `xtal/orca/` | An ORCA input for the structure in front (Modules ▸ ORCA ▸ Input file…, `xtal run orca.input`); writes, never runs. `catalogue.py` holds the native functionals (Tables 3.1–3.9 of the 6.1 manual, by hand) and loads `data/tables.json` -- 440 basis sets with the elements each covers, and the solvents -- which `scripts/orca_tables.py` reads off the manual (not shipped; a test re-runs it when `JulesWork/` has it). `input.py` makes the **cluster**: ORCA has no cell, so the cell's atoms (or the selected ones) with each molecule made whole by the stored graph and a framework written as cut; markers are left out there, not by removing sites, which would renumber a selection. A multiplicity the electrons cannot have is refused before anything is written. `*xyzfile` takes its name unquoted and no closing `*`, and the coordinates are `<name>_from_crystal_builder.xyz` because ORCA's Opt writes its last geometry to `<name>.xyz`. **TD-DFT with Opt or Freq is the ground state then the spectrum** (a two-step `%compound`) unless the excited route is chosen: ORCA itself follows excited state IRoot there, and only for `catalogue.EXCITED_GRADIENT`, measured against ORCA 6.1. |
+| `xtal/printing/` | File ▸ Export for Two-Colour Printing (`xtal/modules/print3d.py`, `xtal run print3d.export-two-colour`), no Blender: one cell as balls and sticks each in colour 1 or 2 (`primitives`; Atomic Blender's radii transcribed in `radii`, so both exports print the same balls), a sparse blocked distance field (`field`), two bodies marched from one labelled grid (`mesh`) and the closed-solid check the run trusts before writing (`check`). Written as a two-part 3MF (`xtal/io/threemf.py`, Bambu/Orca and Prusa extruder side files) and an STL per colour (`xtal/io/stl.py`). See the invariant. |
 | `xtal/agent/` | The surface an AI assistant (or a script) drives: `Session` (verbs over a `CommandStack`, logged to the entry), `inspect` (closed diagnostic codes, each with its remedy), `render` (a PNG in a subprocess), `capabilities`. The skill the assistant reads ships in `xtal/agent/skill/`, and `tests/test_agent_skill.py` holds every name in it to the code. `mcp.md` and `prompts/` are what an MCP client is served instead, read by `context.py`. `changes.py` reads an assistant's bursts off a history and plans Revert and Restore. |
 | `xtal/agent/tools.py` | The verbs as MCP tools, one per verb with its own keywords, plus `documents`, `switch`, `capabilities` and `help_for`, the `guide` tool, the guides and the current document as resources, three prompts, and `instructions`, over any `Host` that holds the sessions (`build_server(host)`). **Every tool runs on a worker thread**, never the server's event loop. The SDK is the `mcp` extra, imported lazily. |
 | `xtal/agent/serve.py` | `xtal mcp`: the tools over stdio. A proxy to the window when one is serving, else a `HeadlessHost` of its own sessions; `--window` and `--headless` insist on one. |
@@ -494,6 +495,18 @@ stress case).
   machine with it, which is why the field is summed in blocks, a
   Newton step is capped at 0.5 Å, and a remesh past four times the
   triangles its area needs stops with `MeshError`.
+- **A two-colour print is two bodies marched from one labelled grid,
+  and nothing is decimated.**  `xtal/printing/mesh.py` labels every
+  grid point outside, colour 1 or colour 2 (the nearer body) and
+  writes the 1|2 interface into *both* bodies on the same vertices,
+  welded by what they are (edge, face, tetrahedron) and never by a
+  tolerance -- two meshes made apart, or a boolean, overlap or gap
+  where they meet and a slicer refuses them. Winding is read off the
+  idealised tetrahedron (edge vertices at their middles), because a
+  clamped vertex makes slivers whose normals point anywhere.  The
+  triangle budget coarsens the voxel (`print3d.voxel_for`); a body is
+  checked closed (`check.report`) after float32 rounding and is a
+  failure, never a file, if it is not.
 - **A hidden atom is still in the structure.** View ▸ Show Only
   Selected is `Document.hidden`: view state, never an undo step,
   never saved, read by the scene builder alone -- not drawn, not

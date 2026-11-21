@@ -152,3 +152,109 @@ def test_target_size_scales_the_longest_side_to_millimetres(tmp_path,
     both = np.vstack([one, two])
     assert (both.max(axis=0) - both.min(axis=0)).max() == \
         pytest.approx(50.0, rel=1e-4)
+
+
+# ---------------------------------------------------------------- window
+
+@pytest.fixture
+def window(qtbot, tmp_path):
+    pytest.importorskip("pytestqt")
+    from PySide6.QtWidgets import QWidget
+
+    from xtalapp.mainwindow import MainWindow
+    from xtalapp.settings import AppSettings
+
+    class _Stub(QWidget):
+        def __init__(self, document, parent=None):
+            super().__init__(parent)
+            self.document = document
+
+    settings = AppSettings("CrystalBuilderTest", f"Print{tmp_path.name}")
+    settings.clear_window()
+    settings.last_directory = str(tmp_path)
+    win = MainWindow(viewport_factory=_Stub, settings=settings)
+    qtbot.addWidget(win)
+    return win
+
+
+def _open(window, structure):
+    document = window.new_document()
+    document.set_structure(structure, modified=False)
+    return document
+
+
+def _dialog(window, qtbot, initial=None):
+    from xtalapp.dialogs import module_dialog
+
+    module, action = MODULES.find("print3d.export-two-colour")
+    dialog = module_dialog(action.dialog)(module, action, window, initial)
+    qtbot.addWidget(dialog)
+    return dialog
+
+
+def _rows(table):
+    return [table.item(r, 0).text() for r in range(table.rowCount())]
+
+
+def test_the_dialog_lists_each_element_present_once_metals_in_colour_two(
+        window, qtbot, halite):
+    """A first export with nothing remembered: the elements of the
+    cell, once each, the metal already in colour 2."""
+    _open(window, halite)
+    dialog = _dialog(window, qtbot)
+    assert sorted(_rows(dialog.elements)) == ["Cl", "Na"]
+    colours = dict(item.split("=") for item in
+                   dialog.values()["element_colours"].split())
+    assert colours == {"Na": "2", "Cl": "1"}
+    assert dialog.group_table is None
+    assert dialog.output.text().endswith(".3mf")
+    assert dialog.form.widgets["element_colours"].isHidden()
+
+
+def test_the_dialog_starts_from_the_colours_last_used(window, qtbot,
+                                                     halite):
+    _open(window, halite)
+    dialog = _dialog(window, qtbot, {"element_colours": "Na=1 Cl=2"})
+    colours = dict(item.split("=") for item in
+                   dialog.values()["element_colours"].split())
+    assert colours == {"Na": "1", "Cl": "2"}
+
+
+def test_a_group_set_to_colour_two_reaches_the_run_as_its_atoms(
+        window, qtbot, halite):
+    """The run never sees groups -- they are view state -- so the form
+    hands it their atoms, by P1 index."""
+    from xtal.core import atom_groups
+
+    document = _open(window, halite)
+    cell = p1.expand(halite)
+    chlorine = [k for k, e in enumerate(cell.elements) if e == "Cl"][:2]
+    document.atom_groups.append(atom_groups.make(
+        cell, halite.lattice, chlorine, "two chlorides"))
+    dialog = _dialog(window, qtbot)
+    assert _rows(dialog.group_table) == ["two chlorides"]
+    assert dialog.values()["atom_colours"] == ""
+    dialog.group_table.cellWidget(0, 1).setCurrentIndex(2)
+    assert dialog.values()["atom_colours"] == " ".join(
+        f"{k}=2" for k in sorted(chlorine))
+
+
+def test_file_export_for_two_colour_printing_runs(window, qtbot, halite,
+                                                  tmp_path, monkeypatch):
+    from xtalapp.dialogs.stl_export import TwoColourExportDialog
+
+    _open(window, halite)
+    destination = tmp_path / "salt.3mf"
+
+    def answer(module, action, parent=None, initial=None):
+        return action.coerce({"output": str(destination),
+                              "element_colours": "Na=2",
+                              "voxel_size": 0.2})
+    monkeypatch.setattr(TwoColourExportDialog, "ask",
+                        staticmethod(answer))
+
+    assert window.actions_["export_two_colour"].isEnabled()
+    window.actions_["export_two_colour"].trigger()
+    qtbot.waitUntil(lambda: window.module_worker is None, timeout=30000)
+    assert destination.is_file()
+    assert (tmp_path / "salt_colour2.stl").is_file()

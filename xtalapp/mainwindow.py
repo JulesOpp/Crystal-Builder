@@ -573,6 +573,11 @@ class MainWindow(ShellRefresh, SymmetryActions, EditActions,
         export is looked for.  See :mod:`xtal.modules.blender`."""
         self.run_module_action("blender", "export-stl")
 
+    def export_two_colour(self) -> None:
+        """Export as STL's two-colour sibling, beside it in File.  See
+        :mod:`xtal.modules.print3d`."""
+        self.run_module_action("print3d", "export-two-colour")
+
     def render_in_blender(self) -> None:
         """A module run from File, beside Export as STL.  See
         :mod:`xtal.modules.blender`."""
