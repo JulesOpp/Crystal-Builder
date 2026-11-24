@@ -294,7 +294,75 @@ def test_the_syntheses_everybody_knows_come_out_first(salt, linker, net):
     assert answer.novelty.metal_with_linker_seen
 
 
+# MOFGen's four Zn MOFs (Jaffrelot Inizan et al., Nat. Comput. Sci. 6,
+# 1223, 2026): all Zn4O on pcu, with linkers the table has never seen,
+# so they test the vote by analogy from outside it.  Zn(NO3)2 is the
+# salt; the rank is where pcu came on 2026-11-23, a ceiling to keep.
+MOFGEN = {
+    "AI-MOF-1": ("OC(=O)/C=C/C=C/C(=O)O", "DEF", 100, 2),
+    "AI-MOF-2": ("OC(=O)c1ccc2c3cccc4c(C(=O)O)ccc(c5cccc1c52)c43",
+                 "DEF", 120, 1),
+    "AI-MOF-3": ("OC(=O)/C(C)=C(C)/C(=O)O", "DEF", 100, 6),
+    "AI-MOF-4": ("OC(=O)/C(C)=C(C)/C(=O)O", "DMF", 120, 1),
+}
+
+
+def _mofgen(name):
+    linker, solvent, temperature, _ = MOFGEN[name]
+    return precedent.forecast(
+        Query.read("Zn(NO3)2", [linker], [solvent], temperature))
+
+
+@needs_rdkit
+@pytest.mark.parametrize("name", sorted(MOFGEN))
+def test_mofgens_syntheses_find_pcu_no_lower_than_they_did(name):
+    """Four syntheses from outside the table, whose answer is known:
+    the net vote holds up, and a change to the weights that loses
+    pcu for any of them shows here before it shows in anyone's
+    build."""
+    answer = _mofgen(name)
+
+    assert not answer.novelty.linker_seen
+    nets = [s.value for s in answer.nets]
+    assert "pcu" in nets[:MOFGEN[name][3]]
+
+
+@needs_rdkit
+@pytest.mark.parametrize("name", sorted(MOFGEN))
+@pytest.mark.xfail(strict=True, reason=(
+    "Single-Zn nodes outvote Zn4O for all four: the vote counts nodes "
+    "by their metals, and most Zn precedents have one Zn per node.  "
+    "docs/TODO.md, From a synthesis: 'How nodes are weighted'."))
+def test_mofgens_syntheses_find_mof5s_cluster_first(name):
+    assert _mofgen(name).nodes[0].value == "Zn4"
+
+
 # ------------------------------------------------------------ module
+
+@needs_rdkit
+def test_what_was_read_scores_how_hard_each_linker_is_to_make():
+    """Ertl's SA score, one per linker, beside what was read: BDC is
+    bought by the kilogram and scores near 1, and a linker scored
+    harder reads harder.  It describes the linker; the vote never
+    sees it, so the shares are the same with or without it."""
+    answer = precedent.forecast(Query.read(
+        "Zn(NO3)2", ["BDC", MOFGEN["AI-MOF-1"][0]], ["DMF"]))
+    rows = {r.label: r for r in synthesis.report(answer).blocks[0].rows}
+
+    row = rows["Synthetic accessibility"]
+    easy, hard = (float(v) for v in row.value.split("; "))
+    assert 1.0 <= easy < 2.0 < hard <= 10.0
+    assert "1 easy" in row.note and "not the vote" in row.note
+
+
+@needs_rdkit
+def test_a_linker_the_score_cannot_read_is_said_not_guessed(monkeypatch):
+    monkeypatch.setattr(precedent, "_sascorer", lambda: None)
+    answer = precedent.forecast(Query.read("ZrCl4", ["BDC"], ["DMF"]))
+    rows = {r.label: r for r in synthesis.report(answer).blocks[0].rows}
+
+    assert rows["Synthetic accessibility"].value == "not available"
+
 
 def test_the_entry_is_registered_and_needs_no_document():
     module, action = MODULES.find("synthesis.forecast")
@@ -325,8 +393,8 @@ def test_a_run_reports_and_builds_nothing():
     assert result.ok and result.structure is None
     titles = [t.title for t in result.report.tables]
     assert "Nets the nearest precedents formed" in titles
-    read = result.report.tables[0]
-    assert "ionic liquid" in read.rows[2].value
+    read = {r.label: r for r in result.report.tables[0].rows}
+    assert "ionic liquid" in read["Solvents"].value
     assert "fcu" in result.message
 
 

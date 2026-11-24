@@ -774,6 +774,28 @@ builds the top n of what the vote names (`synthesis.build`)
 - **Dimensionality**: CoRE MOF's `structure_dimension` is in the SI
   table only (1372 structures); the vote could say 2D or 3D for
   those.
+- **How nodes are weighted**: MOFGen's four Zn4O-on-`pcu` syntheses
+  (`docs/FROM_A_SYNTHESIS.md`, *From outside the table*) all put the
+  single Zn node first and Zn4 third at best, because most Zn
+  precedents have one Zn per node and the node vote is by metals
+  alone. Weighting a node by how near its precedent's linker is (not
+  its whole similarity), or voting node and net together so a `pcu`
+  vote carries its six-connected node, are the two obvious tries.
+  `test_mofgens_syntheses_find_mof5s_cluster_first` is a strict xfail
+  until one works.
+- **SCScore beside the SA score**: Coley's SCScore (MIT) is the other
+  synthesizability score MOFGen uses, and reads a reaction history the
+  SA score does not. Its weights would have to be shipped; Allchemy,
+  the third, is commercial.
+- **Flag builds that are not porous**: MOFGen drops a framework
+  unless its pore-limiting diameter is over 2.5 A, its accessible
+  volume fraction over 30 % and its accessible volume larger than its
+  non-accessible. `xtal/analysis/voids.py` already splits channels
+  from pockets at a probe radius, and a channel at 1.25 A is the PLD
+  test, so Zeo++ is not needed. The three checks would be a column of
+  the tried frameworks and break ties among clean builds when the top
+  n are chosen; a dense or interpenetrated one still shows, with the
+  reason. Costs a grid on every clean build, so measure that first.
 
 ### Polymers after the packing builder
 

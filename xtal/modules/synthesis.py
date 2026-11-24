@@ -308,6 +308,7 @@ def report(answer: precedent.Forecast) -> Report:
             ", ".join(salt.anions) if salt.anions
             else "no counter-ion read"),
         Row("Linkers", "; ".join(s for s, _ in query.linkers)),
+        _accessibility(query),
         # The unread ones in the value, not the note: a note is a
         # tooltip, and a solvent silently dropped moves the vote.
         Row("Solvents", (", ".join(precedent.solvent_name(c)
@@ -360,6 +361,16 @@ def report(answer: precedent.Forecast) -> Report:
         note=f"{novelty.sentence()}  Closest precedent "
              f"{novelty.closest:.3f} of {novelty.precedents} in "
              f"{answer.source}." + (f"  {warning}" if warning else ""))
+
+
+def _accessibility(query: precedent.Query) -> Row:
+    scores = [precedent.synthetic_accessibility(s)
+              for s, _ in query.linkers]
+    value = "not available" if None in scores \
+        else "; ".join(f"{x:.1f}" for x in scores)
+    return Row("Synthetic accessibility", value, "",
+               "Ertl's SA score of each linker, 1 easy to 10 hard; it "
+               "describes the linker and is not the vote")
 
 
 def _conditions(p: precedent.Precedent) -> str:

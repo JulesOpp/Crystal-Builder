@@ -179,6 +179,30 @@ is what a person reads. Generous, because a paper's series of related
 structures stays in the table when one of them is held out (no DOI to
 hold out a paper by). 146 is a small sample.
 
+**From outside the table**: MOFGen (Jaffrelot Inizan et al., *Nat.
+Comput. Sci.* 6, 1223, 2026) reports four Zn MOFs with full conditions,
+all Zn4O on `pcu`, none with a linker the table has. Jules ran them
+against this, with Zn(NO3)2 as the salt:
+
+| Synthesis | `pcu` | Top node | `Zn4` |
+|---|---|---|---|
+| AI-MOF-1: muconic acid, DEF, 100 C | 2nd (21 %) | Zn 63 % | not in the top six |
+| AI-MOF-2: perylene-3,9-dicarboxylic acid, DEF, 120 C | 1st (20 %) | Zn 78 % | 3rd |
+| AI-MOF-3: 2,3-dimethylfumaric acid, DEF, 100 C | 6th (10 %) | Zn 92 % | not in the top six |
+| AI-MOF-4: the same, DMF, 120 C | 1st (29 %) | Zn 73 % | 3rd |
+
+The net holds up; the node does not. Zn4O never comes first, so the
+build tries single-Zn nodes before MOF-5's cluster. The refcode-family
+hold-out could not show this: its syntheses are mostly ones whose
+linker the table has seen. See *How nodes are weighted* in
+`docs/TODO.md`.
+
+**Synthetic accessibility**: *What was read* gives Ertl's SA score of
+each linker (RDKit's `Contrib/SA_Score`, offline), 1 easy to 10 hard --
+BDC 1.3, muconic acid 2.6. It describes the linker and never enters
+the vote: it measures how unusual the molecule's fragments are in
+PubChem, not what the molecule forms with a metal.
+
 ## Testing
 
 `tests/test_synthesis.py`, headless:
@@ -206,7 +230,11 @@ hold out a paper by). 146 is a small sample.
   linker against stale bits and every answer would quietly drift.
 - **Known syntheses** come out first (UiO-66, HKUST-1), and a slow
   test re-measures the held-out accuracy against the number `BASIS`
-  quotes.
+  quotes. MOFGen's four keep `pcu` no lower than it came on
+  2026-11-23, and that Zn4O comes first is a strict xfail: a change
+  that fixes the node vote fails it until the marker goes.
+- **The SA score**: one per linker, BDC easier than muconic acid, and
+  "not available", never a number, when RDKit has no `Contrib`.
 - **The module and the CLI**: registered, greys out without RDKit,
   returns a report and no structure, each bad query a failed run by
   name, and `xtal run synthesis.forecast` end to end in a subprocess.

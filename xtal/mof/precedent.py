@@ -384,6 +384,45 @@ def linker_key(text: str) -> tuple[str, frozenset]:
     return canonical, bits
 
 
+@lru_cache(maxsize=1)
+def _sascorer():
+    """RDKit's copy of Ertl and Schuffenhauer's SA score, or ``None``.
+
+    It ships in RDKit's ``Contrib`` folder, which is not a package, so
+    it is loaded from its file rather than put on ``sys.path`` -- a
+    folder there is searched by every later import.  Some builds of
+    RDKit leave ``Contrib`` out, and then the row says so.
+    """
+    import importlib.util
+    import os
+
+    from rdkit.Chem import RDConfig
+
+    path = os.path.join(RDConfig.RDContribDir, "SA_Score", "sascorer.py")
+    if not os.path.exists(path):
+        return None
+    spec = importlib.util.spec_from_file_location("sascorer", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def synthetic_accessibility(smiles: str) -> float | None:
+    """Ertl's SA score of one linker, 1 (easy) to 10 (hard).
+
+    A description of the linker beside the vote, never an input to
+    it: a score from fragment frequencies in PubChem says how unusual
+    the molecule is to make, not what it forms with a metal.
+    """
+    from rdkit import Chem
+
+    scorer = _sascorer()
+    molecule = Chem.MolFromSmiles(smiles)
+    if scorer is None or molecule is None:
+        return None
+    return float(scorer.calculateScore(molecule))
+
+
 @dataclass(frozen=True)
 class Query:
     """A synthesis, read: everything the vote compares."""
