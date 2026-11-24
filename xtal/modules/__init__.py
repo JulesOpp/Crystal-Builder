@@ -42,6 +42,7 @@ from xtal.modules import (
     polymer,
     pxrd,
     scan,
+    synthesis,
     zeopp,
 )
 from xtal.modules.job import Cancellation, Cancelled, Job, JobResult
@@ -73,6 +74,7 @@ graphene.register()
 net.register()
 orca.register()
 polymer.register()
+synthesis.register()
 pxrd.register()
 scan.register()
 blender.register()

@@ -73,6 +73,12 @@ class ParamForm(QWidget):
     def __init__(self, params, parent=None, notes: bool = False):
         super().__init__(parent)
         self.params = tuple(params)
+        boxes = {p.name for p in self.params if p.kind == "bool"}
+        for param in self.params:
+            if param.when and param.when not in boxes:
+                raise ValueError(
+                    f"{param.name} waits on {param.when!r}, which is "
+                    f"not a checkbox in this form")
         self.widgets: dict = {}
         #: With ``notes``, a label to the right of each row for what a
         #: run made of it -- a refinement writes the refined number
@@ -109,6 +115,17 @@ class ParamForm(QWidget):
                     row.addWidget(widget)
                     row.addWidget(note, 1)
                     layout.addRow(label, row)
+        self.changed.connect(self._enable)
+        self._enable()
+
+    def _enable(self) -> None:
+        """Grey each field whose checkbox is unticked.  Greyed, not
+        hidden: the form keeps its shape, and the value is kept for
+        when the box is ticked again."""
+        for param in self.params:
+            if param.when:
+                ticked = self.widgets[param.when].isChecked()
+                self.widgets[param.name].setEnabled(ticked)
 
     def set_note(self, name: str, text: str) -> None:
         """What a run made of this row, to its right; ``""`` clears."""

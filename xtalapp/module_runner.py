@@ -507,7 +507,15 @@ class ModuleRunner(QObject):
         their bonds -- and the run that made it underneath.
         """
         entry, path = self._file_build(worker, result)
-        document = Document(result.structure, path=path)
+        # The rest first and the first last, so the tab in front is
+        # the best-ranked one and the message names it.  Each is an
+        # entry of its own; the run moved under the first.
+        for extra in reversed(getattr(result, "more", ())):
+            self._open_built(extra, *self._file_extra(extra))
+        self._open_built(result.structure, entry, path)
+
+    def _open_built(self, structure, entry, path) -> None:
+        document = Document(structure, path=path)
         if entry is None:
             self.window.add_document(document)
             self.window.show_message(
@@ -520,6 +528,19 @@ class ModuleRunner(QObject):
         self.window.file_dock.tree.select_path(entry.path)
         self.window.show_message(
             f"{document.title} opened in a new tab, in {entry.name}")
+
+    def _file_extra(self, structure):
+        """A further build of the same run: an entry, and no run."""
+        workspace = self.window.workspace
+        if workspace is None:
+            return None, None
+        try:
+            filed = workspace.adopt_build(structure)
+        except OSError as exc:
+            self.window.show_message(
+                f"could not write into the workspace: {exc}")
+            return None, None
+        return filed.entry, filed.path
 
     def _file_build(self, worker, result):
         """Give a structure built from nothing a folder to live in.

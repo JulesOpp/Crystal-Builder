@@ -660,6 +660,10 @@ def cmd_run(args) -> int:
         filed_path = filed.path
         if not args.json:
             print(f"filed as {filed.path}")
+        for extra in getattr(result, "more", ()):
+            also = workspace.adopt_build(extra)
+            if not args.json:
+                print(f"filed as {also.path}")
     if args.output and result.structure is not None:
         FORMATS.write(result.structure, args.output)
     if args.json:

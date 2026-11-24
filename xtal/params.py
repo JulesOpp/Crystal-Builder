@@ -80,6 +80,10 @@ class Param:
     #: as a link beside Browse -- a path nobody can fill without
     #: knowing where the file comes from.
     link: tuple = ()
+    #: The name of a ``bool`` parameter in the same form that has to be
+    #: ticked for this one to mean anything, so the form greys it out
+    #: otherwise: *Frameworks to open* with *Build* unticked.
+    when: str = ""
 
     def __post_init__(self):
         if self.kind not in KINDS:
